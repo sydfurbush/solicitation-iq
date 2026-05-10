@@ -471,6 +471,12 @@ export default function Dashboard() {
                 </Button>
               </CardHeader>
               <CardContent className="space-y-2">
+                {isFetching && stats.recent.length === 0 ? (
+                  <ListSkeleton rows={5} />
+                ) : (
+                  <></>
+                )}
+                {!isFetching &&
                 {stats.recent.map((s) => (
                   <Link
                     key={s.id}
