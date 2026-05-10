@@ -123,12 +123,10 @@ export function useSolicitation(id: string | undefined) {
 
 function toInsert(input: Partial<SolicitationFullInput>) {
   const { tags, notes, ...rest } = input;
-  const metadata = notes ? { notes } : undefined;
-  return {
-    ...rest,
-    tags: tags && tags.length ? tags : undefined,
-    metadata,
-  };
+  const payload: Record<string, unknown> = { ...rest };
+  if (tags !== undefined) payload.tags = tags.length ? tags : [];
+  if (notes !== undefined) payload.metadata = notes ? { notes } : {};
+  return payload;
 }
 
 export function useCreateSolicitation() {
@@ -150,6 +148,10 @@ export function useCreateSolicitation() {
   });
 }
 
+export type SolicitationUpdateInput = Partial<SolicitationFullInput> & {
+  ai_summary?: string | null;
+};
+
 export function useUpdateSolicitation() {
   const qc = useQueryClient();
   return useMutation({
@@ -158,9 +160,11 @@ export function useUpdateSolicitation() {
       input,
     }: {
       id: string;
-      input: Partial<SolicitationFullInput>;
+      input: SolicitationUpdateInput;
     }) => {
-      const payload = toInsert(input);
+      const { ai_summary, ...rest } = input;
+      const payload = toInsert(rest) as Record<string, unknown>;
+      if (ai_summary !== undefined) payload.ai_summary = ai_summary;
       const { data, error } = await supabase
         .from("solicitations")
         .update(payload)
@@ -173,6 +177,7 @@ export function useUpdateSolicitation() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["solicitations"] });
       qc.invalidateQueries({ queryKey: ["solicitation", data.id] });
+      qc.invalidateQueries({ queryKey: ["client-solicitations"] });
     },
   });
 }
