@@ -63,6 +63,8 @@ import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") ?? "overview";
   const { data: s, isLoading } = useSolicitation(solicitationId);
   const updateStatus = useUpdateSolicitationStatus();
   const deleteMut = useDeleteSolicitation();
