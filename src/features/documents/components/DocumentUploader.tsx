@@ -89,15 +89,16 @@ export function DocumentUploader({ solicitationId, compact }: Props) {
     setItems((prev) =>
       prev.map((i) => (i.id === item.id ? { ...i, status: "uploading", progress: 5, error: undefined } : i))
     );
+    addGlobal({ id: item.id, name: item.file.name, status: "uploading", progress: 5 });
     try {
-      // Simulate progress for UX (Supabase upload doesn't expose progress events natively)
       const progInt = setInterval(() => {
         setItems((prev) =>
-          prev.map((i) =>
-            i.id === item.id && i.status === "uploading" && i.progress < 85
-              ? { ...i, progress: i.progress + 10 }
-              : i
-          )
+          prev.map((i) => {
+            if (i.id !== item.id || i.status !== "uploading" || i.progress >= 85) return i;
+            const next = i.progress + 10;
+            updateGlobal(item.id, { progress: next });
+            return { ...i, progress: next };
+          })
         );
       }, 300);
 
@@ -112,14 +113,15 @@ export function DocumentUploader({ solicitationId, compact }: Props) {
       setItems((prev) =>
         prev.map((i) => (i.id === item.id ? { ...i, status: "complete", progress: 100 } : i))
       );
+      updateGlobal(item.id, { status: "complete", progress: 100 });
     } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
       setItems((prev) =>
         prev.map((i) =>
-          i.id === item.id
-            ? { ...i, status: "failed", progress: 0, error: e instanceof Error ? e.message : String(e) }
-            : i
+          i.id === item.id ? { ...i, status: "failed", progress: 0, error: message } : i
         )
       );
+      updateGlobal(item.id, { status: "failed", error: message });
       toast({ title: "Upload failed", description: item.file.name, variant: "destructive" });
     }
   };
