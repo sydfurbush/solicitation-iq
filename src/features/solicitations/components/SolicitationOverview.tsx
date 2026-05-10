@@ -78,6 +78,10 @@ export function SolicitationOverview({
               <span className="text-muted-foreground">Agency type</span>
               <span className="font-medium">{s.agency_type ?? "—"}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Set-aside</span>
+              <span className="font-medium">{s.set_aside ?? "—"}</span>
+            </div>
           </CardContent>
         </Card>
 
