@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import {
   AGENCY_TYPES,
   CONTRACT_TYPES,
+  SET_ASIDE_TYPES,
   solicitationFullSchema,
   type SolicitationFullInput,
 } from "@/lib/validators/solicitation";
