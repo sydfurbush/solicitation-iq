@@ -10,9 +10,14 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthContext } from "@/features/auth/components/AuthProvider";
+import { useUser } from "@/features/auth/hooks/useUser";
 import { MetaTags } from "@/components/shared/MetaTags";
+import { AIModelsTab } from "@/features/settings/components/AIModelsTab";
 
 export default function Settings() {
+  const { role } = useUser();
+  const isAdmin = role === "owner" || role === "admin";
+
   return (
     <div className="space-y-6 max-w-4xl">
       <MetaTags title="Settings" description="Workspace, organization, and account preferences." />
@@ -26,6 +31,7 @@ export default function Settings() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="organization">Organization</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          {isAdmin && <TabsTrigger value="ai-models">AI Models</TabsTrigger>}
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
         </TabsList>
@@ -33,6 +39,7 @@ export default function Settings() {
         <TabsContent value="profile" className="mt-6"><ProfileTab /></TabsContent>
         <TabsContent value="organization" className="mt-6"><OrganizationTab /></TabsContent>
         <TabsContent value="notifications" className="mt-6"><NotificationsTab /></TabsContent>
+        {isAdmin && <TabsContent value="ai-models" className="mt-6"><AIModelsTab /></TabsContent>}
         <TabsContent value="integrations" className="mt-6"><PlaceholderTab title="Integrations" body="API keys and webhook management is coming soon." /></TabsContent>
         <TabsContent value="billing" className="mt-6"><PlaceholderTab title="Billing" body="Subscription and billing details will appear here." /></TabsContent>
       </Tabs>
