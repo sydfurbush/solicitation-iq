@@ -54,6 +54,7 @@ export const solicitationBasicSchema = z.object({
   issuing_agency: optStr,
   agency_type: z.enum(AGENCY_TYPES).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
   contract_type: z.enum(CONTRACT_TYPES).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+  set_aside: z.enum(SET_ASIDE_TYPES).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
 });
 
 export const solicitationDatesSchema = z
