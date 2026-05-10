@@ -161,14 +161,25 @@ Deno.serve(async (req) => {
       };
     });
 
+    if (rows.length === 0) {
+      console.warn(`[generate-questions] AI returned 0 questions for sol=${solicitationId}; preserving existing questions`);
+      return new Response(JSON.stringify({
+        error: "AI returned no questions. Try again, or narrow focus areas/documents to reduce input size.",
+      }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (rows.length < 8) {
       console.warn(`[generate-questions] only ${rows.length} questions generated for sol=${solicitationId}`);
     }
 
-    if (rows.length) {
-      const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
-      if (insErr) throw insErr;
+    if (regenerate) {
+      await supabase.from("strategic_questions").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
     }
+
+    const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
+    if (insErr) throw insErr;
 
     return new Response(JSON.stringify({ success: true, count: rows.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
