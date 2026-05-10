@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useClient, useUpdateClient } from "@/features/clients/hooks/useClients";
 import { CreateClientDialog } from "@/features/clients/components/CreateClientDialog";
+import { ClientUsersManagement } from "@/features/clients/components/ClientUsersManagement";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
