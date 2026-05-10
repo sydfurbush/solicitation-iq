@@ -167,7 +167,7 @@ export function useUpdateSolicitation() {
       if (ai_summary !== undefined) payload.ai_summary = ai_summary;
       const { data, error } = await supabase
         .from("solicitations")
-        .update(payload)
+        .update(payload as Database["public"]["Tables"]["solicitations"]["Update"])
         .eq("id", id)
         .select()
         .single();
