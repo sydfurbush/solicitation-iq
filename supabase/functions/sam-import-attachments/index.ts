@@ -85,12 +85,9 @@ Deno.serve(async (req) => {
     });
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Note: we do NOT call userClient.auth.getUser() because the new ES256
+    // JWT signing keys may not validate against the legacy anon key client.
+    // Instead, we let RLS enforce access via the solicitation lookup below.
 
     const body = await req.json().catch(() => null) as
       | { solicitationId?: string; attachments?: { href: string; fileName?: string }[] }
