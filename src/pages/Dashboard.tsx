@@ -33,11 +33,12 @@ import { useClients } from "@/features/clients/hooks/useClients";
 
 const STATUS_LABELS: Record<string, string> = {
   intake: "Intake",
-  analyzing: "Analyzing",
-  in_review: "In Review",
-  questions_drafted: "Questions Drafted",
-  reporting: "Reporting",
-  delivered: "Delivered",
+  processing: "Processing",
+  phase_1_complete: "Phase 1 Complete",
+  phase_2_active: "Phase 2 Active",
+  phase_3_active: "Phase 3 Active",
+  phase_4_active: "Phase 4 Active",
+  complete: "Complete",
   archived: "Archived",
 };
 
