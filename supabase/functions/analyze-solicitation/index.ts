@@ -103,7 +103,37 @@ const ANALYSIS_SCHEMA = {
   },
 };
 
-function buildUserPrompt(documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>) {
+function buildKnownFactsBlock(sol: Record<string, any> | null): string {
+  if (!sol) return "";
+  const lines: string[] = [];
+  const add = (label: string, val: unknown) => {
+    if (val === null || val === undefined || val === "") return;
+    lines.push(`- ${label}: ${val}`);
+  };
+  add("Set-Aside", sol.set_aside);
+  add("Solicitation #", sol.solicitation_number);
+  add("Issuing Agency", sol.issuing_agency);
+  add("Agency Type", sol.agency_type);
+  add("Contract Type", sol.contract_type);
+  add("Incumbent", sol.incumbent_name);
+  add("Incumbent Contract #", sol.incumbent_contract_number);
+  add("Release Date", sol.release_date);
+  add("Questions Due", sol.questions_due_date);
+  add("Proposal Due", sol.proposal_due_date);
+  add("Period of Performance Start", sol.period_of_performance_start);
+  add("Period of Performance End", sol.period_of_performance_end);
+  if (sol.estimated_value_low || sol.estimated_value_high) {
+    add("Estimated Value", `${sol.estimated_value_low ?? "?"} - ${sol.estimated_value_high ?? "?"}`);
+  }
+  add("Client", sol.client?.name);
+  if (!lines.length) return "";
+  return `=== KNOWN FACTS (authoritative — do not contradict) ===\n${lines.join("\n")}\n\n`;
+}
+
+function buildUserPrompt(
+  knownFacts: string,
+  documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>,
+) {
   const docBlocks = documents.map((d) => {
     const sectionText = d.sections
       .map(
@@ -116,7 +146,33 @@ function buildUserPrompt(documents: Array<{ name: string; sections: Array<{ sect
       : "";
     return `=== DOCUMENT: ${d.name} ===\n${sectionText}${entityText}`;
   });
-  return `Analyze the following solicitation documents and produce the JSON analysis.\n\n${docBlocks.join("\n\n")}`;
+  return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\n${docBlocks.join("\n\n")}`;
+}
+
+const SET_ASIDE_TERMS: Record<string, RegExp> = {
+  "8(a)": /\b8\s*\(\s*a\s*\)/i,
+  "WOSB": /\bWOSB\b|women[-\s]?owned\s+small\s+business/i,
+  "EDWOSB": /\bEDWOSB\b/i,
+  "SDVOSB": /\bSDVOSB\b|service[-\s]?disabled\s+veteran/i,
+  "HUBZone": /\bHUB[-\s]?Zone\b/i,
+  "SDB": /\bSDB\b|small\s+disadvantaged\s+business/i,
+  "Total Small Business": /total\s+small\s+business/i,
+};
+
+function validateSummary(summary: string, sol: Record<string, any> | null) {
+  const warnings: Array<{ field: string; expected: string; found: string }> = [];
+  if (!summary || !sol) return warnings;
+  const expected = sol.set_aside as string | null;
+  if (expected) {
+    for (const [label, rx] of Object.entries(SET_ASIDE_TERMS)) {
+      if (label === expected) continue;
+      // Skip if expected is a parent term — e.g. expected WOSB shouldn't flag EDWOSB
+      if (rx.test(summary)) {
+        warnings.push({ field: "set_aside", expected, found: label });
+      }
+    }
+  }
+  return warnings;
 }
 
 Deno.serve(async (req) => {
