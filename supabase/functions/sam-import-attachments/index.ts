@@ -206,9 +206,11 @@ Deno.serve(async (req) => {
           // Fire-and-forget process
           admin.functions.invoke("process-document", { body: { documentId: docId } }).catch(() => {});
 
-          results.push({ href: att.href, ok: true, documentId: docId, fileName });
+          results.push({ href: att.href, ok: true, documentId: docId, fileName, status: httpStatus });
         } catch (e) {
-          results.push({ href: att.href, ok: false, error: e instanceof Error ? e.message : String(e) });
+          const msg = e instanceof Error ? e.message : String(e);
+          console.error("sam-attachment failed", { href: att.href, error: msg });
+          results.push({ href: att.href, ok: false, error: msg, status: httpStatus });
         }
       }
     }
