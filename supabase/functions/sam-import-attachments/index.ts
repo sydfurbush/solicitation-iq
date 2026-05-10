@@ -193,9 +193,10 @@ Deno.serve(async (req) => {
           const safe = sanitize(fileName);
           const path = `${orgId}/${clientId}/${solicitationId}/${docId}/${safe}`;
 
+          const uploadContentType = mimeFromExt(ext) ?? contentType;
           const { error: upErr } = await admin.storage
             .from(BUCKET)
-            .upload(path, buf, { cacheControl: "3600", upsert: false, contentType });
+            .upload(path, buf, { cacheControl: "3600", upsert: false, contentType: uploadContentType });
           if (upErr) throw upErr;
 
           const { error: insErr } = await admin.from("documents").insert({
@@ -204,7 +205,7 @@ Deno.serve(async (req) => {
             file_name: fileName,
             file_path: path,
             file_size: buf.byteLength,
-            file_type: contentType,
+            file_type: uploadContentType,
             document_type: classify(fileName),
             status: "uploading",
             version: 1,
