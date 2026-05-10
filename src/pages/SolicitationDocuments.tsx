@@ -202,7 +202,6 @@ function ReplaceUploader({
 }
 
 import { useUser } from "@/features/auth/hooks/useUser";
-import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useUploadDocument } from "@/features/documents/hooks/useDocuments";
 import { Progress } from "@/components/ui/progress";
 import { validateFile } from "@/features/documents/utils/fileHelpers";
