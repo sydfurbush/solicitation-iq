@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Briefcase,
+  FilterX,
   CalendarClock,
   FileText,
   Lightbulb,
@@ -315,14 +316,33 @@ export default function Dashboard() {
       {stats.total === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center gap-3 p-12 text-center">
-            <Briefcase className="h-10 w-10 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">No solicitations yet</h3>
-            <p className="text-sm text-muted-foreground">
-              Create your first solicitation to start tracking analysis, risks, and opportunities.
-            </p>
-            <Button asChild className="mt-2">
-              <Link to="/solicitations/new">Create Solicitation</Link>
-            </Button>
+            {stats.isFiltered ? (
+              <>
+                <FilterX className="h-10 w-10 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">No solicitations match these filters</h3>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  Try changing or clearing the client and status filters to see more results.
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => setSearchParams({}, { replace: true })}
+                >
+                  Clear filters
+                </Button>
+              </>
+            ) : (
+              <>
+                <Briefcase className="h-10 w-10 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">No solicitations yet</h3>
+                <p className="text-sm text-muted-foreground">
+                  Create your first solicitation to start tracking analysis, risks, and opportunities.
+                </p>
+                <Button asChild className="mt-2">
+                  <Link to="/solicitations/new">Create Solicitation</Link>
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -448,7 +468,14 @@ export default function Dashboard() {
                   </Link>
                 ))}
                 {stats.recent.length === 0 && (
-                  <p className="py-6 text-center text-sm text-muted-foreground">No solicitations yet.</p>
+                  <div className="flex flex-col items-center gap-2 py-8 text-center">
+                    <ListChecks className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {stats.isFiltered
+                        ? "No solicitations match these filters."
+                        : "No solicitations yet."}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -488,9 +515,14 @@ export default function Dashboard() {
                   );
                 })}
                 {stats.upcoming.length === 0 && (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    No upcoming deadlines.
-                  </p>
+                  <div className="flex flex-col items-center gap-2 py-8 text-center">
+                    <CalendarClock className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {stats.isFiltered
+                        ? "No upcoming deadlines for these filters."
+                        : "No upcoming deadlines."}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
