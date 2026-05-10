@@ -94,7 +94,7 @@ function MetricCard({
 }
 
 export default function Dashboard() {
-  const { data: solicitations, isLoading } = useSolicitations();
+  const { data: solicitations, isLoading, isFetching } = useSolicitations();
   const { data: clients } = useClients();
   const [searchParams, setSearchParams] = useSearchParams();
 
