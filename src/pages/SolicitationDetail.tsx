@@ -137,6 +137,8 @@ export default function SolicitationDetail() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <TeamPresence solicitationId={s.id} />
+          <AnnotationsSidebar solicitationId={s.id} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
