@@ -1,31 +1,23 @@
-## Root cause
+## Problem
 
-All 11 documents are actually in `failed` status in the database with the same error: **`Buffer is not defined`**. The mixed badges in the UI ("Uploading", "Analyzing…", "Failed") are stale/cached states from before the rows hit the failed terminal state — the underlying problem is one bug in the `process-document` edge function.
+On the Solicitation Overview page, the **Key requirements** card renders each requirement as `r.title ?? JSON.stringify(r)`. The actual analysis schema (`AnalysisRequirement`) has no `title` field — it uses `text`, `priority`, `category`, `id`, `source`, `compliance_status`. So users see ugly raw JSON dumps for every row.
 
-`supabase/functions/process-document/index.ts` calls `Buffer.from(fileBytes)` (lines 37, 40, 48) but never imports `Buffer`. Deno's edge runtime does not expose `Buffer` as a global, so every PDF/DOCX extraction crashes immediately.
+The Evaluation factors card next to it has the same risk (uses `f.name`, which does exist, so it mostly works, but no description/weight formatting consistency).
 
-## Fix
+## Fix (UI only, in `src/features/solicitations/components/SolicitationOverview.tsx`)
 
-**1. Import `Buffer` in `process-document/index.ts`**
+Update the **Key requirements** list (lines ~681–700) to render the real shape:
 
-Add at the top of the file:
-```ts
-import { Buffer } from "node:buffer";
-```
-That's the only code change needed — the rest of the extraction logic is correct (`pdf-parse` and `mammoth` both expect a Node `Buffer`, which `node:buffer` provides under Deno).
+- Use `r.text` as the main line (fallback to `r.title` for legacy rows, then `Requirement {i+1}`).
+- Show a small priority `Badge` (critical/high/medium/low) using the same color mapping as `KeyRequirementsCard` (destructive / amber / primary / muted).
+- Show a tiny capitalized category chip when present.
+- Optional source citation as muted footnote (`source.section` / `source.page`) when available.
+- Cap the visible list at the first 5 items with a "+N more" muted line linking to the Analysis tab (route already exists at `/solicitations/:id/analysis`), so the overview stays compact.
+- Keep the empty state copy unchanged.
 
-**2. Re-process the 11 failed documents**
+No data-model, hook, or backend changes. No edits to `KeyRequirementsCard` (full view stays as-is on the Analysis tab).
 
-After the function redeploys, reset and re-trigger them with a one-shot SQL + invocation. Two options:
+## Out of scope
 
-- **Option A (recommended):** Run a SQL update to flip them back to `uploading`, then call `process-document` for each id from the UI's existing "Retry" button on each failed card. The user already has that button.
-- **Option B:** Add a small "Retry all failed" button to the Documents toolbar that loops through `docs.filter(d => d.status === 'failed')` and calls `invokeProcessDocument` for each (mirrors the existing `onBulkReprocess` pattern, just pre-filtered to failed). This is a convenience addition — not required for the fix.
-
-## Suggested approach
-
-Do step 1 only first (single-line import change + redeploy), then click "Retry" on the failed cards (or use the existing bulk select → reprocess) to push them through. If you'd like, I can also add the "Retry all failed" button in the same change.
-
-## Files touched
-
-- `supabase/functions/process-document/index.ts` — add `import { Buffer } from "node:buffer";`
-- *(optional)* `src/pages/SolicitationDocuments.tsx` — add "Retry all failed" button
+- Evaluation factors card (renders fine today; can revisit if you want matching styling).
+- Inline editing of requirements from the overview.
