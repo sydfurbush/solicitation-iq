@@ -93,8 +93,30 @@ function MetricCard({
   );
 }
 
+function ListRowSkeleton() {
+  return (
+    <div className="flex items-center justify-between rounded-md border bg-card p-3">
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-3 w-1/2" />
+      </div>
+      <Skeleton className="ml-3 h-5 w-16 shrink-0" />
+    </div>
+  );
+}
+
+function ListSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <ListRowSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
+
 export default function Dashboard() {
-  const { data: solicitations, isLoading } = useSolicitations();
+  const { data: solicitations, isLoading, isFetching } = useSolicitations();
   const { data: clients } = useClients();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -449,6 +471,10 @@ export default function Dashboard() {
                 </Button>
               </CardHeader>
               <CardContent className="space-y-2">
+                {isFetching && stats.recent.length === 0 ? (
+                  <ListSkeleton rows={5} />
+                ) : (
+                  <>
                 {stats.recent.map((s) => (
                   <Link
                     key={s.id}
@@ -477,6 +503,8 @@ export default function Dashboard() {
                     </p>
                   </div>
                 )}
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -490,6 +518,10 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
+                {isFetching && stats.upcoming.length === 0 ? (
+                  <ListSkeleton rows={5} />
+                ) : (
+                  <>
                 {stats.upcoming.slice(0, 6).map((s) => {
                   const due = new Date(s.proposal_due_date!);
                   const soon = isBefore(due, addDays(new Date(), 14));
@@ -523,6 +555,8 @@ export default function Dashboard() {
                         : "No upcoming deadlines."}
                     </p>
                   </div>
+                )}
+                  </>
                 )}
               </CardContent>
             </Card>
