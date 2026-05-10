@@ -60,6 +60,7 @@ export function useSolicitations(filters: SolicitationFilters = {}) {
            opportunities(id)`
         )
         .is("deleted_at", null)
+        .is("documents.deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       const rows: SolicitationWithClient[] = (data ?? []).map((row) => {
@@ -100,6 +101,7 @@ export function useSolicitation(id: string | undefined) {
         )
         .eq("id", id!)
         .is("deleted_at", null)
+        .is("documents.deleted_at", null)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
