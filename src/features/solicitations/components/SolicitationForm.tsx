@@ -338,6 +338,24 @@ export function SolicitationForm({
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="sam_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SAM.gov URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="https://sam.gov/opp/.../view"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
             </TabsContent>
 
