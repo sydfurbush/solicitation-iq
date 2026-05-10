@@ -168,6 +168,32 @@ export function CreateSolicitationDialog({
                 setDirty(false);
                 setOpen(false);
                 onCreated?.(created.id);
+
+                if (attachments.length > 0) {
+                  toast({
+                    title: `Importing ${attachments.length} attachment${attachments.length > 1 ? "s" : ""} from SAM.gov…`,
+                  });
+                  supabase.functions
+                    .invoke("sam-import-attachments", {
+                      body: { solicitationId: created.id, attachments },
+                    })
+                    .then(({ data, error }) => {
+                      if (error) throw error;
+                      const r = data as { imported?: number; total?: number; failed?: { error?: string }[] };
+                      const failed = r?.failed?.length ?? 0;
+                      toast({
+                        title: `Imported ${r?.imported ?? 0} of ${r?.total ?? attachments.length} attachment(s)`,
+                        description: failed ? `${failed} failed — check the Documents tab.` : undefined,
+                      });
+                    })
+                    .catch((e) => {
+                      toast({
+                        title: "Attachment import failed",
+                        description: e instanceof Error ? e.message : String(e),
+                        variant: "destructive",
+                      });
+                    });
+                }
               } catch (e) {
                 toast({
                   title: "Could not create",
