@@ -97,10 +97,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // SAM.gov requires a postedFrom/postedTo window. Use a wide window (last 5 years).
+    // SAM.gov caps postedFrom/postedTo to a 1-year window. Use ~364 days.
     const today = new Date();
-    const past = new Date();
-    past.setFullYear(today.getFullYear() - 5);
+    const past = new Date(today.getTime() - 364 * 24 * 60 * 60 * 1000);
     const fmt = (d: Date) =>
       `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
 
