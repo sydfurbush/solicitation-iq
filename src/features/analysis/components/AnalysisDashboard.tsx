@@ -55,6 +55,20 @@ export function AnalysisDashboard({ solicitationId, insights, onRerun, isRerunni
         </div>
       </div>
 
+      {(insights.metadata?.validation_warnings?.length ?? 0) > 0 && (
+        <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle>Possible inconsistency with known fields</AlertTitle>
+          <AlertDescription>
+            The AI summary mentioned terms that conflict with structured solicitation data:{" "}
+            {insights.metadata!.validation_warnings!
+              .map((w) => `${w.field} expected "${w.expected}", found "${w.found}"`)
+              .join("; ")}
+            . Review and edit the summary if needed.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <ExecutiveSummaryCard solicitationId={solicitationId} summary={insights.ai_summary} />
         <KeyRequirementsCard solicitationId={solicitationId} requirements={insights.key_requirements} />
