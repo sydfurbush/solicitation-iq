@@ -12,6 +12,7 @@ import {
   Pencil,
   Share2,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
