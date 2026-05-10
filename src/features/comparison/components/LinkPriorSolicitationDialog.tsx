@@ -9,8 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { useSolicitations } from "@/features/solicitations/hooks/useSolicitations";
-import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
+import { useSolicitations, useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useLinkPriorSolicitation } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
 
