@@ -43,6 +43,7 @@ import SolicitationQuestions from "./SolicitationQuestions";
 import SolicitationRisksOpportunities from "./SolicitationRisksOpportunities";
 import SolicitationActivity from "./SolicitationActivity";
 import SolicitationComparison from "./SolicitationComparison";
+import SolicitationReports from "./SolicitationReports";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
 import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
 
@@ -259,11 +260,7 @@ export default function SolicitationDetail() {
         </TabsContent>
 
         <TabsContent value="reports" className="mt-6">
-          <Card>
-            <CardContent className="py-12 text-center text-sm text-muted-foreground">
-              Reports tab is coming soon.
-            </CardContent>
-          </Card>
+          <SolicitationReports solicitationId={s.id} />
         </TabsContent>
       </Tabs>
     </div>
