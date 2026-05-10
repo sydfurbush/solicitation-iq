@@ -17,6 +17,7 @@ import {
   type DocumentType,
 } from "../utils/fileHelpers";
 import { DocumentTypeSelector } from "./DocumentTypeSelector";
+import { useUploadStore } from "./UploadProgress";
 import { toast } from "@/hooks/use-toast";
 
 type Status = "queued" | "uploading" | "processing" | "complete" | "failed" | "cancelled";
