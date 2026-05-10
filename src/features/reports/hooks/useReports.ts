@@ -15,19 +15,10 @@ export function useReports(solicitationId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("executive_reports")
-        .select("*, generated_by_user:users!executive_reports_generated_by_fkey(id, full_name, avatar_url)")
+        .select("*")
         .eq("solicitation_id", solicitationId!)
         .order("created_at", { ascending: false });
-      if (error) {
-        // Fallback without join if FK alias not present
-        const { data: data2, error: error2 } = await supabase
-          .from("executive_reports")
-          .select("*")
-          .eq("solicitation_id", solicitationId!)
-          .order("created_at", { ascending: false });
-        if (error2) throw error2;
-        return (data2 ?? []) as ReportRow[];
-      }
+      if (error) throw error;
       return (data ?? []) as ReportRow[];
     },
   });
