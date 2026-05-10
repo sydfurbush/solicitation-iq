@@ -40,6 +40,7 @@ import { toast } from "@/hooks/use-toast";
 import SolicitationDocuments from "./SolicitationDocuments";
 import SolicitationAnalysis from "./SolicitationAnalysis";
 import SolicitationQuestions from "./SolicitationQuestions";
+import SolicitationRisksOpportunities from "./SolicitationRisksOpportunities";
 
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
