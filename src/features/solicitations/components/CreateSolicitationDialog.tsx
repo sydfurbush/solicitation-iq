@@ -179,11 +179,15 @@ export function CreateSolicitationDialog({
                     })
                     .then(({ data, error }) => {
                       if (error) throw error;
-                      const r = data as { imported?: number; total?: number; failed?: { error?: string }[] };
-                      const failed = r?.failed?.length ?? 0;
+                      const r = data as { imported?: number; total?: number; failed?: { error?: string; status?: number }[] };
+                      const failedItems = r?.failed ?? [];
+                      const firstErr = failedItems[0]?.error;
                       toast({
                         title: `Imported ${r?.imported ?? 0} of ${r?.total ?? attachments.length} attachment(s)`,
-                        description: failed ? `${failed} failed — check the Documents tab.` : undefined,
+                        description: failedItems.length
+                          ? `${failedItems.length} failed${firstErr ? ` — ${firstErr.slice(0, 200)}` : ""}`
+                          : undefined,
+                        variant: failedItems.length && !r?.imported ? "destructive" : undefined,
                       });
                     })
                     .catch((e) => {
