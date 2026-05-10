@@ -313,6 +313,28 @@ export function SolicitationForm({
                   )}
                 />
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="set_aside"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contract set-aside</FormLabel>
+                      <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || undefined)}>
+                        <FormControl>
+                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {SET_ASIDE_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </TabsContent>
 
             <TabsContent value="dates" className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
