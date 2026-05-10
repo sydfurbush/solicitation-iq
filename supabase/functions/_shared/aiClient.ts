@@ -13,7 +13,7 @@ export interface ModelChoice {
 export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "analyze-solicitation": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "identify-risks-opportunities": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
-  "generate-questions": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
+  "generate-questions": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
   "generate-report": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
   "compare-solicitations": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "extract-entities": { provider: "anthropic", model: "claude-haiku-4-5", maxTokens: 4096 },
@@ -120,6 +120,7 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Rec
   }
 
   const json = await res.json();
+  console.log(`[aiClient] anthropic stop_reason=${json.stop_reason} model=${choice.model}`);
   const toolUse = (json.content ?? []).find((c: { type: string }) => c.type === "tool_use");
   if (!toolUse?.input) throw new Error("AI did not return structured tool_use output");
   return toolUse.input as Record<string, unknown>;
