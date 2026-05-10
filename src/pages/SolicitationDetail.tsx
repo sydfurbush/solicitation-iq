@@ -278,7 +278,7 @@ export default function SolicitationDetail() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview">
+      <Tabs value={tab} onValueChange={(v) => setSearchParams({ tab: v })}>
         <TabsList className="flex flex-wrap h-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
