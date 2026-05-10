@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { useDeleteSolicitation, useSolicitation, useUpdateSolicitationStatus } from "@/features/solicitations/hooks/useSolicitations";
 import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
 import { SolicitationOverview } from "@/features/solicitations/components/SolicitationOverview";
+import { EditSolicitationDialog } from "@/features/solicitations/components/EditSolicitationDialog";
 import {
   STATUS_CLASSES,
   STATUS_LABELS,
@@ -187,9 +188,14 @@ export default function SolicitationDetail() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="sm">
-            <Pencil className="mr-2 h-4 w-4" /> Edit
-          </Button>
+          <EditSolicitationDialog
+            solicitation={s}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </Button>
+            }
+          />
           <Button variant="outline" size="sm" onClick={() => handleStatusChange("archived")}>
             <Archive className="mr-2 h-4 w-4" /> Archive
           </Button>
