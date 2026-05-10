@@ -49,7 +49,7 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-primary" /> Generate strategic questions
@@ -69,7 +69,7 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
             <Label>Focus areas (optional)</Label>
             <div className="flex flex-wrap gap-2">
               {FOCUS_OPTIONS.map((f) => (
-                <label key={f} className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer">
+                <label key={f} className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm cursor-pointer whitespace-nowrap">
                   <Checkbox checked={focusAreas.includes(f)} onCheckedChange={() => setFocusAreas((s) => toggle(s, f))} />
                   {f}
                 </label>
@@ -83,12 +83,14 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
               {documents.length === 0 ? (
                 <p className="text-sm text-muted-foreground p-2">No processed documents available.</p>
               ) : (
-                documents.map((d) => (
-                  <label key={d.id} className="flex items-center gap-2 py-1 text-sm">
-                    <Checkbox checked={docIds.includes(d.id)} onCheckedChange={() => setDocIds((s) => toggle(s, d.id))} />
-                    <span className="truncate">{d.file_name}</span>
-                  </label>
-                ))
+                <div className="pr-2">
+                  {documents.map((d) => (
+                    <label key={d.id} className="flex items-center gap-2 py-1 text-sm w-full min-w-0">
+                      <Checkbox checked={docIds.includes(d.id)} onCheckedChange={() => setDocIds((s) => toggle(s, d.id))} />
+                      <span className="flex-1 min-w-0 truncate" title={d.file_name}>{d.file_name}</span>
+                    </label>
+                  ))}
+                </div>
               )}
             </ScrollArea>
           </div>
