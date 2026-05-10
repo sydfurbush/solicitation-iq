@@ -22,6 +22,9 @@ import { DocumentUploader } from "@/features/documents/components/DocumentUpload
 import { DocumentsEmptyState } from "@/features/documents/components/DocumentsEmptyState";
 import { DocumentViewer } from "@/features/documents/components/DocumentViewer";
 import { DocumentVersionHistory } from "@/features/documents/components/DocumentVersionHistory";
+import { ProcessAllDocuments } from "@/features/documents/components/ProcessAllDocuments";
+import { DocumentSearchBar } from "@/features/documents/components/DocumentSearchBar";
+import { invokeProcessDocument } from "@/lib/supabase/functions";
 
 export default function SolicitationDocuments({ solicitationId }: { solicitationId: string }) {
   const { data: documents, isLoading } = useDocuments(solicitationId);
@@ -67,9 +70,19 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
             </p>
           </div>
         </div>
-        <Button onClick={() => setUploaderOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Upload documents
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <DocumentSearchBar
+            solicitationId={solicitationId}
+            onResultClick={(r) => {
+              const d = docs.find((x) => x.id === r.document_id);
+              if (d) setViewerDoc(d);
+            }}
+          />
+          <ProcessAllDocuments documents={docs} solicitationId={solicitationId} />
+          <Button onClick={() => setUploaderOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Upload documents
+          </Button>
+        </div>
       </div>
 
       {uploaderOpen && (
@@ -91,9 +104,10 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
           items.forEach((d) => deleteDoc.mutate(d));
           toast({ title: `Deleted ${items.length} document(s)` });
         }}
-        onBulkReprocess={() =>
-          toast({ title: "Re-processing", description: "AI analysis will be available soon." })
-        }
+        onBulkReprocess={(items) => {
+          items.forEach((d) => void invokeProcessDocument(d.id));
+          toast({ title: `Re-processing ${items.length} document(s)` });
+        }}
       />
 
       <DocumentViewer

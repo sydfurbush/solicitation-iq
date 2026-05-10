@@ -118,7 +118,7 @@ export function useUploadDocument() {
         file_size: input.file.size,
         file_type: input.file.type || null,
         document_type: input.documentType ?? "other",
-        status: "parsed",
+        status: "uploading",
         version,
         is_current: true,
         replaces_document_id: input.replacesDocumentId ?? null,
@@ -126,10 +126,11 @@ export function useUploadDocument() {
 
       const { data, error } = await supabase.from("documents").insert(insertPayload).select().single();
       if (error) {
-        // Try to clean up the uploaded file on failure
         await supabase.storage.from(BUCKET).remove([path]);
         throw error;
       }
+      // Fire-and-forget processing trigger
+      supabase.functions.invoke("process-document", { body: { documentId: data.id } }).catch(() => {});
       return data as DocumentRow;
     },
     onSuccess: (doc) => {

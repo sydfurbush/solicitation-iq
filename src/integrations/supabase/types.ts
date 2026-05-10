@@ -1098,6 +1098,18 @@ export type Database = {
         Returns: boolean
       }
       is_org_staff: { Args: { _user_id: string }; Returns: boolean }
+      search_document_content: {
+        Args: { p_search_term: string; p_solicitation_id: string }
+        Returns: {
+          document_id: string
+          document_name: string
+          page_number: number
+          rank: number
+          section_id: string
+          section_title: string
+          snippet: string
+        }[]
+      }
     }
     Enums: {
       annotation_type:
