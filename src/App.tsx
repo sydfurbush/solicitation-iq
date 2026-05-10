@@ -17,6 +17,14 @@ import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound.tsx";
+import PortalLogin from "./pages/portal/PortalLogin";
+import PortalLayout from "./features/portal/components/PortalLayout";
+import PortalDashboard from "./pages/portal/PortalDashboard";
+import PortalSolicitations from "./pages/portal/PortalSolicitations";
+import PortalSolicitationDetail from "./pages/portal/PortalSolicitationDetail";
+import PortalReports from "./pages/portal/PortalReports";
+import PortalProfile from "./pages/portal/PortalProfile";
+import PortalSupport from "./pages/portal/PortalSupport";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +39,16 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/portal/login" element={<PortalLogin />} />
+            <Route path="/portal" element={<PortalLayout />}>
+              <Route index element={<PortalDashboard />} />
+              <Route path="solicitations" element={<PortalSolicitations />} />
+              <Route path="solicitations/:id" element={<PortalSolicitationDetail />} />
+              <Route path="solicitations/:id/reports" element={<PortalReports />} />
+              <Route path="reports" element={<PortalSolicitations />} />
+              <Route path="profile" element={<PortalProfile />} />
+              <Route path="support" element={<PortalSupport />} />
+            </Route>
             <Route element={<RootLayout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/clients" element={<Clients />} />
