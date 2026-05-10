@@ -204,6 +204,49 @@ export default function Dashboard() {
         </Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Filter:</span>
+        <Select value={clientFilter} onValueChange={setClientFilter}>
+          <SelectTrigger className="h-9 w-[200px]">
+            <SelectValue placeholder="All clients" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All clients</SelectItem>
+            {(clients ?? []).map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-9 w-[200px]">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {Object.entries(STATUS_LABELS).map(([k, label]) => (
+              <SelectItem key={k} value={k}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {stats.isFiltered && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setClientFilter("all");
+              setStatusFilter("all");
+            }}
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+
       {/* Top metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
