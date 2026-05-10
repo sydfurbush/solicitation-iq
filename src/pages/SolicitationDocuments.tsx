@@ -16,12 +16,12 @@ import {
   useDeleteDocument,
   useDocuments,
   type DocumentRow,
-} from "../hooks/useDocuments";
-import { DocumentList } from "./DocumentList";
-import { DocumentUploader } from "./DocumentUploader";
-import { DocumentsEmptyState } from "./DocumentsEmptyState";
-import { DocumentViewer } from "./DocumentViewer";
-import { DocumentVersionHistory } from "./DocumentVersionHistory";
+} from "@/features/documents/hooks/useDocuments";
+import { DocumentList } from "@/features/documents/components/DocumentList";
+import { DocumentUploader } from "@/features/documents/components/DocumentUploader";
+import { DocumentsEmptyState } from "@/features/documents/components/DocumentsEmptyState";
+import { DocumentViewer } from "@/features/documents/components/DocumentViewer";
+import { DocumentVersionHistory } from "@/features/documents/components/DocumentVersionHistory";
 
 export default function SolicitationDocuments({ solicitationId }: { solicitationId: string }) {
   const { data: documents, isLoading } = useDocuments(solicitationId);
@@ -178,9 +178,9 @@ function ReplaceUploader({
 
 import { useUser } from "@/features/auth/hooks/useUser";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
-import { useUploadDocument } from "../hooks/useDocuments";
+import { useUploadDocument } from "@/features/documents/hooks/useDocuments";
 import { Progress } from "@/components/ui/progress";
-import { validateFile } from "../utils/fileHelpers";
+import { validateFile } from "@/features/documents/utils/fileHelpers";
 
 function ReplaceForm({
   solicitationId,
