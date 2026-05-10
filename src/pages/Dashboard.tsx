@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Briefcase,
+  FilterX,
   CalendarClock,
   FileText,
   Lightbulb,
