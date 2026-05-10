@@ -25,6 +25,8 @@ import { DocumentVersionHistory } from "@/features/documents/components/Document
 import { ProcessAllDocuments } from "@/features/documents/components/ProcessAllDocuments";
 import { DocumentSearchBar } from "@/features/documents/components/DocumentSearchBar";
 import { invokeProcessDocument } from "@/lib/supabase/functions";
+import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
+import { useSamPullAttachments } from "@/features/solicitations/hooks/useSamPullAttachments";
 
 export default function SolicitationDocuments({ solicitationId }: { solicitationId: string }) {
   const { data: documents, isLoading } = useDocuments(solicitationId);
