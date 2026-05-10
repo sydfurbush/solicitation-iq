@@ -104,9 +104,10 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
           items.forEach((d) => deleteDoc.mutate(d));
           toast({ title: `Deleted ${items.length} document(s)` });
         }}
-        onBulkReprocess={() =>
-          toast({ title: "Re-processing", description: "AI analysis will be available soon." })
-        }
+        onBulkReprocess={(items) => {
+          items.forEach((d) => void invokeProcessDocument(d.id));
+          toast({ title: `Re-processing ${items.length} document(s)` });
+        }}
       />
 
       <DocumentViewer
