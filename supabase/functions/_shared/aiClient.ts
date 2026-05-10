@@ -42,10 +42,43 @@ export class AiHttpError extends Error {
 
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const LOVABLE_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+const TTL_MS = 60_000;
+const cache = new Map<string, { value: ModelChoice; expiresAt: number }>();
+
+async function loadOverride(functionName: string): Promise<ModelChoice | null> {
+  const cached = cache.get(functionName);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (!SUPABASE_URL || !SERVICE_KEY) return null;
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/ai_model_settings?function_name=eq.${encodeURIComponent(functionName)}&select=provider,model,max_tokens`;
+    const res = await fetch(url, {
+      headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+    });
+    if (!res.ok) return null;
+    const rows = await res.json();
+    const row = Array.isArray(rows) && rows[0];
+    if (!row) return null;
+    const value: ModelChoice = {
+      provider: row.provider as Provider,
+      model: row.model as string,
+      maxTokens: row.max_tokens ?? undefined,
+    };
+    cache.set(functionName, { value, expiresAt: Date.now() + TTL_MS });
+    return value;
+  } catch (e) {
+    console.warn("[aiClient] override fetch failed", e);
+    return null;
+  }
+}
 
 export async function callAiTool(args: CallAiArgs): Promise<Record<string, unknown>> {
-  const choice = MODEL_CONFIG[args.functionName];
-  if (!choice) throw new Error(`No MODEL_CONFIG entry for ${args.functionName}`);
+  const fallback = MODEL_CONFIG[args.functionName];
+  const override = await loadOverride(args.functionName);
+  const choice = override ?? fallback;
+  if (!choice) throw new Error(`No model configured for ${args.functionName}`);
 
   if (choice.provider === "anthropic") return callAnthropic(choice, args);
   return callLovable(choice, args);
