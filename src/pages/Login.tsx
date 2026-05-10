@@ -115,6 +115,12 @@ export default function Login() {
               <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
               </Button>
+              <p className="text-sm text-center text-muted-foreground">
+                Don&apos;t have an account?{" "}
+                <Link to="/signup" className="text-primary hover:underline">
+                  Create your workspace
+                </Link>
+              </p>
             </form>
           </Form>
         </CardContent>
