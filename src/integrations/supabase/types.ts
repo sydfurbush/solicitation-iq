@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          created_at: string
+          entity_id: string | null
+          entity_type: string | null
+          event_description: string
+          event_type: string
+          id: string
+          metadata: Json
+          solicitation_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_description: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          solicitation_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string | null
+          entity_type?: string | null
+          event_description?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          solicitation_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_log_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       annotations: {
         Row: {
           annotation_type: Database["public"]["Enums"]["annotation_type"]
@@ -1098,6 +1149,18 @@ export type Database = {
         Returns: boolean
       }
       is_org_staff: { Args: { _user_id: string }; Returns: boolean }
+      log_activity: {
+        Args: {
+          p_entity_id?: string
+          p_entity_type?: string
+          p_event_description: string
+          p_event_type: string
+          p_metadata?: Json
+          p_solicitation_id: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       search_document_content: {
         Args: { p_search_term: string; p_solicitation_id: string }
         Returns: {
