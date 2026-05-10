@@ -1,9 +1,20 @@
-import { UploadCloud } from "lucide-react";
+import { UploadCloud, DownloadCloud, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ALLOWED_EXTENSIONS } from "../utils/fileHelpers";
 import { DocumentUploader } from "./DocumentUploader";
 
-export function DocumentsEmptyState({ solicitationId }: { solicitationId: string }) {
+export function DocumentsEmptyState({
+  solicitationId,
+  samUrl,
+  onPullFromSam,
+  pulling,
+}: {
+  solicitationId: string;
+  samUrl?: string | null;
+  onPullFromSam?: () => void;
+  pulling?: boolean;
+}) {
   return (
     <Card>
       <CardContent className="p-8 space-y-6 text-center">
@@ -17,6 +28,18 @@ export function DocumentsEmptyState({ solicitationId }: { solicitationId: string
           </p>
         </div>
         <DocumentUploader solicitationId={solicitationId} compact={false} />
+        {samUrl && onPullFromSam && (
+          <div className="pt-2">
+            <Button variant="outline" onClick={onPullFromSam} disabled={pulling}>
+              {pulling ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <DownloadCloud className="mr-2 h-4 w-4" />
+              )}
+              Pull attachments from SAM.gov
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
