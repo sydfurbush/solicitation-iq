@@ -10,6 +10,7 @@ export const CATEGORIES: QuestionCategory[] = [
   "scope_expansion",
   "risk_concern",
   "compliance",
+  "other",
 ];
 
 export const RECOMMENDATIONS: QuestionRecommendation[] = ["ask", "hold", "monitor", "internal_only"];
@@ -20,6 +21,7 @@ export const CATEGORY_LABEL: Record<QuestionCategory, string> = {
   scope_expansion: "Scope Expansion",
   risk_concern: "Risk / Concern",
   compliance: "Compliance",
+  other: "Other",
 };
 
 export const RECOMMENDATION_LABEL: Record<QuestionRecommendation, string> = {
