@@ -101,6 +101,7 @@ export function useSolicitation(id: string | undefined) {
         )
         .eq("id", id!)
         .is("deleted_at", null)
+        .is("documents.deleted_at", null)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
