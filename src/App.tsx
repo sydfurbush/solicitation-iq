@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/features/auth/components/AuthProvider";
 import RootLayout from "./components/layout/RootLayout";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
@@ -90,6 +91,7 @@ const App = () => (
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>
                   <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/portal/login" element={<PortalLogin />} />

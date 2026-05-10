@@ -16,6 +16,12 @@ const strongPassword = z
 
 export const signUpSchema = z
   .object({
+    fullName: z.string().trim().min(2, { message: "Please enter your full name" }).max(100),
+    organizationName: z
+      .string()
+      .trim()
+      .min(2, { message: "Organization name is required" })
+      .max(100),
     email: z.string().trim().email().max(255),
     password: strongPassword,
     confirmPassword: z.string(),
