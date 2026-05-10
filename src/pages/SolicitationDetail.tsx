@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useSolicitation, useUpdateSolicitationStatus } from "@/features/solicitations/hooks/useSolicitations";
+import { useDeleteSolicitation, useSolicitation, useUpdateSolicitationStatus } from "@/features/solicitations/hooks/useSolicitations";
 import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
 import { SolicitationOverview } from "@/features/solicitations/components/SolicitationOverview";
 import {
