@@ -1,41 +1,31 @@
-## Problem
+## Diagnosis
 
-After "Prefill" from a SAM.gov URL, the form fields populate but no documents appear on the new solicitation. The current edge function returns an `attachments` array (`resourceLinks` from SAM.gov), but nothing downloads or uploads them — the dialog only shows a hint message ("Upload them in the Documents tab after creating the solicitation").
+The `sam-import-attachments` function executed successfully (HTTP 200 in 2.9s) but every one of the 11 SAM.gov downloads failed inside the worker loop. Two issues in the current code explain it:
 
-## Goal
+1. **API key not appended to download URLs.** SAM.gov `resourceLinks` look like `https://sam.gov/api/prod/opps/v3/opportunities/resources/files/<id>/download?token=...` (or `api.sam.gov/...`). They require `?api_key=...` to return the actual file. My code only appends the key when `hostname.includes("api.sam.gov")` — most resource links use `sam.gov`, so the request returned an HTML error / 401 page.
+2. **Silent per-file failure.** The function never logs per-attachment errors, so the only signal was the toast count. We can't see *why* each one failed.
 
-When a SAM.gov URL is imported, automatically pull every attachment SAM.gov lists for that notice and add them as documents on the solicitation, ready for the existing parsing/analysis pipeline.
+A secondary issue: even when the download succeeds, SAM sometimes returns a filename only in `Content-Disposition` with no extension in the URL path; if `Content-Disposition` is missing, we fall back to the URL's last path segment (e.g. `download`) which has no extension and gets rejected.
 
-## Plan
+## Fix
 
-1. **New edge function `sam-import-attachments`**
-   - Input: `{ solicitationId, attachments: [{ href, fileName? }] }`.
-   - Validates the user can write to the solicitation (uses caller's JWT against RLS via the user-scoped Supabase client).
-   - For each `href`:
-     - `fetch(href)` (SAM.gov resource links are public; if a key is needed, append `?api_key=…` from `SAM_GOV_API_KEY`).
-     - Follow redirects, read `Content-Disposition` / `Content-Type` to derive filename + extension; fall back to a hash of the URL.
-     - Skip unsupported extensions (reuse the allow-list from `fileHelpers.ts`).
-     - Upload bytes to the `solicitation-documents` bucket at `{org_id}/{client_id}/{solicitation_id}/{uuid}.{ext}` using the **service-role** client (so storage RLS is bypassed safely after auth check).
-     - Insert a row in `documents` with `status='uploading'`, correct `file_name/path/size/type/document_type='other'`.
-     - Invoke `process-document` for that document id (fire-and-forget) so it gets parsed.
-   - Returns `{ imported: n, skipped: [...], failed: [...] }`.
+Edit `supabase/functions/sam-import-attachments/index.ts`:
 
-2. **Wire it into the create flow** (`CreateSolicitationDialog.tsx`)
-   - After `createMut.mutateAsync(values)` succeeds and `attachments.length > 0`, call the new function with `created.id` and the stored `attachments`.
-   - Show a toast: "Importing N attachment(s) from SAM.gov…" then a completion toast with counts.
-   - Replace the current "Upload them in the Documents tab" hint with "These N attachments will be added automatically when you create the solicitation."
+1. **Always append `api_key`** when the host is any `*.sam.gov` (not just `api.sam.gov`) and the URL doesn't already have `api_key`.
+2. **Treat non-2xx as a hard failure with the response body** (first 200 chars) included in the per-file `error`, so we can see what SAM returned.
+3. **Better filename/extension fallback:**
+   - Parse `Content-Disposition` (already done) but also handle `filename*=UTF-8''…` form properly.
+   - If still no extension, derive one from `Content-Type` (already done) and synthesize `attachment-<shortId>.<ext>`.
+   - If `Content-Type` is `text/html` or `application/json`, treat as failure (likely an error page) and surface the body snippet.
+4. **Console-log every attempt** (`console.log("sam-attachment", { href, status, contentType, fileName, ext })`) and every failure, so the next attempt is debuggable from edge logs.
+5. **Return `failed[]` items with `href` + `error` + `status`** so the client toast/UI can show specifics.
 
-3. **Edge function for the importer URL parsing**
-   - Keep `sam-import` as-is for prefill; only the new function handles file downloads. This keeps prefill fast and lets attachment import run in the background.
-
-4. **Quiet runtime fix**
-   - Address the `Cannot read properties of undefined (reading 'toLowerCase')` error surfacing on this page (likely from the SAM prefill setting an undefined `agency_type`/`set_aside` that a Select reads). Guard the lookup in `SolicitationForm` so missing strings don't crash.
+No client/UI changes needed for the fix itself, but I'll also tweak the `CreateSolicitationDialog` toast on failure to include the first failed reason (e.g. "1 of 11 imported — `Download failed (401): {...}`") so the user gets actionable feedback without opening logs.
 
 ## Technical details
 
-- Files to add: `supabase/functions/sam-import-attachments/index.ts`.
-- Files to edit: `src/features/solicitations/components/CreateSolicitationDialog.tsx` (post-create hook + copy), `src/features/solicitations/components/SolicitationForm.tsx` (defensive guard for the toLowerCase crash).
-- Reuses existing buckets, `documents` table, RLS, and `process-document` function — no migration needed.
-- Concurrency cap of 3 downloads inside the function to stay under the edge function timeout for typical SAM notices (≤10 attachments).
+- Files to edit: `supabase/functions/sam-import-attachments/index.ts`, `src/features/solicitations/components/CreateSolicitationDialog.tsx` (toast copy only).
+- No DB or schema changes.
+- After deploy, retry the same SAM.gov URL — edge function logs will show per-file results, and the import should succeed for all 11 attachments.
 
-Want me to proceed with this?
+Proceed?
