@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { useDeleteSolicitation, useSolicitation, useUpdateSolicitationStatus } from "@/features/solicitations/hooks/useSolicitations";
 import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
 import { SolicitationOverview } from "@/features/solicitations/components/SolicitationOverview";
+import { EditSolicitationDialog } from "@/features/solicitations/components/EditSolicitationDialog";
 import {
   STATUS_CLASSES,
   STATUS_LABELS,
