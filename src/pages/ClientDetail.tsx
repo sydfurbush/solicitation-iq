@@ -51,6 +51,7 @@ export default function ClientDetail() {
   const navigate = useNavigate();
   const { data: client, isLoading } = useClient(clientId);
   const updateMut = useUpdateClient();
+  const queryClient = useQueryClient();
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
   const [editOpen, setEditOpen] = useState(false);
