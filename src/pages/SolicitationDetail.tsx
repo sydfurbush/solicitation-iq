@@ -42,6 +42,7 @@ import SolicitationAnalysis from "./SolicitationAnalysis";
 import SolicitationQuestions from "./SolicitationQuestions";
 import SolicitationRisksOpportunities from "./SolicitationRisksOpportunities";
 import SolicitationActivity from "./SolicitationActivity";
+import SolicitationComparison from "./SolicitationComparison";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
 import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
 
