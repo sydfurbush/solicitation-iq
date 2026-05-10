@@ -56,8 +56,8 @@ export function useSolicitationInsights(solicitationId: string | undefined) {
       return {
         ai_summary: data?.ai_summary ?? null,
         confidence_score: data?.ai_confidence_score != null ? Number(data.ai_confidence_score) : null,
-        key_requirements: (data?.key_requirements as AnalysisRequirement[] | null) ?? [],
-        evaluation_factors: (data?.evaluation_factors as AnalysisEvaluationFactor[] | null) ?? [],
+        key_requirements: (data?.key_requirements as unknown as AnalysisRequirement[] | null) ?? [],
+        evaluation_factors: (data?.evaluation_factors as unknown as AnalysisEvaluationFactor[] | null) ?? [],
         metadata: analysisMeta,
         status: data?.status ?? null,
         has_incumbent: data?.has_incumbent ?? null,
@@ -101,7 +101,7 @@ export function useUpdateRequirementCompliance(solicitationId: string | undefine
       if (!solicitationId) throw new Error("Missing solicitationId");
       const { error } = await supabase
         .from("solicitations")
-        .update({ key_requirements: requirements })
+        .update({ key_requirements: requirements as unknown as never })
         .eq("id", solicitationId);
       if (error) throw error;
     },
