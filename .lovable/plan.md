@@ -1,28 +1,38 @@
-## Issue
-In `GenerateQuestionsDialog`, two things overflow / clip in the screenshot:
-1. **Focus-area chips** (Technical, Management, Pricing, Compliance, Staffing) wrap onto a second line and "Staffing" sits awkwardly outside the dialog flow.
-2. **Document filenames** (long PDF names like `IB01_Draft+RFP+Solicitation+-+W9124D26RA041+Professional+Appearance+(20260508).pdf`) overflow the right edge of the document list — the `truncate` class on the span isn't doing anything because its parent `<label>` has no width constraint, so the row grows wider than the ScrollArea and gets clipped.
+## Problem
+
+The edge function logs show: `only 0 questions generated for sol=…` and the function returned `success:true, count:0`. The AI call succeeded but came back without any items in `questions`. The deletion of prior AI-generated questions ran first, so the list ends up empty.
+
+Two likely root causes:
+
+1. **Prompt is too large.** With 11 documents × up to 30 sections × 3000 chars each, the user prompt can approach ~1M characters. Claude likely returns a `tool_use` whose `input` is `{}` (or only partial) and we silently treat that as "0 questions".
+2. **Output token ceiling.** `max_tokens` is 8192 for `generate-questions`. If the model starts generating and the JSON is truncated mid‑array, the tool_use input may parse but end up empty/short. We currently don't inspect `stop_reason`.
+
+A secondary issue: regenerate deletes existing questions **before** we know whether the new run will produce any. If the AI returns 0, the user is left with nothing.
 
 ## Plan
 
-Single file: `src/features/questions/components/GenerateQuestionsDialog.tsx`
+### 1. Make `generate-questions` resilient (`supabase/functions/generate-questions/index.ts`)
+- **Delete after success only.** Move the `delete(...)` call to run only after `rows.length > 0` so a failed regeneration never wipes existing questions.
+- **Cap input size aggressively** to keep us well under context limits:
+  - Per document: at most 12 sections, each truncated to 1200 chars.
+  - Global cap: stop adding section text once total prompt body exceeds ~120,000 chars.
+  - Prefer sections with non-empty `section_title` and lower `sort_order` (already ordered).
+- **Return a clear error when 0 questions come back** (HTTP 502 with message "AI returned no questions — try again or narrow focus areas/documents") instead of `success:true, count:0`.
+- **Log `stop_reason`** from Anthropic response so we can diagnose truncation.
 
-1. **Widen the dialog**: change `max-w-lg` → `max-w-2xl` so the focus chips fit on one line at typical desktop widths and filenames have more room.
+### 2. Bump output budget (`supabase/functions/_shared/aiClient.ts`)
+- Raise `generate-questions` `maxTokens` from 8192 → 16384.
 
-2. **Keep focus-area chips on one line each**:
-   - Add `whitespace-nowrap` to the chip `<label>` so each chip stays intact (it can still wrap to a new row, but never split mid-word).
+### 3. Surface failures in the UI (`src/features/questions/hooks/useStrategicQuestions.ts` + `GenerateQuestionsDialog.tsx`)
+- The hook already throws on `data.error`; add a `toast.error(...)` in the dialog's `onError` so the user sees why nothing appeared (today the dialog likely just closes).
+- On success show `toast.success("Generated N questions")`.
 
-3. **Fix filename truncation**:
-   - Make the document `<label>` `flex w-full min-w-0`.
-   - Keep `truncate` on the span and add `flex-1 min-w-0` so it actually shrinks and ellipsizes inside the scroll area.
-   - Add `title={d.file_name}` so users can hover to see the full name.
+### 4. Verification
+- Click Regenerate on the affected solicitation; confirm questions appear and the toast shows the count.
+- Check edge function logs for `stop_reason` and the new section/char caps.
+- Confirm that if AI still returns 0, prior questions remain intact and the user sees an error toast.
 
-4. **Optional polish**: add `pr-2` to the ScrollArea content area so the truncated text doesn't sit flush against the scrollbar.
-
-No logic, props, hooks, or backend changes — purely layout/CSS fixes in one component.
-
-## Verification
-- Open the Generate dialog at the current viewport (~1231px) and confirm:
-  - All 5 focus chips fit on one row (or wrap cleanly without clipping).
-  - Long filenames show "…" ellipsis, full name on hover, no horizontal overflow.
-- Resize down to ~640px (mobile) and confirm the dialog still fits and chips wrap gracefully.
+### Technical notes
+- No DB schema changes.
+- No frontend logic changes other than toasts.
+- `aiClient.ts` change is a single number; the database `ai_model_settings` override still wins if set, so users can re-tune later.
