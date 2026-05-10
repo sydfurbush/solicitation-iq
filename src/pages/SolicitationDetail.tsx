@@ -63,6 +63,8 @@ export default function SolicitationDetail() {
   const navigate = useNavigate();
   const { data: s, isLoading } = useSolicitation(solicitationId);
   const updateStatus = useUpdateSolicitationStatus();
+  const deleteMut = useDeleteSolicitation();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const urgency = useMemo(() => dueUrgency(s?.proposal_due_date), [s?.proposal_due_date]);
   const days = useMemo(() => daysUntil(s?.proposal_due_date), [s?.proposal_due_date]);
