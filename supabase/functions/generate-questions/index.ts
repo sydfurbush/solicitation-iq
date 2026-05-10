@@ -100,10 +100,22 @@ Deno.serve(async (req) => {
       .in("document_id", docIds)
       .order("sort_order", { ascending: true });
 
+    const MAX_SECTIONS_PER_DOC = 12;
+    const MAX_CHARS_PER_SECTION = 1200;
+    const MAX_TOTAL_CHARS = 120_000;
+    let totalChars = 0;
     const docBlocks = documents.map((d) => {
-      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 30);
-      const txt = ds.map((s) => `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 3000)}`).join("\n\n");
-      return `=== DOCUMENT: ${d.file_name} ===\n${txt}`;
+      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, MAX_SECTIONS_PER_DOC);
+      const parts: string[] = [];
+      for (const s of ds) {
+        if (totalChars >= MAX_TOTAL_CHARS) break;
+        const remaining = MAX_TOTAL_CHARS - totalChars;
+        const body = (s.content ?? "").slice(0, Math.min(MAX_CHARS_PER_SECTION, remaining));
+        const chunk = `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${body}`;
+        parts.push(chunk);
+        totalChars += chunk.length;
+      }
+      return `=== DOCUMENT: ${d.file_name} ===\n${parts.join("\n\n")}`;
     }).join("\n\n");
 
     const focusText = focusAreas?.length ? `\n\nFOCUS AREAS: ${focusAreas.join(", ")}` : "";
@@ -111,7 +123,7 @@ Deno.serve(async (req) => {
 
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}${focusText}\n\n${docBlocks}`;
 
-    console.log(`[generate-questions] sol=${solicitationId} docs=${documents.length} regenerate=${!!regenerate}`);
+    console.log(`[generate-questions] sol=${solicitationId} docs=${documents.length} promptChars=${userPrompt.length} regenerate=${!!regenerate}`);
 
     const parsedQ = await callAiTool({
       functionName: "generate-questions",
@@ -120,10 +132,6 @@ Deno.serve(async (req) => {
       tool: SCHEMA,
     }) as Record<string, any>;
     const { questions } = parsedQ;
-
-    if (regenerate) {
-      await supabase.from("strategic_questions").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
-    }
 
     const docByName = new Map<string, string>();
     documents.forEach((d) => docByName.set(d.file_name, d.id));
