@@ -41,6 +41,9 @@ import SolicitationDocuments from "./SolicitationDocuments";
 import SolicitationAnalysis from "./SolicitationAnalysis";
 import SolicitationQuestions from "./SolicitationQuestions";
 import SolicitationRisksOpportunities from "./SolicitationRisksOpportunities";
+import SolicitationActivity from "./SolicitationActivity";
+import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
+import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
 
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
@@ -134,6 +137,8 @@ export default function SolicitationDetail() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <TeamPresence solicitationId={s.id} />
+          <AnnotationsSidebar solicitationId={s.id} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -244,7 +249,11 @@ export default function SolicitationDetail() {
           <SolicitationRisksOpportunities solicitationId={s.id} />
         </TabsContent>
 
-        {["reports", "comparison", "activity"].map((t) => (
+        <TabsContent value="activity" className="mt-6">
+          <SolicitationActivity solicitationId={s.id} />
+        </TabsContent>
+
+        {["reports", "comparison"].map((t) => (
           <TabsContent key={t} value={t} className="mt-6">
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
