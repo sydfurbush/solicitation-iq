@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, ExternalLink, Mail, Pencil, Save, X } from "lucide-react";
+import { ChevronRight, ExternalLink, Mail, MoreVertical, Pencil, Save, Trash2, X } from "lucide-react";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useClient, useUpdateClient } from "@/features/clients/hooks/useClients";
+import { useDeleteSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { CreateClientDialog } from "@/features/clients/components/CreateClientDialog";
 import { ClientUsersManagement } from "@/features/clients/components/ClientUsersManagement";
 import { supabase } from "@/integrations/supabase/client";
