@@ -93,6 +93,28 @@ function MetricCard({
   );
 }
 
+function ListRowSkeleton() {
+  return (
+    <div className="flex items-center justify-between rounded-md border bg-card p-3">
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-3 w-1/2" />
+      </div>
+      <Skeleton className="ml-3 h-5 w-16 shrink-0" />
+    </div>
+  );
+}
+
+function ListSkeleton({ rows = 5 }: { rows?: number }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: rows }).map((_, i) => (
+        <ListRowSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { data: solicitations, isLoading, isFetching } = useSolicitations();
   const { data: clients } = useClients();
