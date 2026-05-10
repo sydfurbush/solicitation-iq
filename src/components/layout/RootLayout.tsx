@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { UserMenu } from "./UserMenu";
 import { ProtectedRoute } from "@/features/auth/components/ProtectedRoute";
+import { UploadProgress } from "@/features/documents/components/UploadProgress";
 
 export default function RootLayout() {
   return (
