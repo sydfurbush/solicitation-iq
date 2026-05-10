@@ -90,6 +90,20 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
             }}
           />
           <ProcessAllDocuments documents={docs} solicitationId={solicitationId} />
+          {solicitation?.sam_url && (
+            <Button
+              variant="outline"
+              onClick={() => samPull.mutate()}
+              disabled={samPull.isPending}
+            >
+              {samPull.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <DownloadCloud className="mr-2 h-4 w-4" />
+              )}
+              Pull from SAM.gov
+            </Button>
+          )}
           <Button onClick={() => setUploaderOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Upload documents
           </Button>
