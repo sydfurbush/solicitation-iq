@@ -120,41 +120,60 @@ Deno.serve(async (req) => {
     const orgId = (sol as { clients: { organization_id: string } }).clients.organization_id;
     const clientId = (sol as { client_id: string }).client_id;
 
-    type Result = { href: string; ok: boolean; documentId?: string; error?: string; fileName?: string };
+    type Result = { href: string; ok: boolean; documentId?: string; error?: string; fileName?: string; status?: number };
     const results: Result[] = [];
 
     const queue = [...attachments];
     async function worker() {
       while (queue.length) {
         const att = queue.shift()!;
+        let httpStatus: number | undefined;
         try {
-          // Append SAM api key if URL is on api.sam.gov
+          // Append SAM api key for any *.sam.gov host
           let url = att.href;
           try {
             const u = new URL(url);
-            if (SAM_KEY && u.hostname.includes("api.sam.gov") && !u.searchParams.get("api_key")) {
+            if (SAM_KEY && /(^|\.)sam\.gov$/i.test(u.hostname) && !u.searchParams.get("api_key")) {
               u.searchParams.set("api_key", SAM_KEY);
               url = u.toString();
             }
           } catch { /* ignore */ }
 
           const res = await fetch(url, { redirect: "follow" });
-          if (!res.ok) throw new Error(`Download failed (${res.status})`);
+          httpStatus = res.status;
+          const contentType = res.headers.get("content-type") || "application/octet-stream";
+
+          if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            console.warn("sam-attachment download failed", { href: att.href, status: res.status, body: body.slice(0, 200) });
+            throw new Error(`Download failed (${res.status}): ${body.slice(0, 160) || res.statusText}`);
+          }
+
+          // Reject obvious error pages even when status is 200
+          const ctLower = contentType.toLowerCase();
+          if (ctLower.startsWith("text/html") || ctLower.startsWith("application/json")) {
+            const body = await res.text().catch(() => "");
+            console.warn("sam-attachment unexpected content-type", { href: att.href, contentType, body: body.slice(0, 200) });
+            throw new Error(`SAM.gov returned ${contentType} (likely an error). ${body.slice(0, 140)}`);
+          }
 
           const rawName = att.fileName || filenameFromHeaders(res.headers, res.url || url);
-          let ext = extFromName(rawName) || extFromContentType(res.headers.get("content-type")) || "";
+          let ext = extFromName(rawName) || extFromContentType(contentType) || "";
           let fileName = rawName;
           if (!extFromName(fileName) && ext) fileName = `${rawName}.${ext}`;
+          if (!extFromName(fileName)) fileName = `attachment-${crypto.randomUUID().slice(0, 8)}`;
           ext = (extFromName(fileName) ?? "").toLowerCase();
 
+          console.log("sam-attachment", { href: att.href, status: res.status, contentType, fileName, ext });
+
           if (!ALLOWED_EXT.includes(ext)) {
-            results.push({ href: att.href, ok: false, error: `Unsupported type .${ext || "?"}`, fileName });
+            results.push({ href: att.href, ok: false, error: `Unsupported type .${ext || "?"}`, fileName, status: httpStatus });
             continue;
           }
 
           const buf = new Uint8Array(await res.arrayBuffer());
           if (buf.byteLength > MAX_BYTES) {
-            results.push({ href: att.href, ok: false, error: "File exceeds 50MB", fileName });
+            results.push({ href: att.href, ok: false, error: "File exceeds 50MB", fileName, status: httpStatus });
             continue;
           }
 
