@@ -181,29 +181,6 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ status: "processing" }), {
       status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-    // unreachable legacy block below
-    if (false) {
-      const rows: any[] = [];
-      if (rows.length === 0) {
-        return new Response(JSON.stringify({ error: "unreachable" }), {
-          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-    }
-
-    if (rows.length < 8) {
-      console.warn(`[generate-questions] only ${rows.length} questions generated for sol=${solicitationId}`);
-    }
-
-    if (regenerate) {
-      await supabase.from("strategic_questions").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
-    }
-
-    const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
-    if (insErr) throw insErr;
-
-    return new Response(JSON.stringify({ success: true, count: rows.length }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
   } catch (e) {
     console.error("[generate-questions] error", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
