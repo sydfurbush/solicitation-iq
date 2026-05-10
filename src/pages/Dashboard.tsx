@@ -561,6 +561,103 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Deadlines breakdown */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarClock className="h-4 w-4 text-primary" /> Due Soon
+                </CardTitle>
+                <CardDescription>Proposals due within 14 days</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {isFetching && stats.dueSoon.length === 0 ? (
+                  <ListSkeleton rows={4} />
+                ) : stats.dueSoon.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 py-8 text-center">
+                    <CalendarClock className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {stats.isFiltered
+                        ? "Nothing due soon for these filters."
+                        : "Nothing due in the next 14 days."}
+                    </p>
+                  </div>
+                ) : (
+                  stats.dueSoon.map((s) => {
+                    const due = new Date(s.proposal_due_date!);
+                    return (
+                      <Link
+                        key={s.id}
+                        to={`/solicitations/${s.id}`}
+                        className="flex items-center justify-between rounded-md border bg-card p-3 transition-colors hover:bg-accent"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{s.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {s.client?.name ?? "Unassigned"}
+                          </p>
+                        </div>
+                        <div className="ml-3 shrink-0 text-right">
+                          <p className="text-sm font-medium">{format(due, "MMM d")}</p>
+                          <p className="text-xs text-destructive">
+                            {formatDistanceToNow(due, { addSuffix: true })}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-destructive" /> Overdue
+                </CardTitle>
+                <CardDescription>Past due and not yet complete</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {isFetching && stats.overdue.length === 0 ? (
+                  <ListSkeleton rows={4} />
+                ) : stats.overdue.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 py-8 text-center">
+                    <AlertTriangle className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {stats.isFiltered
+                        ? "Nothing overdue for these filters."
+                        : "No overdue solicitations."}
+                    </p>
+                  </div>
+                ) : (
+                  stats.overdue.map((s) => {
+                    const due = new Date(s.proposal_due_date!);
+                    return (
+                      <Link
+                        key={s.id}
+                        to={`/solicitations/${s.id}`}
+                        className="flex items-center justify-between rounded-md border border-destructive/30 bg-destructive/5 p-3 transition-colors hover:bg-destructive/10"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{s.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {s.client?.name ?? "Unassigned"} · {STATUS_LABELS[s.status ?? "intake"]}
+                          </p>
+                        </div>
+                        <div className="ml-3 shrink-0 text-right">
+                          <p className="text-sm font-medium">{format(due, "MMM d")}</p>
+                          <p className="text-xs text-destructive">
+                            {formatDistanceToNow(due, { addSuffix: true })}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
     </div>
