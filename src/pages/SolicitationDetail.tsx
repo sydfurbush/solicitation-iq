@@ -39,6 +39,7 @@ import { SOLICITATION_STATUSES, type SolicitationStatus } from "@/lib/validators
 import { toast } from "@/hooks/use-toast";
 import SolicitationDocuments from "./SolicitationDocuments";
 import SolicitationAnalysis from "./SolicitationAnalysis";
+import SolicitationQuestions from "./SolicitationQuestions";
 
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
@@ -234,7 +235,11 @@ export default function SolicitationDetail() {
           <SolicitationAnalysis solicitationId={s.id} />
         </TabsContent>
 
-        {["questions", "risks", "reports", "comparison", "activity"].map((t) => (
+        <TabsContent value="questions" className="mt-6">
+          <SolicitationQuestions solicitationId={s.id} />
+        </TabsContent>
+
+        {["risks", "reports", "comparison", "activity"].map((t) => (
           <TabsContent key={t} value={t} className="mt-6">
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
