@@ -155,6 +155,221 @@ export type Database = {
           },
         ]
       }
+      client_notifications: {
+        Row: {
+          client_user_id: string
+          created_at: string
+          id: string
+          is_read: boolean
+          link_url: string | null
+          message: string | null
+          notification_type: string
+          read_at: string | null
+          solicitation_id: string | null
+          title: string
+        }
+        Insert: {
+          client_user_id: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link_url?: string | null
+          message?: string | null
+          notification_type: string
+          read_at?: string | null
+          solicitation_id?: string | null
+          title: string
+        }
+        Update: {
+          client_user_id?: string
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          link_url?: string | null
+          message?: string | null
+          notification_type?: string
+          read_at?: string | null
+          solicitation_id?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_notifications_client_user_id_fkey"
+            columns: ["client_user_id"]
+            isOneToOne: false
+            referencedRelation: "client_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_notifications_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_support_messages: {
+        Row: {
+          client_id: string
+          client_user_id: string
+          created_at: string
+          id: string
+          message: string
+          resolved_at: string | null
+          solicitation_id: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          client_user_id: string
+          created_at?: string
+          id?: string
+          message: string
+          resolved_at?: string | null
+          solicitation_id?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          client_user_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          resolved_at?: string | null
+          solicitation_id?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_support_messages_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_support_messages_client_user_id_fkey"
+            columns: ["client_user_id"]
+            isOneToOne: false
+            referencedRelation: "client_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_support_messages_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_user_invitations: {
+        Row: {
+          accepted_at: string | null
+          client_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          full_name: string | null
+          id: string
+          invited_by: string | null
+          status: string
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          client_id: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          full_name?: string | null
+          id?: string
+          invited_by?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          client_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          full_name?: string | null
+          id?: string
+          invited_by?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_user_invitations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_users: {
+        Row: {
+          avatar_url: string | null
+          client_id: string
+          created_at: string
+          deleted_at: string | null
+          email: string
+          full_name: string | null
+          id: string
+          is_primary: boolean | null
+          last_login_at: string | null
+          notification_preferences: Json
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          client_id: string
+          created_at?: string
+          deleted_at?: string | null
+          email: string
+          full_name?: string | null
+          id: string
+          is_primary?: boolean | null
+          last_login_at?: string | null
+          notification_preferences?: Json
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          client_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          email?: string
+          full_name?: string | null
+          id?: string
+          is_primary?: boolean | null
+          last_login_at?: string | null
+          notification_preferences?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_users_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           access_level:
@@ -1140,6 +1355,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_client_id: { Args: never; Returns: string }
       current_user_org: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -1148,6 +1364,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_client_user: { Args: { _user_id: string }; Returns: boolean }
       is_org_staff: { Args: { _user_id: string }; Returns: boolean }
       log_activity: {
         Args: {
