@@ -1,102 +1,80 @@
-# Solicitation Intelligence Analyzer — Foundation Plan
+## Goal
 
-Scaffold the front-end shell only. No backend wiring. Most tooling (Vite, React, TS strict, Tailwind, shadcn/ui, Lucide, React Router, TanStack Query) is already present in this Lovable project, so this plan focuses on what actually needs to be added or changed.
+Run a structured end-to-end QA pass on the Solicitation Intelligence Analyzer for internal team use, find every blocker / bug / rough edge, and fix them before you start using it for real client work.
 
-## 1. Dependencies
+## Approach
 
-Already installed: React 18, Vite, TS, Tailwind, all requested shadcn/ui components, lucide-react, react-router-dom, @tanstack/react-query, react-hook-form, zod, date-fns.
+We'll walk the full happy-path workflow with real data, in the order an analyst would actually use it. At each step we verify: (1) the UI works, (2) the data persists correctly in the database, (3) the AI edge functions return useful output, and (4) RLS lets the right people see the right things.
 
-Add:
-- `zustand` (client state)
+I'll drive the testing using browser automation + direct DB / edge-function inspection, log every issue I find, and then fix them in priority order.
 
-## 2. Folder structure
+## QA Walkthrough (in order)
 
-Create the directory tree under `/src` exactly as requested:
-- `components/layout`, `components/shared`
-- `features/{auth,organizations,clients,solicitations,documents,analysis,reports}`
-- `lib/{supabase,utils,validators}` (keep existing `lib/utils.ts`)
-- `types`, `stores`, plus new `pages` files
+### 1. Auth & org setup
+- Sign up a fresh user → confirm `users` row + default `user_roles` row are created
+- Verify `organizations` / org assignment works
+- Log out / log back in
+- Test password reset and Google OAuth (if enabled)
 
-Each empty folder gets a `.gitkeep` so the structure is visible.
+### 2. Clients
+- Create a client, edit it, upload a logo
+- Verify access_level toggle works
+- Soft-delete and confirm it disappears from lists
 
-## 3. Theme tokens (`src/index.css` + `tailwind.config.ts`)
+### 3. Solicitation intake
+- Create a solicitation, attach to a client
+- Upload a real PDF (use a sample RFP)
+- Confirm `documents.status` transitions: `uploading` → `processing` → `ready`
+- Inspect `document_sections` and `extracted_text` — was the PDF actually parsed?
 
-Convert brand colors to HSL semantic tokens (no raw hex in components):
-- `--primary` ← #2563eb
-- `--secondary` ← #0f172a
-- `--accent` ← #10b981
-- `--warning` ← #f59e0b (new token)
-- `--destructive` ← #ef4444
-- Sidebar tokens tuned for a dark sidebar (slate-900 base, light foreground, primary accents)
-- Light content area stays on existing `--background` / `--foreground`
+### 4. AI analysis pipeline (the riskiest area)
+For each edge function, trigger it from the UI, then check logs + DB:
+- `analyze-solicitation` → `solicitations.ai_summary`, `key_requirements`, `evaluation_factors`
+- `extract-entities` → `extracted_entities` rows with citations
+- `identify-risks-opportunities` → `risks` + `opportunities` with source_quote
+- `generate-questions` → `strategic_questions`
+- `compare-solicitations` → `prior_solicitations.changes_identified`
+- `generate-report` → `executive_reports.content` + file in `reports` bucket
 
-Register `warning` in `tailwind.config.ts` colors.
+For each: confirm AI output is grounded (has citations), not hallucinated, and the UI renders it cleanly.
 
-## 4. Root layout (`src/components/layout/RootLayout.tsx`)
+### 5. Collaboration
+- Add annotations from two browser sessions, confirm realtime updates
+- Check that you can only edit your own annotations
+- Verify activity feed logs all events
+- Test team presence indicator
 
-Use shadcn `Sidebar` with `collapsible="icon"` for the 280px / 64px behavior, wrapped in `SidebarProvider`.
+### 6. Reports & exports
+- Generate each report type
+- Download as PDF and Word — open the files, confirm they're not broken
+- Publish a report, mark client-accessible
 
-```text
-┌─────────────────────────────────────────────┐
-│ Sidebar (dark)   │ Header (trigger + avatar)│
-│  Logo            ├──────────────────────────┤
-│  Nav items       │                          │
-│   - Dashboard    │  <Outlet/> in            │
-│   - Clients      │  max-w-7xl container     │
-│   - Solicitations│                          │
-│   - Reports      │                          │
-│   - Settings     │                          │
-│  ─────────────   │                          │
-│  User profile    │                          │
-└─────────────────────────────────────────────┘
-```
+### 7. Client portal (isolation test — critical)
+- Invite a client user → accept invite → log in at `/portal/login`
+- Confirm client only sees their org's solicitations
+- Test all 3 access_levels: `full`, `summary`, `restricted` — verify documents/annotations/questions are properly hidden
+- Try to access another client's solicitation by URL guessing — must 404/403
+- Submit a support message → confirm staff sees it
 
-Pieces:
-- `AppSidebar` component in `components/layout/AppSidebar.tsx`: brand block at top, `SidebarMenu` with NavLinks (active state via `useLocation`), `SidebarFooter` with avatar + name + role.
-- Header: `SidebarTrigger` (always visible for collapse/expand on desktop, hamburger behavior on mobile via shadcn's built-in offcanvas), right-aligned `DropdownMenu` on `Avatar` (Profile / Settings / Log out — non-functional).
-- Main: `<main class="flex-1"><div class="container max-w-7xl py-6"><Outlet/></div></main>`.
-- Mobile responsive comes from shadcn Sidebar (auto offcanvas under `md`).
+### 8. Cross-cutting checks
+- Global search (Cmd+K) returns correct scoped results
+- Error boundaries catch a thrown error gracefully
+- Loading skeletons appear on slow networks
+- Mobile viewport (375px) — main pages don't break
+- Console is clean (no React warnings, no 401/403 spam)
 
-## 5. Pages
+### 9. Security & DB hygiene
+- Run Supabase linter
+- Run security scan
+- Manually review RLS on `executive_reports`, `annotations`, `documents`, `client_users`
+- Confirm no secret keys in client bundle
 
-Create placeholder pages, each rendering a centered `Card` with title + "Coming soon" copy:
-- `pages/Dashboard.tsx`
-- `pages/Clients.tsx`
-- `pages/Solicitations.tsx`
-- `pages/Reports.tsx`
-- `pages/Settings.tsx`
-- `pages/Login.tsx` (rendered outside `RootLayout`)
+## Deliverable
 
-Replace the existing placeholder `pages/Index.tsx` usage by routing `/` directly to `Dashboard`.
+A categorized issue list (Blocker / Major / Minor / Polish) with each issue fixed in a focused commit, plus a short "ready for internal use" sign-off summary at the end.
 
-## 6. Routing (`src/App.tsx`)
+## Notes
 
-```text
-<Routes>
-  <Route path="/login" element={<Login/>} />
-  <Route element={<RootLayout/>}>
-    <Route path="/" element={<Dashboard/>} />
-    <Route path="/clients" element={<Clients/>} />
-    <Route path="/solicitations" element={<Solicitations/>} />
-    <Route path="/reports" element={<Reports/>} />
-    <Route path="/settings" element={<Settings/>} />
-  </Route>
-  <Route path="*" element={<NotFound/>} />
-</Routes>
-```
-
-Keep existing `QueryClientProvider`, `TooltipProvider`, `Toaster`s.
-
-## 7. Out of scope (per prompt)
-
-- No auth logic, no Supabase/Lovable Cloud, no data fetching.
-- Login page is purely visual.
-- Zustand store file is created empty (placeholder) — no real state yet.
-
-## Technical details
-
-- Strict mode is already enabled in `tsconfig`.
-- All colors go through `hsl(var(--token))`; no hard-coded hex in JSX.
-- Sidebar uses `Sidebar` + `SidebarTrigger` from `components/ui/sidebar.tsx`; the trigger lives in the header so it remains visible when collapsed.
-- Active nav item uses `NavLink` + `isActive` prop on `SidebarMenuButton`.
-- Avatar dropdown uses `dropdown-menu` + `avatar` shadcn primitives.
+- I'll need you logged into the preview so I can drive the browser as a real user. You're currently on `/login` — please sign in first.
+- For the portal isolation test I'll need either an existing client user or permission to create a test one.
+- Expect this to surface 5–15 issues; we'll triage together if anything is bigger than a quick fix.
