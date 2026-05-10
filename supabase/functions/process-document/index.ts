@@ -147,6 +147,30 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Auth check: confirm the calling user (when present) can see this document via RLS.
+    // Internal/service calls (passing the service role key) skip this check.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const isServiceCall =
+      authHeader === `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`;
+    if (!isServiceCall) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: visible } = await userClient
+        .from("documents")
+        .select("id")
+        .eq("id", documentId)
+        .maybeSingle();
+      if (!visible) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     await supabase
       .from("documents")
       .update({
