@@ -41,20 +41,6 @@ const SCHEMA = {
           properties: {
             question_text: { type: "string" },
             category: { type: "string", enum: ["clarification", "strategic", "scope_expansion", "risk_concern", "compliance", "other"] },
-
-const SCHEMA = {
-  name: "generate_strategic_questions",
-  description: "Strategic questions for a government solicitation",
-  parameters: {
-    type: "object",
-    properties: {
-      questions: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            question_text: { type: "string" },
-            category: { type: "string", enum: ["clarification", "strategic", "scope_expansion", "risk_concern", "compliance"] },
             recommendation: { type: "string", enum: ["ask", "hold", "monitor", "internal_only"] },
             priority: { type: "number" },
             question_rationale: { type: "string" },
