@@ -27,6 +27,7 @@ export default function RootLayout() {
               </div>
             </main>
           </div>
+          <UploadProgress />
         </div>
       </SidebarProvider>
     </ProtectedRoute>
