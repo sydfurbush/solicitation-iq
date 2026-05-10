@@ -55,9 +55,10 @@ export function useCreateClient() {
   return useMutation({
     mutationFn: async (input: ClientInput) => {
       if (!organization?.id) throw new Error("No organization");
+      const payload = { ...input, organization_id: organization.id, name: input.name } as Database["public"]["Tables"]["clients"]["Insert"];
       const { data, error } = await supabase
         .from("clients")
-        .insert({ ...input, organization_id: organization.id })
+        .insert(payload)
         .select()
         .single();
       if (error) throw error;
