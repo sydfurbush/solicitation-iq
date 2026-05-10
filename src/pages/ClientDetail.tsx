@@ -167,6 +167,7 @@ export default function ClientDetail() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="solicitations">Solicitations</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
+          <TabsTrigger value="portal">Portal Access</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
