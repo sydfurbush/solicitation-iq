@@ -148,7 +148,7 @@ export function CreateSolicitationDialog({
             {attachments.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 {attachments.length} attachment{attachments.length > 1 ? "s" : ""} found on SAM.gov.
-                Upload them in the Documents tab after creating the solicitation.
+                They will be imported automatically when you create the solicitation.
               </p>
             )}
           </div>
