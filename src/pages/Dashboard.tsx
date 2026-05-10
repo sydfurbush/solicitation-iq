@@ -474,9 +474,7 @@ export default function Dashboard() {
                 {isFetching && stats.recent.length === 0 ? (
                   <ListSkeleton rows={5} />
                 ) : (
-                  <></>
-                )}
-                {!isFetching &&
+                  <>
                 {stats.recent.map((s) => (
                   <Link
                     key={s.id}
