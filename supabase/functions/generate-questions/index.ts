@@ -22,10 +22,25 @@ For each question:
 - Cite the EXACT source (document filename, section, page, verbatim quote up to 280 chars)
 - Recommend whether to ASK, HOLD, MONITOR, or keep INTERNAL
 - Assign a priority score 1-100
+- Choose a category. If a strategically important question does not fit any of the first 5 categories (clarification, strategic, scope_expansion, risk_concern, compliance), use "other" rather than discarding it or force-fitting it.
 
-Focus on questions that reveal where the agency wants innovation beyond incumbent capabilities, ambiguities that could be interpreted favorably, evaluation criteria clarifications, technical approach flexibility, and pricing structure opportunities.
+Focus on questions that reveal where the agency wants innovation beyond incumbent capabilities, ambiguities that could be interpreted favorably, evaluation criteria clarifications, technical approach flexibility, pricing structure opportunities, and any other material item a bidder would want clarified before proposing.
 
-Generate 8-15 questions distributed across all 5 categories. Return ONLY the JSON via the tool call.`;
+Generate 10-25 questions covering whichever categories the solicitation actually warrants — do NOT force a specific distribution. Be exhaustive: it is better to surface a borderline question under "other" than to omit it. Return ONLY the JSON via the tool call.`;
+
+const SCHEMA = {
+  name: "generate_strategic_questions",
+  description: "Strategic questions for a government solicitation",
+  parameters: {
+    type: "object",
+    properties: {
+      questions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            question_text: { type: "string" },
+            category: { type: "string", enum: ["clarification", "strategic", "scope_expansion", "risk_concern", "compliance", "other"] },
 
 const SCHEMA = {
   name: "generate_strategic_questions",
