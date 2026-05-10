@@ -40,6 +40,7 @@ import { toast } from "@/hooks/use-toast";
 import SolicitationDocuments from "./SolicitationDocuments";
 import SolicitationAnalysis from "./SolicitationAnalysis";
 import SolicitationQuestions from "./SolicitationQuestions";
+import SolicitationRisksOpportunities from "./SolicitationRisksOpportunities";
 
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
@@ -239,7 +240,11 @@ export default function SolicitationDetail() {
           <SolicitationQuestions solicitationId={s.id} />
         </TabsContent>
 
-        {["risks", "reports", "comparison", "activity"].map((t) => (
+        <TabsContent value="risks" className="mt-6">
+          <SolicitationRisksOpportunities solicitationId={s.id} />
+        </TabsContent>
+
+        {["reports", "comparison", "activity"].map((t) => (
           <TabsContent key={t} value={t} className="mt-6">
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
