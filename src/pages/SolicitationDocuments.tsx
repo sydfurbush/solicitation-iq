@@ -22,6 +22,9 @@ import { DocumentUploader } from "@/features/documents/components/DocumentUpload
 import { DocumentsEmptyState } from "@/features/documents/components/DocumentsEmptyState";
 import { DocumentViewer } from "@/features/documents/components/DocumentViewer";
 import { DocumentVersionHistory } from "@/features/documents/components/DocumentVersionHistory";
+import { ProcessAllDocuments } from "@/features/documents/components/ProcessAllDocuments";
+import { DocumentSearchBar } from "@/features/documents/components/DocumentSearchBar";
+import { invokeProcessDocument } from "@/lib/supabase/functions";
 
 export default function SolicitationDocuments({ solicitationId }: { solicitationId: string }) {
   const { data: documents, isLoading } = useDocuments(solicitationId);
