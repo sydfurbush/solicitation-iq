@@ -342,6 +342,41 @@ export default function ClientDetail() {
           {clientId && <ClientUsersManagement clientId={clientId} />}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete solicitation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{pendingDelete?.title}" will be removed from this client. This can be restored later from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!pendingDelete) return;
+                try {
+                  await deleteSolicitation.mutateAsync(pendingDelete.id);
+                  toast({ title: "Deleted", description: pendingDelete.title });
+                  queryClient.invalidateQueries({ queryKey: ["client-solicitations", clientId] });
+                } catch (e) {
+                  toast({
+                    title: "Failed",
+                    description: e instanceof Error ? e.message : String(e),
+                    variant: "destructive",
+                  });
+                } finally {
+                  setPendingDelete(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
