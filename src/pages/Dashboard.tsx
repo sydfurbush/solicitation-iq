@@ -96,10 +96,35 @@ export default function Dashboard() {
   const { data: solicitations, isLoading } = useSolicitations();
   const { data: clients } = useClients();
   const [searchParams, setSearchParams] = useSearchParams();
-  const clientFilter = searchParams.get("client") ?? "all";
-  const statusFilter = searchParams.get("status") ?? "all";
 
-  const updateFilter = (key: "client" | "status", value: string) => {
+  const rawClient = searchParams.get("client");
+  const rawStatus = searchParams.get("status");
+
+  // Validate status against known keys; unknown -> "all"
+  const statusFilter = rawStatus && STATUS_KEYS.includes(rawStatus) ? rawStatus : "all";
+
+  // Validate client: must be a UUID and (once clients load) must exist
+  const clientIsValidUuid = rawClient ? uuidSchema.safeParse(rawClient).success : false;
+  const clientsLoaded = Array.isArray(clients);
+  const clientExists =
+    clientIsValidUuid && clientsLoaded ? clients!.some((c) => c.id === rawClient) : clientIsValidUuid;
+  const clientFilter = clientExists ? rawClient! : "all";
+
+  // Strip invalid params from the URL once we can confirm they're invalid
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    let changed = false;
+    if (rawStatus && !STATUS_KEYS.includes(rawStatus)) {
+      next.delete("status");
+      changed = true;
+    }
+    if (rawClient && (!clientIsValidUuid || (clientsLoaded && !clientExists))) {
+      next.delete("client");
+      changed = true;
+    }
+    if (changed) setSearchParams(next, { replace: true });
+  }, [rawStatus, rawClient, clientIsValidUuid, clientsLoaded, clientExists, searchParams, setSearchParams]);
+
     const next = new URLSearchParams(searchParams);
     if (value === "all") next.delete(key);
     else next.set(key, value);
