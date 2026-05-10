@@ -70,9 +70,19 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
             </p>
           </div>
         </div>
-        <Button onClick={() => setUploaderOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Upload documents
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <DocumentSearchBar
+            solicitationId={solicitationId}
+            onResultClick={(r) => {
+              const d = docs.find((x) => x.id === r.document_id);
+              if (d) setViewerDoc(d);
+            }}
+          />
+          <ProcessAllDocuments documents={docs} solicitationId={solicitationId} />
+          <Button onClick={() => setUploaderOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Upload documents
+          </Button>
+        </div>
       </div>
 
       {uploaderOpen && (
