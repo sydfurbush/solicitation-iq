@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { Buffer } from "node:buffer";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import pdfParse from "npm:pdf-parse@1.1.1";
 import mammoth from "npm:mammoth@1.6.0";
