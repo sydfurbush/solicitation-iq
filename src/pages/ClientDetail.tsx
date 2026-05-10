@@ -293,16 +293,35 @@ export default function ClientDetail() {
               ) : (
                 <ul className="divide-y">
                   {solicitations.map((s) => (
-                    <li key={s.id} className="py-3 flex items-center justify-between">
-                      <div className="min-w-0">
+                    <li key={s.id} className="py-3 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/solicitations/${s.id}`)}
+                        className="min-w-0 text-left flex-1 hover:text-primary"
+                      >
                         <p className="font-medium truncate">{s.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {s.solicitation_number || "No number"}
                         </p>
-                      </div>
+                      </button>
                       <Badge variant="outline" className="capitalize">
                         {s.status?.replace(/_/g, " ")}
                       </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Solicitation actions">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setPendingDelete(s)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </li>
                   ))}
                 </ul>
