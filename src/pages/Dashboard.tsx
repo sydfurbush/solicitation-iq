@@ -28,6 +28,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSolicitations, type SolicitationWithClient } from "@/features/solicitations/hooks/useSolicitations";
 import { useClients } from "@/features/clients/hooks/useClients";
 
