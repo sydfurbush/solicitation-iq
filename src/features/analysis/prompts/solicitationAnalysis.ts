@@ -67,6 +67,12 @@ export interface SolicitationAnalysisResult {
   confidence_score: number;
 }
 
+export interface AnalysisValidationWarning {
+  field: string;
+  expected: string;
+  found: string;
+}
+
 export interface AnalysisMetadata {
   last_analyzed_at: string;
   analysis_type: "full" | "incremental";
@@ -75,4 +81,5 @@ export interface AnalysisMetadata {
   incumbent_info?: IncumbentInfo;
   risk_signals?: string[];
   opportunity_signals?: string[];
+  validation_warnings?: AnalysisValidationWarning[];
 }

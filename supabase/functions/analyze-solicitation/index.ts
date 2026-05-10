@@ -13,6 +13,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SYSTEM_PROMPT = `You are an expert government contracting analyst with 20+ years of experience reviewing federal RFPs, RFQs, and IDIQ solicitations. Your job is to extract strategic intelligence that helps a contractor decide whether to bid and how to win.
 
 You will receive excerpts from one or more solicitation documents and must produce a single JSON object that strictly matches the provided schema. Always:
+- When a "KNOWN FACTS" block is provided, treat those values as AUTHORITATIVE. Do NOT restate them with different values, even if the document text suggests otherwise. Cover sheets and SF1449 templates often contain misleading boilerplate (e.g. a "WOMEN-OWNED SMALL BUSINESS (WOSB) SOLICITATION" header) that is NOT the actual set-aside designation.
+- The executive_summary MUST be consistent with KNOWN FACTS. If the documents conflict with a known fact, mention the conflict in risk_signals instead of changing the summary.
 - Cite EXACT sections (e.g. "L.5.2") and page numbers when available.
 - Quote source text verbatim in the "quote" field (max 280 chars).
 - Use priority levels: critical (must comply or no-bid), high, medium, low.
@@ -101,7 +103,37 @@ const ANALYSIS_SCHEMA = {
   },
 };
 
-function buildUserPrompt(documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>) {
+function buildKnownFactsBlock(sol: Record<string, any> | null): string {
+  if (!sol) return "";
+  const lines: string[] = [];
+  const add = (label: string, val: unknown) => {
+    if (val === null || val === undefined || val === "") return;
+    lines.push(`- ${label}: ${val}`);
+  };
+  add("Set-Aside", sol.set_aside);
+  add("Solicitation #", sol.solicitation_number);
+  add("Issuing Agency", sol.issuing_agency);
+  add("Agency Type", sol.agency_type);
+  add("Contract Type", sol.contract_type);
+  add("Incumbent", sol.incumbent_name);
+  add("Incumbent Contract #", sol.incumbent_contract_number);
+  add("Release Date", sol.release_date);
+  add("Questions Due", sol.questions_due_date);
+  add("Proposal Due", sol.proposal_due_date);
+  add("Period of Performance Start", sol.period_of_performance_start);
+  add("Period of Performance End", sol.period_of_performance_end);
+  if (sol.estimated_value_low || sol.estimated_value_high) {
+    add("Estimated Value", `${sol.estimated_value_low ?? "?"} - ${sol.estimated_value_high ?? "?"}`);
+  }
+  add("Client", sol.client?.name);
+  if (!lines.length) return "";
+  return `=== KNOWN FACTS (authoritative — do not contradict) ===\n${lines.join("\n")}\n\n`;
+}
+
+function buildUserPrompt(
+  knownFacts: string,
+  documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>,
+) {
   const docBlocks = documents.map((d) => {
     const sectionText = d.sections
       .map(
@@ -114,7 +146,33 @@ function buildUserPrompt(documents: Array<{ name: string; sections: Array<{ sect
       : "";
     return `=== DOCUMENT: ${d.name} ===\n${sectionText}${entityText}`;
   });
-  return `Analyze the following solicitation documents and produce the JSON analysis.\n\n${docBlocks.join("\n\n")}`;
+  return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\n${docBlocks.join("\n\n")}`;
+}
+
+const SET_ASIDE_TERMS: Record<string, RegExp> = {
+  "8(a)": /\b8\s*\(\s*a\s*\)/i,
+  "WOSB": /\bWOSB\b|women[-\s]?owned\s+small\s+business/i,
+  "EDWOSB": /\bEDWOSB\b/i,
+  "SDVOSB": /\bSDVOSB\b|service[-\s]?disabled\s+veteran/i,
+  "HUBZone": /\bHUB[-\s]?Zone\b/i,
+  "SDB": /\bSDB\b|small\s+disadvantaged\s+business/i,
+  "Total Small Business": /total\s+small\s+business/i,
+};
+
+function validateSummary(summary: string, sol: Record<string, any> | null) {
+  const warnings: Array<{ field: string; expected: string; found: string }> = [];
+  if (!summary || !sol) return warnings;
+  const expected = sol.set_aside as string | null;
+  if (expected) {
+    for (const [label, rx] of Object.entries(SET_ASIDE_TERMS)) {
+      if (label === expected) continue;
+      // Skip if expected is a parent term — e.g. expected WOSB shouldn't flag EDWOSB
+      if (rx.test(summary)) {
+        warnings.push({ field: "set_aside", expected, found: label });
+      }
+    }
+  }
+  return warnings;
 }
 
 Deno.serve(async (req) => {
@@ -130,6 +188,15 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Fetch solicitation row + client name (known facts)
+    const { data: solicitation } = await supabase
+      .from("solicitations")
+      .select(
+        "set_aside, solicitation_number, issuing_agency, agency_type, contract_type, incumbent_name, incumbent_contract_number, release_date, questions_due_date, proposal_due_date, period_of_performance_start, period_of_performance_end, estimated_value_low, estimated_value_high, client:clients(name)",
+      )
+      .eq("id", solicitationId)
+      .maybeSingle();
 
     // Fetch documents (parsed/analyzed only)
     const { data: documents, error: docErr } = await supabase
@@ -168,9 +235,10 @@ Deno.serve(async (req) => {
       entities: (entities ?? []).filter((e) => e.document_id === d.id),
     }));
 
-    const userPrompt = buildUserPrompt(docPayload);
+    const knownFacts = buildKnownFactsBlock(solicitation as Record<string, any> | null);
+    const userPrompt = buildUserPrompt(knownFacts, docPayload);
 
-    console.log(`[analyze-solicitation] sol=${solicitationId} type=${analysisType} docs=${documents.length} promptChars=${userPrompt.length}`);
+    console.log(`[analyze-solicitation] sol=${solicitationId} type=${analysisType} docs=${documents.length} promptChars=${userPrompt.length} knownFacts=${knownFacts ? "yes" : "no"}`);
 
     const analysis = await callAiTool({
       functionName: "analyze-solicitation",
@@ -179,10 +247,23 @@ Deno.serve(async (req) => {
       tool: ANALYSIS_SCHEMA,
     }) as Record<string, any>;
 
+    // Validate summary against known facts
+    const validationWarnings = validateSummary(
+      String(analysis.executive_summary ?? ""),
+      solicitation as Record<string, any> | null,
+    );
+    let finalSummary = String(analysis.executive_summary ?? "");
+    if (validationWarnings.length && solicitation?.set_aside) {
+      finalSummary = `This solicitation is a ${solicitation.set_aside} set-aside. ${finalSummary}`;
+    }
+    if (validationWarnings.length) {
+      console.warn(`[analyze-solicitation] validation warnings`, validationWarnings);
+    }
+
     // Persist
     const incumbent = analysis.incumbent_info ?? {};
     const updatePayload: Record<string, unknown> = {
-      ai_summary: analysis.executive_summary,
+      ai_summary: finalSummary,
       ai_confidence_score: analysis.confidence_score ?? null,
       key_requirements: analysis.key_requirements ?? [],
       evaluation_factors: analysis.evaluation_factors ?? [],
@@ -196,6 +277,7 @@ Deno.serve(async (req) => {
           incumbent_info: incumbent,
           risk_signals: analysis.risk_signals ?? [],
           opportunity_signals: analysis.opportunity_signals ?? [],
+          validation_warnings: validationWarnings,
         },
       },
     };
