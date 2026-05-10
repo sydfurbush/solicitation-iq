@@ -106,9 +106,10 @@ export function useUpdateReportContent(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ reportId, content, title }: { reportId: string; content: ReportContent; title?: string }) => {
-      const updates: Record<string, unknown> = { content };
-      if (title) updates.title = title;
-      const { error } = await supabase.from("executive_reports").update(updates).eq("id", reportId);
+      const { error } = await supabase
+        .from("executive_reports")
+        .update(title ? { content: content as never, title } : { content: content as never })
+        .eq("id", reportId);
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
