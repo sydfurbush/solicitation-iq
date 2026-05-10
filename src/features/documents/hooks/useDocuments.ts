@@ -118,7 +118,7 @@ export function useUploadDocument() {
         file_size: input.file.size,
         file_type: input.file.type || null,
         document_type: input.documentType ?? "other",
-        status: "parsed",
+        status: "uploading",
         version,
         is_current: true,
         replaces_document_id: input.replacesDocumentId ?? null,
