@@ -1,0 +1,1 @@
+ALTER TABLE public.solicitations ADD COLUMN IF NOT EXISTS set_aside text;
