@@ -112,6 +112,22 @@ export default function SolicitationDetail() {
     }
   };
 
+  const handleDelete = async () => {
+    try {
+      await deleteMut.mutateAsync(s.id);
+      toast({ title: "Solicitation deleted", description: s.title });
+      navigate("/solicitations");
+    } catch (e) {
+      toast({
+        title: "Failed to delete",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setConfirmDelete(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <nav className="flex items-center text-sm text-muted-foreground">
