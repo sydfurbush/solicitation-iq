@@ -297,6 +297,10 @@ export default function ClientDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="portal" className="mt-6">
+          {clientId && <ClientUsersManagement clientId={clientId} />}
+        </TabsContent>
       </Tabs>
     </div>
   );
