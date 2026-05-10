@@ -685,14 +685,66 @@ export function SolicitationOverview({
             </CardHeader>
             <CardContent>
               {Array.isArray(s.key_requirements) && s.key_requirements.length > 0 ? (
-                <ul className="space-y-2 text-sm">
-                  {(s.key_requirements as Array<{ title?: string }>).map((r, i) => (
-                    <li key={i} className="flex gap-2">
-                      <span className="text-muted-foreground">{i + 1}.</span>
-                      <span>{r.title ?? JSON.stringify(r)}</span>
-                    </li>
-                  ))}
-                </ul>
+                (() => {
+                  const reqs = s.key_requirements as Array<{
+                    text?: string;
+                    title?: string;
+                    priority?: "critical" | "high" | "medium" | "low";
+                    category?: string;
+                    source?: { section?: string; page?: number };
+                  }>;
+                  const PRIORITY_CLASSES: Record<string, string> = {
+                    critical: "bg-destructive/15 text-destructive border-destructive/20",
+                    high: "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20",
+                    medium: "bg-primary/10 text-primary border-primary/20",
+                    low: "bg-muted text-muted-foreground border-border",
+                  };
+                  const visible = reqs.slice(0, 5);
+                  const remaining = reqs.length - visible.length;
+                  return (
+                    <ul className="space-y-3 text-sm">
+                      {visible.map((r, i) => {
+                        const label = r.text ?? r.title ?? `Requirement ${i + 1}`;
+                        const cite = [r.source?.section, r.source?.page ? `p. ${r.source.page}` : null]
+                          .filter(Boolean)
+                          .join(" · ");
+                        return (
+                          <li key={i} className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {r.priority && (
+                                <Badge
+                                  variant="outline"
+                                  className={cn("text-[10px] capitalize", PRIORITY_CLASSES[r.priority])}
+                                >
+                                  {r.priority}
+                                </Badge>
+                              )}
+                              {r.category && (
+                                <Badge variant="secondary" className="text-[10px] capitalize">
+                                  {r.category}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="leading-snug">{label}</p>
+                            {cite && (
+                              <p className="text-[11px] text-muted-foreground">{cite}</p>
+                            )}
+                          </li>
+                        );
+                      })}
+                      {remaining > 0 && (
+                        <li>
+                          <a
+                            href={`/solicitations/${s.id}/analysis`}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            +{remaining} more in Analysis →
+                          </a>
+                        </li>
+                      )}
+                    </ul>
+                  );
+                })()
               ) : (
                 <p className="text-sm text-muted-foreground">No requirements extracted yet.</p>
               )}
