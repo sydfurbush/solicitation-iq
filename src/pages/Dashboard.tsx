@@ -125,6 +125,7 @@ export default function Dashboard() {
     if (changed) setSearchParams(next, { replace: true });
   }, [rawStatus, rawClient, clientIsValidUuid, clientsLoaded, clientExists, searchParams, setSearchParams]);
 
+  const updateFilter = (key: "client" | "status", value: string) => {
     const next = new URLSearchParams(searchParams);
     if (value === "all") next.delete(key);
     else next.set(key, value);
