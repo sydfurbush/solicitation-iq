@@ -41,6 +41,9 @@ import SolicitationDocuments from "./SolicitationDocuments";
 import SolicitationAnalysis from "./SolicitationAnalysis";
 import SolicitationQuestions from "./SolicitationQuestions";
 import SolicitationRisksOpportunities from "./SolicitationRisksOpportunities";
+import SolicitationActivity from "./SolicitationActivity";
+import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
+import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
 
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
