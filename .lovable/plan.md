@@ -1,74 +1,41 @@
-Add SAM.gov URL support to solicitations in two layers: a simple link field everywhere, and a one-click importer that prefills a new solicitation from a SAM.gov notice URL.
+## Problem
 
-## Part 1 — `sam_url` field (simple)
+After "Prefill" from a SAM.gov URL, the form fields populate but no documents appear on the new solicitation. The current edge function returns an `attachments` array (`resourceLinks` from SAM.gov), but nothing downloads or uploads them — the dialog only shows a hint message ("Upload them in the Documents tab after creating the solicitation").
 
-**Schema**
-- Add `sam_url text` column to `public.solicitations` (nullable). No RLS changes (existing policies cover it).
+## Goal
 
-**Validator**
-- Add `sam_url: z.string().url().optional().or(z.literal("")).transform(v => v || undefined)` to `solicitationFullSchema` and the create/update inputs in `lib/validators/solicitation.ts`.
+When a SAM.gov URL is imported, automatically pull every attachment SAM.gov lists for that notice and add them as documents on the solicitation, ready for the existing parsing/analysis pipeline.
 
-**UI**
-- `SolicitationForm.tsx` (Basics step): new "SAM.gov URL" input next to "Solicitation number".
-- `SolicitationOverview.tsx` Key Info card: show the URL as a clickable "Open on SAM.gov" link with an external-link icon when present; editable inline like other fields.
-- `SolicitationDetail.tsx` header: small "View on SAM.gov" link button next to the title when `sam_url` is set.
-- Hooks: include `sam_url` in `toInsert`/`toUpdate` in `useSolicitations.ts` and add it to `EditSolicitationDialog`'s `toFormDefaults`.
+## Plan
 
-## Part 2 — SAM.gov importer (one-click prefill)
+1. **New edge function `sam-import-attachments`**
+   - Input: `{ solicitationId, attachments: [{ href, fileName? }] }`.
+   - Validates the user can write to the solicitation (uses caller's JWT against RLS via the user-scoped Supabase client).
+   - For each `href`:
+     - `fetch(href)` (SAM.gov resource links are public; if a key is needed, append `?api_key=…` from `SAM_GOV_API_KEY`).
+     - Follow redirects, read `Content-Disposition` / `Content-Type` to derive filename + extension; fall back to a hash of the URL.
+     - Skip unsupported extensions (reuse the allow-list from `fileHelpers.ts`).
+     - Upload bytes to the `solicitation-documents` bucket at `{org_id}/{client_id}/{solicitation_id}/{uuid}.{ext}` using the **service-role** client (so storage RLS is bypassed safely after auth check).
+     - Insert a row in `documents` with `status='uploading'`, correct `file_name/path/size/type/document_type='other'`.
+     - Invoke `process-document` for that document id (fire-and-forget) so it gets parsed.
+   - Returns `{ imported: n, skipped: [...], failed: [...] }`.
 
-**Data source**
-- Use the public **SAM.gov Opportunities API** (`https://api.sam.gov/opportunities/v2/search`) with the user's free SAM API key. (SAM URLs use the notice ID as `noticeid` query param, which the API accepts directly.) No web scraping needed → no Firecrawl dependency.
-- Store the key as a Supabase secret: `SAM_GOV_API_KEY` (request via `add_secret` after plan approval).
+2. **Wire it into the create flow** (`CreateSolicitationDialog.tsx`)
+   - After `createMut.mutateAsync(values)` succeeds and `attachments.length > 0`, call the new function with `created.id` and the stored `attachments`.
+   - Show a toast: "Importing N attachment(s) from SAM.gov…" then a completion toast with counts.
+   - Replace the current "Upload them in the Documents tab" hint with "These N attachments will be added automatically when you create the solicitation."
 
-**Edge function**
-- New function `sam-import` (verify_jwt = true by default — staff-only).
-  - Input: `{ url: string }`
-  - Parses the SAM URL, extracts the notice ID (UUID after `/opp/` or `noticeid` query param).
-  - Calls SAM API; returns a normalized payload mapping to our schema:
-    - `title` ← `title`
-    - `solicitation_number` ← `solicitationNumber`
-    - `issuing_agency` ← `fullParentPathName` (top-level dept) or `organizationName`
-    - `agency_type` ← inferred ("Federal" if dept matches federal list)
-    - `set_aside` ← mapped from `typeOfSetAsideDescription` to our enum (SDVOSB / 8(a) / WOSB / SBA / Other)
-    - `release_date` ← `postedDate`
-    - `proposal_due_date` ← `responseDeadLine`
-    - `period_of_performance_start/end` ← from `placeOfPerformance` if present (often null)
-    - `sam_url` ← the original URL
-    - `description` (truncated) → `notes` in metadata
-    - `attachments[]` ← list of `{ name, url }` from `resourceLinks` (not downloaded yet — see below)
-  - Returns 400 on invalid URL, 404 if notice not found, 502 on upstream errors.
+3. **Edge function for the importer URL parsing**
+   - Keep `sam-import` as-is for prefill; only the new function handles file downloads. This keeps prefill fast and lets attachment import run in the background.
 
-**UI flow**
-- `CreateSolicitationDialog`: new "Import from SAM.gov" tab/button at the top of the wizard.
-  - User pastes URL → calls `sam-import` → fields in the wizard prefill → user reviews/edits → saves normally via existing create path.
-  - Show a spinner + toast errors. Client must still be selected manually.
-- `EditSolicitationDialog`: optional "Re-sync from SAM.gov" button when `sam_url` is set, which re-fetches and offers a diff to apply (out of scope for v1 — leave as a follow-up).
+4. **Quiet runtime fix**
+   - Address the `Cannot read properties of undefined (reading 'toLowerCase')` error surfacing on this page (likely from the SAM prefill setting an undefined `agency_type`/`set_aside` that a Select reads). Guard the lookup in `SolicitationForm` so missing strings don't crash.
 
-**Attachments (deferred)**
-- v1 just lists discovered attachments with "Download from SAM" links shown after import. Auto-uploading them into the `solicitation-documents` bucket requires an authenticated server-side fetch + storage upload per file; we'll add this as Part 3 once Part 2 works.
+## Technical details
 
-## Files touched
+- Files to add: `supabase/functions/sam-import-attachments/index.ts`.
+- Files to edit: `src/features/solicitations/components/CreateSolicitationDialog.tsx` (post-create hook + copy), `src/features/solicitations/components/SolicitationForm.tsx` (defensive guard for the toLowerCase crash).
+- Reuses existing buckets, `documents` table, RLS, and `process-document` function — no migration needed.
+- Concurrency cap of 3 downloads inside the function to stay under the edge function timeout for typical SAM notices (≤10 attachments).
 
-- Migration: add `sam_url` column.
-- `src/lib/validators/solicitation.ts` — add field.
-- `src/features/solicitations/hooks/useSolicitations.ts` — map field.
-- `src/features/solicitations/components/SolicitationForm.tsx` — input on Basics.
-- `src/features/solicitations/components/SolicitationOverview.tsx` — display + inline edit.
-- `src/features/solicitations/components/EditSolicitationDialog.tsx` — defaults.
-- `src/features/solicitations/components/CreateSolicitationDialog.tsx` — import bar.
-- `src/pages/SolicitationDetail.tsx` — header link.
-- `supabase/functions/sam-import/index.ts` — new function.
-- Secret: `SAM_GOV_API_KEY` (requested after approval).
-
-## Out of scope (follow-ups)
-
-- Auto-downloading SAM attachments into `solicitation-documents`.
-- Re-sync diff UI on edit.
-- Importing amendments / Q&A documents from SAM.
-
-## Verification
-
-1. Create migration → restart confirms `sam_url` typed in `types.ts`.
-2. Edit existing solicitation → set SAM URL → Overview shows clickable link → header shows link.
-3. Create new → paste SAM URL like `https://sam.gov/opp/<noticeId>/view` → fields prefill → save works.
-4. Bad URL / unknown notice → toast with clear error.
+Want me to proceed with this?
