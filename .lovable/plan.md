@@ -1,80 +1,34 @@
-## Goal
+## 1. Contract Set-Aside field
 
-Run a structured end-to-end QA pass on the Solicitation Intelligence Analyzer for internal team use, find every blocker / bug / rough edge, and fix them before you start using it for real client work.
+**Migration**: add `set_aside text` (nullable) to `public.solicitations`. Plain text (not an enum) so values can be extended without a migration. Allowed values enforced in the app: `SDVOSB`, `SBA`, `8(a)`, `WOSB`, `Other`.
 
-## Approach
+**Validator** (`src/lib/validators/solicitation.ts`):
+- Export `SET_ASIDE_TYPES = ["SDVOSB","SBA","8(a)","WOSB","Other"] as const`.
+- Add optional `set_aside: z.enum(SET_ASIDE_TYPES).optional()` to `solicitationBasicSchema`.
 
-We'll walk the full happy-path workflow with real data, in the order an analyst would actually use it. At each step we verify: (1) the UI works, (2) the data persists correctly in the database, (3) the AI edge functions return useful output, and (4) RLS lets the right people see the right things.
+**Form** (`src/features/solicitations/components/SolicitationForm.tsx`):
+- New `Select` on the **Basics** tab, placed beside Contract type.
+- Add `set_aside` to `defaultValues` and to `STEP_FIELDS.basic`.
 
-I'll drive the testing using browser automation + direct DB / edge-function inspection, log every issue I find, and then fix them in priority order.
+**Display**:
+- Show set-aside on `SolicitationOverview` (Overview tab) when set.
+- Show as a small badge on `SolicitationCard` when set.
 
-## QA Walkthrough (in order)
+No change to `useSolicitations` hook needed — the field flows through `toInsert(...rest)` automatically once it's on the schema.
 
-### 1. Auth & org setup
-- Sign up a fresh user → confirm `users` row + default `user_roles` row are created
-- Verify `organizations` / org assignment works
-- Log out / log back in
-- Test password reset and Google OAuth (if enabled)
+## 2. Delete a solicitation
 
-### 2. Clients
-- Create a client, edit it, upload a logo
-- Verify access_level toggle works
-- Soft-delete and confirm it disappears from lists
+`useDeleteSolicitation` already exists (soft delete via `deleted_at`). Add UI entry points:
 
-### 3. Solicitation intake
-- Create a solicitation, attach to a client
-- Upload a real PDF (use a sample RFP)
-- Confirm `documents.status` transitions: `uploading` → `processing` → `ready`
-- Inspect `document_sections` and `extracted_text` — was the PDF actually parsed?
+- **`SolicitationCard`** (grid view on `/solicitations`): add a kebab `DropdownMenu` in the card header with **Archive** and **Delete**. Expose `onArchive` / `onDelete` callbacks so `src/pages/Solicitations.tsx` reuses its existing `AlertDialog` confirm flow (same pattern as the table view).
+- **`SolicitationDetail` page**: add a destructive "Delete solicitation" item to the page header actions, with `AlertDialog` confirmation; on success, toast + navigate to `/solicitations` and invalidate queries.
+- **`ClientDetail` page** solicitations list: add a per-row kebab with Delete so a user can remove a solicitation from the client they just added it to.
 
-### 4. AI analysis pipeline (the riskiest area)
-For each edge function, trigger it from the UI, then check logs + DB:
-- `analyze-solicitation` → `solicitations.ai_summary`, `key_requirements`, `evaluation_factors`
-- `extract-entities` → `extracted_entities` rows with citations
-- `identify-risks-opportunities` → `risks` + `opportunities` with source_quote
-- `generate-questions` → `strategic_questions`
-- `compare-solicitations` → `prior_solicitations.changes_identified`
-- `generate-report` → `executive_reports.content` + file in `reports` bucket
+## Out of scope
+- No RLS changes (`staff manage solicitations` already permits update/delete).
+- No hard delete; soft delete (`deleted_at`) is preserved so records can be restored.
+- Existing rows keep `set_aside = null` and render as hidden/"—".
 
-For each: confirm AI output is grounded (has citations), not hallucinated, and the UI renders it cleanly.
-
-### 5. Collaboration
-- Add annotations from two browser sessions, confirm realtime updates
-- Check that you can only edit your own annotations
-- Verify activity feed logs all events
-- Test team presence indicator
-
-### 6. Reports & exports
-- Generate each report type
-- Download as PDF and Word — open the files, confirm they're not broken
-- Publish a report, mark client-accessible
-
-### 7. Client portal (isolation test — critical)
-- Invite a client user → accept invite → log in at `/portal/login`
-- Confirm client only sees their org's solicitations
-- Test all 3 access_levels: `full`, `summary`, `restricted` — verify documents/annotations/questions are properly hidden
-- Try to access another client's solicitation by URL guessing — must 404/403
-- Submit a support message → confirm staff sees it
-
-### 8. Cross-cutting checks
-- Global search (Cmd+K) returns correct scoped results
-- Error boundaries catch a thrown error gracefully
-- Loading skeletons appear on slow networks
-- Mobile viewport (375px) — main pages don't break
-- Console is clean (no React warnings, no 401/403 spam)
-
-### 9. Security & DB hygiene
-- Run Supabase linter
-- Run security scan
-- Manually review RLS on `executive_reports`, `annotations`, `documents`, `client_users`
-- Confirm no secret keys in client bundle
-
-## Deliverable
-
-A categorized issue list (Blocker / Major / Minor / Polish) with each issue fixed in a focused commit, plus a short "ready for internal use" sign-off summary at the end.
-
-## Notes
-
-- I'll need you logged into the preview so I can drive the browser as a real user. You're currently on `/login` — please sign in first.
-- For the portal isolation test I'll need either an existing client user or permission to create a test one.
-- Expect this to surface 5–15 issues; we'll triage together if anything is bigger than a quick fix.
+## Technical notes
+- `src/integrations/supabase/types.ts` regenerates after the migration, so `set_aside` becomes typed automatically.
+- The form's wizard `STEP_FIELDS.basic` must include `set_aside` so step validation triggers on it.

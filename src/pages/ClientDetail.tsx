@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, ExternalLink, Mail, Pencil, Save, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight, ExternalLink, Mail, MoreVertical, Pencil, Save, Trash2, X } from "lucide-react";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useClient, useUpdateClient } from "@/features/clients/hooks/useClients";
+import { useDeleteSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { CreateClientDialog } from "@/features/clients/components/CreateClientDialog";
 import { ClientUsersManagement } from "@/features/clients/components/ClientUsersManagement";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,9 +51,12 @@ export default function ClientDetail() {
   const navigate = useNavigate();
   const { data: client, isLoading } = useClient(clientId);
   const updateMut = useUpdateClient();
+  const queryClient = useQueryClient();
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SolicitationRow | null>(null);
+  const deleteSolicitation = useDeleteSolicitation();
 
   const { data: solicitations = [] } = useQuery({
     queryKey: ["client-solicitations", clientId],
@@ -273,16 +293,35 @@ export default function ClientDetail() {
               ) : (
                 <ul className="divide-y">
                   {solicitations.map((s) => (
-                    <li key={s.id} className="py-3 flex items-center justify-between">
-                      <div className="min-w-0">
+                    <li key={s.id} className="py-3 flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/solicitations/${s.id}`)}
+                        className="min-w-0 text-left flex-1 hover:text-primary"
+                      >
                         <p className="font-medium truncate">{s.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {s.solicitation_number || "No number"}
                         </p>
-                      </div>
+                      </button>
                       <Badge variant="outline" className="capitalize">
                         {s.status?.replace(/_/g, " ")}
                       </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Solicitation actions">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setPendingDelete(s)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </li>
                   ))}
                 </ul>
@@ -303,6 +342,41 @@ export default function ClientDetail() {
           {clientId && <ClientUsersManagement clientId={clientId} />}
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete solicitation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{pendingDelete?.title}" will be removed from this client. This can be restored later from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!pendingDelete) return;
+                try {
+                  await deleteSolicitation.mutateAsync(pendingDelete.id);
+                  toast({ title: "Deleted", description: pendingDelete.title });
+                  queryClient.invalidateQueries({ queryKey: ["client-solicitations", clientId] });
+                } catch (e) {
+                  toast({
+                    title: "Failed",
+                    description: e instanceof Error ? e.message : String(e),
+                    variant: "destructive",
+                  });
+                } finally {
+                  setPendingDelete(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

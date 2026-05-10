@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import {
   AGENCY_TYPES,
   CONTRACT_TYPES,
+  SET_ASIDE_TYPES,
   solicitationFullSchema,
   type SolicitationFullInput,
 } from "@/lib/validators/solicitation";
@@ -53,7 +54,7 @@ const STEPS = [
 type StepId = (typeof STEPS)[number]["id"];
 
 const STEP_FIELDS: Record<StepId, (keyof SolicitationFullInput)[]> = {
-  basic: ["client_id", "title", "solicitation_number", "issuing_agency", "agency_type", "contract_type"],
+  basic: ["client_id", "title", "solicitation_number", "issuing_agency", "agency_type", "contract_type", "set_aside"],
   dates: [
     "release_date",
     "questions_due_date",
@@ -134,6 +135,7 @@ export function SolicitationForm({
       issuing_agency: defaultValues?.issuing_agency ?? "",
       agency_type: defaultValues?.agency_type,
       contract_type: defaultValues?.contract_type,
+      set_aside: defaultValues?.set_aside,
       release_date: defaultValues?.release_date ?? "",
       questions_due_date: defaultValues?.questions_due_date ?? "",
       proposal_due_date: defaultValues?.proposal_due_date ?? "",
@@ -302,6 +304,28 @@ export function SolicitationForm({
                         </FormControl>
                         <SelectContent>
                           {CONTRACT_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="set_aside"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contract set-aside</FormLabel>
+                      <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || undefined)}>
+                        <FormControl>
+                          <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {SET_ASIDE_TYPES.map((t) => (
                             <SelectItem key={t} value={t}>{t}</SelectItem>
                           ))}
                         </SelectContent>

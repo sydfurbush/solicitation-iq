@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -12,12 +12,23 @@ import {
   Pencil,
   Share2,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useSolicitation, useUpdateSolicitationStatus } from "@/features/solicitations/hooks/useSolicitations";
+import { useDeleteSolicitation, useSolicitation, useUpdateSolicitationStatus } from "@/features/solicitations/hooks/useSolicitations";
 import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
 import { SolicitationOverview } from "@/features/solicitations/components/SolicitationOverview";
 import {
@@ -52,6 +63,8 @@ export default function SolicitationDetail() {
   const navigate = useNavigate();
   const { data: s, isLoading } = useSolicitation(solicitationId);
   const updateStatus = useUpdateSolicitationStatus();
+  const deleteMut = useDeleteSolicitation();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const urgency = useMemo(() => dueUrgency(s?.proposal_due_date), [s?.proposal_due_date]);
   const days = useMemo(() => daysUntil(s?.proposal_due_date), [s?.proposal_due_date]);
@@ -96,6 +109,22 @@ export default function SolicitationDetail() {
       toast({ title: "Link copied", description: "Share with your team." });
     } catch {
       toast({ title: "Could not copy link", variant: "destructive" });
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await deleteMut.mutateAsync(s.id);
+      toast({ title: "Solicitation deleted", description: s.title });
+      navigate("/solicitations");
+    } catch (e) {
+      toast({
+        title: "Failed to delete",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setConfirmDelete(false);
     }
   };
 
@@ -163,6 +192,14 @@ export default function SolicitationDetail() {
           </Button>
           <Button variant="outline" size="sm" onClick={() => handleStatusChange("archived")}>
             <Archive className="mr-2 h-4 w-4" /> Archive
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Delete
           </Button>
           <Button variant="outline" size="sm">
             <FileBarChart className="mr-2 h-4 w-4" /> Generate report
@@ -263,6 +300,26 @@ export default function SolicitationDetail() {
           <SolicitationReports solicitationId={s.id} />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete solicitation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{s.title}" will be removed from your active list. This can be restored later from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDelete}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
