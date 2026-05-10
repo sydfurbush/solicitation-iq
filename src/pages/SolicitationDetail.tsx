@@ -37,6 +37,7 @@ import {
 } from "@/features/solicitations/lib/format";
 import { SOLICITATION_STATUSES, type SolicitationStatus } from "@/lib/validators/solicitation";
 import { toast } from "@/hooks/use-toast";
+import SolicitationDocuments from "./SolicitationDocuments";
 
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
