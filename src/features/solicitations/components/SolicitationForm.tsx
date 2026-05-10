@@ -135,6 +135,7 @@ export function SolicitationForm({
       issuing_agency: defaultValues?.issuing_agency ?? "",
       agency_type: defaultValues?.agency_type,
       contract_type: defaultValues?.contract_type,
+      set_aside: defaultValues?.set_aside,
       release_date: defaultValues?.release_date ?? "",
       questions_due_date: defaultValues?.questions_due_date ?? "",
       proposal_due_date: defaultValues?.proposal_due_date ?? "",
