@@ -22,10 +22,11 @@ For each question:
 - Cite the EXACT source (document filename, section, page, verbatim quote up to 280 chars)
 - Recommend whether to ASK, HOLD, MONITOR, or keep INTERNAL
 - Assign a priority score 1-100
+- Choose a category. If a strategically important question does not fit any of the first 5 categories (clarification, strategic, scope_expansion, risk_concern, compliance), use "other" rather than discarding it or force-fitting it.
 
-Focus on questions that reveal where the agency wants innovation beyond incumbent capabilities, ambiguities that could be interpreted favorably, evaluation criteria clarifications, technical approach flexibility, and pricing structure opportunities.
+Focus on questions that reveal where the agency wants innovation beyond incumbent capabilities, ambiguities that could be interpreted favorably, evaluation criteria clarifications, technical approach flexibility, pricing structure opportunities, and any other material item a bidder would want clarified before proposing.
 
-Generate 8-15 questions distributed across all 5 categories. Return ONLY the JSON via the tool call.`;
+Generate 10-25 questions covering whichever categories the solicitation actually warrants — do NOT force a specific distribution. Be exhaustive: it is better to surface a borderline question under "other" than to omit it. Return ONLY the JSON via the tool call.`;
 
 const SCHEMA = {
   name: "generate_strategic_questions",
@@ -39,7 +40,7 @@ const SCHEMA = {
           type: "object",
           properties: {
             question_text: { type: "string" },
-            category: { type: "string", enum: ["clarification", "strategic", "scope_expansion", "risk_concern", "compliance"] },
+            category: { type: "string", enum: ["clarification", "strategic", "scope_expansion", "risk_concern", "compliance", "other"] },
             recommendation: { type: "string", enum: ["ask", "hold", "monitor", "internal_only"] },
             priority: { type: "number" },
             question_rationale: { type: "string" },
@@ -127,13 +128,20 @@ Deno.serve(async (req) => {
     const docByName = new Map<string, string>();
     documents.forEach((d) => docByName.set(d.file_name, d.id));
 
+    const VALID_CATEGORIES = new Set(["clarification", "strategic", "scope_expansion", "risk_concern", "compliance", "other"]);
+
     const rows = (questions ?? []).map((q: Record<string, unknown>) => {
       const sourceDocId = q.source_document ? docByName.get(q.source_document as string) : null;
+      let category = (q.category as string) ?? "other";
+      if (!VALID_CATEGORIES.has(category)) {
+        console.warn(`[generate-questions] unknown category "${category}" coerced to "other"`);
+        category = "other";
+      }
       return {
         solicitation_id: solicitationId,
         question_text: q.question_text as string,
         question_rationale: (q.question_rationale as string) ?? null,
-        category: q.category as string,
+        category,
         recommendation: (q.recommendation as string) ?? "monitor",
         priority: Math.max(1, Math.min(100, Math.round(Number(q.priority) || 50))),
         source_document_id: sourceDocId ?? null,
@@ -144,6 +152,10 @@ Deno.serve(async (req) => {
         is_ai_generated: true,
       };
     });
+
+    if (rows.length < 8) {
+      console.warn(`[generate-questions] only ${rows.length} questions generated for sol=${solicitationId}`);
+    }
 
     if (rows.length) {
       const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
