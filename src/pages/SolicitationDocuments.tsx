@@ -28,7 +28,9 @@ import { invokeProcessDocument } from "@/lib/supabase/functions";
 
 export default function SolicitationDocuments({ solicitationId }: { solicitationId: string }) {
   const { data: documents, isLoading } = useDocuments(solicitationId);
+  const { data: solicitation } = useSolicitation(solicitationId);
   const deleteDoc = useDeleteDocument();
+  const samPull = useSamPullAttachments(solicitationId, solicitation?.sam_url);
 
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<DocumentRow | null>(null);
@@ -53,7 +55,14 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
   }
 
   if (docs.length === 0) {
-    return <DocumentsEmptyState solicitationId={solicitationId} />;
+    return (
+      <DocumentsEmptyState
+        solicitationId={solicitationId}
+        samUrl={solicitation?.sam_url ?? null}
+        onPullFromSam={() => samPull.mutate()}
+        pulling={samPull.isPending}
+      />
+    );
   }
 
   return (
