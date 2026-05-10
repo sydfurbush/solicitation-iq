@@ -57,62 +57,37 @@ For each entity include a short context_snippet (under 200 chars) showing surrou
 and a confidence_score between 0 and 1.`;
 
   const tool = {
-    type: "function" as const,
-    function: {
-      name: "save_entities",
-      description: "Save the entities extracted from the document",
-      parameters: {
-        type: "object",
-        properties: {
-          entities: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                entity_type: { type: "string", enum: [...ENTITY_TYPES] },
-                entity_value: { type: "string" },
-                normalized_value: { type: "string" },
-                context_snippet: { type: "string" },
-                confidence_score: { type: "number", minimum: 0, maximum: 1 },
-              },
-              required: ["entity_type", "entity_value"],
+    name: "save_entities",
+    description: "Save the entities extracted from the document",
+    parameters: {
+      type: "object",
+      properties: {
+        entities: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              entity_type: { type: "string", enum: [...ENTITY_TYPES] },
+              entity_value: { type: "string" },
+              normalized_value: { type: "string" },
+              context_snippet: { type: "string" },
+              confidence_score: { type: "number", minimum: 0, maximum: 1 },
             },
+            required: ["entity_type", "entity_value"],
           },
         },
-        required: ["entities"],
       },
+      required: ["entities"],
     },
   };
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: slice },
-      ],
-      tools: [tool],
-      tool_choice: { type: "function", function: { name: "save_entities" } },
-    }),
+  const args = await callAiTool({
+    functionName: "extract-entities",
+    system: systemPrompt,
+    user: slice,
+    tool,
   });
-
-  if (res.status === 429) throw new Error("AI rate limit exceeded; please retry shortly");
-  if (res.status === 402) throw new Error("AI credits exhausted; add credits in Workspace settings");
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`AI gateway error ${res.status}: ${txt.slice(0, 500)}`);
-  }
-
-  const data = await res.json();
-  const call = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) return [];
-  const args = JSON.parse(call.function?.arguments ?? "{}");
-  const list = Array.isArray(args.entities) ? args.entities : [];
+  const list = Array.isArray((args as any).entities) ? (args as any).entities : [];
   return list.filter(
     (e: ExtractedEntity) =>
       e &&
