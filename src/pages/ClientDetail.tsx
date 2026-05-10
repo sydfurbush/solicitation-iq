@@ -54,6 +54,8 @@ export default function ClientDetail() {
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<SolicitationRow | null>(null);
+  const deleteSolicitation = useDeleteSolicitation();
 
   const { data: solicitations = [] } = useQuery({
     queryKey: ["client-solicitations", clientId],
