@@ -189,6 +189,15 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Fetch solicitation row + client name (known facts)
+    const { data: solicitation } = await supabase
+      .from("solicitations")
+      .select(
+        "set_aside, solicitation_number, issuing_agency, agency_type, contract_type, incumbent_name, incumbent_contract_number, release_date, questions_due_date, proposal_due_date, period_of_performance_start, period_of_performance_end, estimated_value_low, estimated_value_high, client:clients(name)",
+      )
+      .eq("id", solicitationId)
+      .maybeSingle();
+
     // Fetch documents (parsed/analyzed only)
     const { data: documents, error: docErr } = await supabase
       .from("documents")
@@ -226,9 +235,10 @@ Deno.serve(async (req) => {
       entities: (entities ?? []).filter((e) => e.document_id === d.id),
     }));
 
-    const userPrompt = buildUserPrompt(docPayload);
+    const knownFacts = buildKnownFactsBlock(solicitation as Record<string, any> | null);
+    const userPrompt = buildUserPrompt(knownFacts, docPayload);
 
-    console.log(`[analyze-solicitation] sol=${solicitationId} type=${analysisType} docs=${documents.length} promptChars=${userPrompt.length}`);
+    console.log(`[analyze-solicitation] sol=${solicitationId} type=${analysisType} docs=${documents.length} promptChars=${userPrompt.length} knownFacts=${knownFacts ? "yes" : "no"}`);
 
     const analysis = await callAiTool({
       functionName: "analyze-solicitation",
@@ -237,10 +247,23 @@ Deno.serve(async (req) => {
       tool: ANALYSIS_SCHEMA,
     }) as Record<string, any>;
 
+    // Validate summary against known facts
+    const validationWarnings = validateSummary(
+      String(analysis.executive_summary ?? ""),
+      solicitation as Record<string, any> | null,
+    );
+    let finalSummary = String(analysis.executive_summary ?? "");
+    if (validationWarnings.length && solicitation?.set_aside) {
+      finalSummary = `This solicitation is a ${solicitation.set_aside} set-aside. ${finalSummary}`;
+    }
+    if (validationWarnings.length) {
+      console.warn(`[analyze-solicitation] validation warnings`, validationWarnings);
+    }
+
     // Persist
     const incumbent = analysis.incumbent_info ?? {};
     const updatePayload: Record<string, unknown> = {
-      ai_summary: analysis.executive_summary,
+      ai_summary: finalSummary,
       ai_confidence_score: analysis.confidence_score ?? null,
       key_requirements: analysis.key_requirements ?? [],
       evaluation_factors: analysis.evaluation_factors ?? [],
@@ -254,6 +277,7 @@ Deno.serve(async (req) => {
           incumbent_info: incumbent,
           risk_signals: analysis.risk_signals ?? [],
           opportunity_signals: analysis.opportunity_signals ?? [],
+          validation_warnings: validationWarnings,
         },
       },
     };
