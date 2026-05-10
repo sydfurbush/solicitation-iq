@@ -260,11 +260,7 @@ export default function SolicitationDetail() {
         </TabsContent>
 
         <TabsContent value="reports" className="mt-6">
-          <Card>
-            <CardContent className="py-12 text-center text-sm text-muted-foreground">
-              Reports tab is coming soon.
-            </CardContent>
-          </Card>
+          <SolicitationReports solicitationId={s.id} />
         </TabsContent>
       </Tabs>
     </div>
