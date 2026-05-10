@@ -39,12 +39,35 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
       regenerate?: boolean;
     }) => {
       if (!solicitationId) throw new Error("Missing solicitationId");
+
+      // Snapshot current AI-generated count so we can detect when new ones arrive.
+      const { count: beforeCount } = await supabase
+        .from("strategic_questions")
+        .select("id", { count: "exact", head: true })
+        .eq("solicitation_id", solicitationId)
+        .eq("is_ai_generated", true);
+
       const { data, error } = await supabase.functions.invoke("generate-questions", {
         body: { solicitationId, ...input },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      return data;
+
+      // Background generation: poll up to ~4 minutes for new rows.
+      const deadline = Date.now() + 4 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 4000));
+        const { count: nowCount } = await supabase
+          .from("strategic_questions")
+          .select("id", { count: "exact", head: true })
+          .eq("solicitation_id", solicitationId)
+          .eq("is_ai_generated", true);
+        qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+        if ((nowCount ?? 0) > (input.regenerate ? 0 : (beforeCount ?? 0))) {
+          return { success: true, count: (nowCount ?? 0) - (beforeCount ?? 0) };
+        }
+      }
+      throw new Error("Generation timed out. Check back shortly — questions may still appear.");
     },
     onSuccess: () => {
       if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
