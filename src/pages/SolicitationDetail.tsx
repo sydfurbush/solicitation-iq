@@ -188,9 +188,14 @@ export default function SolicitationDetail() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="sm">
-            <Pencil className="mr-2 h-4 w-4" /> Edit
-          </Button>
+          <EditSolicitationDialog
+            solicitation={s}
+            trigger={
+              <Button variant="outline" size="sm">
+                <Pencil className="mr-2 h-4 w-4" /> Edit
+              </Button>
+            }
+          />
           <Button variant="outline" size="sm" onClick={() => handleStatusChange("archived")}>
             <Archive className="mr-2 h-4 w-4" /> Archive
           </Button>
