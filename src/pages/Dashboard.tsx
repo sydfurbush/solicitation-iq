@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, formatDistanceToNow, isAfter, isBefore, addDays } from "date-fns";
 import {
@@ -28,6 +28,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useSolicitations, type SolicitationWithClient } from "@/features/solicitations/hooks/useSolicitations";
 import { useClients } from "@/features/clients/hooks/useClients";
 
@@ -84,11 +91,19 @@ function MetricCard({
 export default function Dashboard() {
   const { data: solicitations, isLoading } = useSolicitations();
   const { data: clients } = useClients();
+  const [clientFilter, setClientFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const stats = useMemo(() => {
     const list: SolicitationWithClient[] = solicitations ?? [];
     const now = new Date();
     const in14 = addDays(now, 14);
+
+    const filtered = list.filter((s) => {
+      if (clientFilter !== "all" && (s.client?.id ?? "unknown") !== clientFilter) return false;
+      if (statusFilter !== "all" && (s.status ?? "intake") !== statusFilter) return false;
+      return true;
+    });
 
     const statusCounts = list.reduce<Record<string, number>>((acc, s) => {
       const k = s.status ?? "intake";
@@ -96,7 +111,7 @@ export default function Dashboard() {
       return acc;
     }, {});
 
-    const upcoming = list
+    const upcoming = filtered
       .filter((s) => s.proposal_due_date && isAfter(new Date(s.proposal_due_date), now))
       .sort(
         (a, b) =>
@@ -107,7 +122,7 @@ export default function Dashboard() {
       (s) => isBefore(new Date(s.proposal_due_date!), in14)
     );
 
-    const overdue = list.filter(
+    const overdue = filtered.filter(
       (s) =>
         s.proposal_due_date &&
         isBefore(new Date(s.proposal_due_date), now) &&
@@ -115,20 +130,19 @@ export default function Dashboard() {
         s.status !== "archived"
     );
 
-    const recent = [...list]
+    const recent = [...filtered]
       .sort((a, b) => new Date(b.created_at!).getTime() - new Date(a.created_at!).getTime())
       .slice(0, 6);
 
-    const totalRisks = list.reduce((sum, s) => sum + (s.risks_count ?? 0), 0);
-    const totalOpps = list.reduce((sum, s) => sum + (s.opportunities_count ?? 0), 0);
-    const totalQuestions = list.reduce((sum, s) => sum + (s.questions_count ?? 0), 0);
+    const totalRisks = filtered.reduce((sum, s) => sum + (s.risks_count ?? 0), 0);
+    const totalOpps = filtered.reduce((sum, s) => sum + (s.opportunities_count ?? 0), 0);
+    const totalQuestions = filtered.reduce((sum, s) => sum + (s.questions_count ?? 0), 0);
 
     const statusChart = Object.entries(statusCounts).map(([k, v]) => ({
       name: STATUS_LABELS[k] ?? k,
       value: v,
     }));
 
-    // Solicitations per client (top 6)
     const byClient = list.reduce<Record<string, { name: string; count: number }>>((acc, s) => {
       const id = s.client?.id ?? "unknown";
       const name = s.client?.name ?? "Unassigned";
@@ -141,7 +155,7 @@ export default function Dashboard() {
       .slice(0, 6);
 
     return {
-      total: list.length,
+      total: filtered.length,
       activeClients: clients?.length ?? 0,
       upcoming,
       dueSoon,
@@ -152,8 +166,9 @@ export default function Dashboard() {
       totalQuestions,
       statusChart,
       clientChart,
+      isFiltered: clientFilter !== "all" || statusFilter !== "all",
     };
-  }, [solicitations, clients]);
+  }, [solicitations, clients, clientFilter, statusFilter]);
 
   if (isLoading) {
     return (
@@ -187,6 +202,49 @@ export default function Dashboard() {
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Filter:</span>
+        <Select value={clientFilter} onValueChange={setClientFilter}>
+          <SelectTrigger className="h-9 w-[200px]">
+            <SelectValue placeholder="All clients" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All clients</SelectItem>
+            {(clients ?? []).map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-9 w-[200px]">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {Object.entries(STATUS_LABELS).map(([k, label]) => (
+              <SelectItem key={k} value={k}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {stats.isFiltered && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setClientFilter("all");
+              setStatusFilter("all");
+            }}
+          >
+            Clear
+          </Button>
+        )}
       </div>
 
       {/* Top metrics */}
