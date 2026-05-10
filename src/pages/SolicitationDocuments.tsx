@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, FileText } from "lucide-react";
+import { Plus, FileText, DownloadCloud, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -25,10 +25,14 @@ import { DocumentVersionHistory } from "@/features/documents/components/Document
 import { ProcessAllDocuments } from "@/features/documents/components/ProcessAllDocuments";
 import { DocumentSearchBar } from "@/features/documents/components/DocumentSearchBar";
 import { invokeProcessDocument } from "@/lib/supabase/functions";
+import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
+import { useSamPullAttachments } from "@/features/solicitations/hooks/useSamPullAttachments";
 
 export default function SolicitationDocuments({ solicitationId }: { solicitationId: string }) {
   const { data: documents, isLoading } = useDocuments(solicitationId);
+  const { data: solicitation } = useSolicitation(solicitationId);
   const deleteDoc = useDeleteDocument();
+  const samPull = useSamPullAttachments(solicitationId, solicitation?.sam_url);
 
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [viewerDoc, setViewerDoc] = useState<DocumentRow | null>(null);
@@ -53,7 +57,14 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
   }
 
   if (docs.length === 0) {
-    return <DocumentsEmptyState solicitationId={solicitationId} />;
+    return (
+      <DocumentsEmptyState
+        solicitationId={solicitationId}
+        samUrl={solicitation?.sam_url ?? null}
+        onPullFromSam={() => samPull.mutate()}
+        pulling={samPull.isPending}
+      />
+    );
   }
 
   return (
@@ -79,6 +90,20 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
             }}
           />
           <ProcessAllDocuments documents={docs} solicitationId={solicitationId} />
+          {solicitation?.sam_url && (
+            <Button
+              variant="outline"
+              onClick={() => samPull.mutate()}
+              disabled={samPull.isPending}
+            >
+              {samPull.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <DownloadCloud className="mr-2 h-4 w-4" />
+              )}
+              Pull from SAM.gov
+            </Button>
+          )}
           <Button onClick={() => setUploaderOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Upload documents
           </Button>
@@ -191,7 +216,6 @@ function ReplaceUploader({
 }
 
 import { useUser } from "@/features/auth/hooks/useUser";
-import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useUploadDocument } from "@/features/documents/hooks/useDocuments";
 import { Progress } from "@/components/ui/progress";
 import { validateFile } from "@/features/documents/utils/fileHelpers";

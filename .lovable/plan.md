@@ -1,31 +1,31 @@
-## Diagnosis
+## Goal
 
-The `sam-import-attachments` function executed successfully (HTTP 200 in 2.9s) but every one of the 11 SAM.gov downloads failed inside the worker loop. Two issues in the current code explain it:
+Let the user re-pull SAM.gov attachments from the solicitation page itself — for retrying after failures or grabbing files that were added to the notice later.
 
-1. **API key not appended to download URLs.** SAM.gov `resourceLinks` look like `https://sam.gov/api/prod/opps/v3/opportunities/resources/files/<id>/download?token=...` (or `api.sam.gov/...`). They require `?api_key=...` to return the actual file. My code only appends the key when `hostname.includes("api.sam.gov")` — most resource links use `sam.gov`, so the request returned an HTML error / 401 page.
-2. **Silent per-file failure.** The function never logs per-attachment errors, so the only signal was the toast count. We can't see *why* each one failed.
+## Plan
 
-A secondary issue: even when the download succeeds, SAM sometimes returns a filename only in `Content-Disposition` with no extension in the URL path; if `Content-Disposition` is missing, we fall back to the URL's last path segment (e.g. `download`) which has no extension and gets rejected.
+1. **New "Pull from SAM.gov" button** in the Documents tab header (`src/pages/SolicitationDocuments.tsx`), placed next to the existing "Upload documents" button. It is only enabled when the solicitation has a `sam_url`.
 
-## Fix
+2. **New shared hook** `useSamPullAttachments(solicitationId, samUrl)` in `src/features/solicitations/hooks/useSamPullAttachments.ts`:
+   - Calls the existing `sam-import` edge function to refresh the notice and get the current `attachments[]`.
+   - Filters out any whose filename already exists on the solicitation (case-insensitive match against `documents.file_name`) so we don't create duplicates.
+   - Calls `sam-import-attachments` with the remaining list.
+   - Returns counts: `{ found, alreadyImported, imported, failed[] }`.
+   - Invalidates the documents query on completion.
 
-Edit `supabase/functions/sam-import-attachments/index.ts`:
+3. **Click behaviour & feedback**
+   - Toast 1 (info): "Checking SAM.gov for attachments…"
+   - Toast 2 (success/warning): "Imported X new attachment(s). Y already on file. Z failed — <first error>." with destructive variant when nothing imported and there were failures.
+   - If `found === alreadyImported`, toast: "Already up to date — N attachments on file."
 
-1. **Always append `api_key`** when the host is any `*.sam.gov` (not just `api.sam.gov`) and the URL doesn't already have `api_key`.
-2. **Treat non-2xx as a hard failure with the response body** (first 200 chars) included in the per-file `error`, so we can see what SAM returned.
-3. **Better filename/extension fallback:**
-   - Parse `Content-Disposition` (already done) but also handle `filename*=UTF-8''…` form properly.
-   - If still no extension, derive one from `Content-Type` (already done) and synthesize `attachment-<shortId>.<ext>`.
-   - If `Content-Type` is `text/html` or `application/json`, treat as failure (likely an error page) and surface the body snippet.
-4. **Console-log every attempt** (`console.log("sam-attachment", { href, status, contentType, fileName, ext })`) and every failure, so the next attempt is debuggable from edge logs.
-5. **Return `failed[]` items with `href` + `error` + `status`** so the client toast/UI can show specifics.
+4. **Empty-state CTA** — in `DocumentsEmptyState.tsx`, show a secondary "Pull from SAM.gov" button alongside the uploader when `sam_url` is set, so users can populate documents in one click on a fresh solicitation.
 
-No client/UI changes needed for the fix itself, but I'll also tweak the `CreateSolicitationDialog` toast on failure to include the first failed reason (e.g. "1 of 11 imported — `Download failed (401): {...}`") so the user gets actionable feedback without opening logs.
+5. **Per-document refresh** is intentionally out of scope for this pass: SAM.gov resource links aren't currently persisted on each `documents` row, so re-pulling a single document would require a schema change. The bulk "Pull from SAM.gov" button covers retry, refresh after a failure, and picking up new amendments. If the user wants per-row refresh later, we'll add `source_url` to `documents` and a row-level action.
 
 ## Technical details
 
-- Files to edit: `supabase/functions/sam-import-attachments/index.ts`, `src/features/solicitations/components/CreateSolicitationDialog.tsx` (toast copy only).
-- No DB or schema changes.
-- After deploy, retry the same SAM.gov URL — edge function logs will show per-file results, and the import should succeed for all 11 attachments.
+- Files to add: `src/features/solicitations/hooks/useSamPullAttachments.ts`.
+- Files to edit: `src/pages/SolicitationDocuments.tsx` (header button + pass `sam_url` from the solicitation), `src/features/documents/components/DocumentsEmptyState.tsx` (optional secondary CTA), `src/features/solicitations/hooks/useSolicitations.ts` is already used to fetch the solicitation (no change needed if `sam_url` is in the row).
+- No edge function or DB changes — reuses `sam-import` and `sam-import-attachments`.
 
 Proceed?
