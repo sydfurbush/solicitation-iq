@@ -50,6 +50,9 @@ const STATUS_LABELS: Record<string, string> = {
   archived: "Archived",
 };
 
+const STATUS_KEYS = Object.keys(STATUS_LABELS);
+const uuidSchema = z.string().uuid();
+
 const STATUS_COLORS = [
   "hsl(var(--primary))",
   "hsl(var(--chart-2, 173 58% 39%))",
