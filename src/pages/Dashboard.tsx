@@ -247,10 +247,7 @@ export default function Dashboard() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setClientFilter("all");
-              setStatusFilter("all");
-            }}
+            onClick={() => setSearchParams({}, { replace: true })}
           >
             Clear
           </Button>
