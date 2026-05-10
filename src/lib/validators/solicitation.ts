@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const AGENCY_TYPES = ["Federal", "State", "Local", "Commercial"] as const;
 export const CONTRACT_TYPES = ["FFP", "T&M", "Cost-Plus", "IDIQ", "BPA", "Other"] as const;
+export const SET_ASIDE_TYPES = ["SDVOSB", "SBA", "8(a)", "WOSB", "Other"] as const;
+export type SetAsideType = (typeof SET_ASIDE_TYPES)[number];
 
 export const SOLICITATION_STATUSES = [
   "intake",
