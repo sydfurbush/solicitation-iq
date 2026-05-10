@@ -20,7 +20,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useUser } from "@/features/auth/hooks/useUser";
 
 const items = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -34,6 +35,16 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
+  const { user, organization } = useUser();
+  const displayName = user?.full_name || user?.email || "Account";
+  const orgName = organization?.name || "Your organization";
+  const initials = (displayName || "U")
+    .split(/\s+/)
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
   const isActive = (path: string) =>
     path === "/" ? pathname === "/" : pathname.startsWith(path);
 
@@ -83,17 +94,18 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-2">
           <Avatar className="h-8 w-8">
+            {user?.avatar_url ? <AvatarImage src={user.avatar_url} alt={displayName} /> : null}
             <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs">
-              AC
+              {initials}
             </AvatarFallback>
           </Avatar>
           {!collapsed && (
             <div className="flex flex-col leading-tight overflow-hidden">
               <span className="text-sm font-medium text-sidebar-foreground truncate">
-                Alex Chen
+                {displayName}
               </span>
               <span className="text-xs text-sidebar-foreground/60 truncate">
-                Senior Consultant
+                {orgName}
               </span>
             </div>
           )}
