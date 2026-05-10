@@ -128,13 +128,20 @@ Deno.serve(async (req) => {
     const docByName = new Map<string, string>();
     documents.forEach((d) => docByName.set(d.file_name, d.id));
 
+    const VALID_CATEGORIES = new Set(["clarification", "strategic", "scope_expansion", "risk_concern", "compliance", "other"]);
+
     const rows = (questions ?? []).map((q: Record<string, unknown>) => {
       const sourceDocId = q.source_document ? docByName.get(q.source_document as string) : null;
+      let category = (q.category as string) ?? "other";
+      if (!VALID_CATEGORIES.has(category)) {
+        console.warn(`[generate-questions] unknown category "${category}" coerced to "other"`);
+        category = "other";
+      }
       return {
         solicitation_id: solicitationId,
         question_text: q.question_text as string,
         question_rationale: (q.question_rationale as string) ?? null,
-        category: q.category as string,
+        category,
         recommendation: (q.recommendation as string) ?? "monitor",
         priority: Math.max(1, Math.min(100, Math.round(Number(q.priority) || 50))),
         source_document_id: sourceDocId ?? null,
@@ -145,6 +152,10 @@ Deno.serve(async (req) => {
         is_ai_generated: true,
       };
     });
+
+    if (rows.length < 8) {
+      console.warn(`[generate-questions] only ${rows.length} questions generated for sol=${solicitationId}`);
+    }
 
     if (rows.length) {
       const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
