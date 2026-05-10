@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   Archive,
@@ -63,6 +63,8 @@ import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") ?? "overview";
   const { data: s, isLoading } = useSolicitation(solicitationId);
   const updateStatus = useUpdateSolicitationStatus();
   const deleteMut = useDeleteSolicitation();
@@ -276,7 +278,7 @@ export default function SolicitationDetail() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview">
+      <Tabs value={tab} onValueChange={(v) => setSearchParams({ tab: v })}>
         <TabsList className="flex flex-wrap h-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import {
   Calendar as CalendarIcon,
@@ -734,12 +735,12 @@ export function SolicitationOverview({
                       })}
                       {remaining > 0 && (
                         <li>
-                          <a
-                            href={`/solicitations/${s.id}/analysis`}
+                          <Link
+                            to={`/solicitations/${s.id}?tab=analysis`}
                             className="text-xs text-primary hover:underline"
                           >
                             +{remaining} more in Analysis →
-                          </a>
+                          </Link>
                         </li>
                       )}
                     </ul>
