@@ -105,8 +105,8 @@ export const solicitationTagsSchema = z.object({
 });
 
 export const solicitationFullSchema = solicitationBasicSchema
-  .merge(solicitationDatesSchema.innerType ? solicitationDatesSchema.innerType : (solicitationDatesSchema as never))
-  .merge(solicitationFinancialsSchema.innerType ? solicitationFinancialsSchema.innerType : (solicitationFinancialsSchema as never))
+  .merge(solicitationDatesSchema.innerType())
+  .merge(solicitationFinancialsSchema.innerType())
   .merge(solicitationTagsSchema);
 
 export type SolicitationBasic = z.infer<typeof solicitationBasicSchema>;
