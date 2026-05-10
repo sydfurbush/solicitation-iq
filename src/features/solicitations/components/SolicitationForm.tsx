@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, X } from "lucide-react";
 import { useForm, FormProvider } from "react-hook-form";
@@ -155,7 +155,10 @@ export function SolicitationForm({
   });
 
   // Notify dirty state for unsaved-changes detection
-  if (onDirtyChange) onDirtyChange(form.formState.isDirty);
+  const isDirty = form.formState.isDirty;
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const hasIncumbent = form.watch("has_incumbent");
   const tags = form.watch("tags") ?? [];
@@ -191,7 +194,7 @@ export function SolicitationForm({
           <Tabs value={step} onValueChange={(v) => setStep(v as StepId)}>
             <TabsList className="grid grid-cols-4">
               {STEPS.map((s, i) => (
-                <TabsTrigger key={s.id} value={s.id}>
+                <TabsTrigger key={s.id} value={s.id} type="button">
                   <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px]">
                     {i + 1}
                   </span>
