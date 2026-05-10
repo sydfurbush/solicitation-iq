@@ -254,15 +254,17 @@ export default function SolicitationDetail() {
           <SolicitationActivity solicitationId={s.id} />
         </TabsContent>
 
-        {["reports", "comparison"].map((t) => (
-          <TabsContent key={t} value={t} className="mt-6">
-            <Card>
-              <CardContent className="py-12 text-center text-sm text-muted-foreground">
-                {t.charAt(0).toUpperCase() + t.slice(1)} tab is coming soon.
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
+        <TabsContent value="comparison" className="mt-6">
+          <SolicitationComparison solicitationId={s.id} />
+        </TabsContent>
+
+        <TabsContent value="reports" className="mt-6">
+          <Card>
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              Reports tab is coming soon.
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );
