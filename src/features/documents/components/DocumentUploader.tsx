@@ -40,6 +40,8 @@ export function DocumentUploader({ solicitationId, compact }: Props) {
   const { data: solicitation } = useSolicitation(solicitationId);
   const { organization } = useUser();
   const upload = useUploadDocument();
+  const addGlobal = useUploadStore((s) => s.add);
+  const updateGlobal = useUploadStore((s) => s.update);
 
   const [items, setItems] = useState<UploadItem[]>([]);
   const [pendingClassification, setPendingClassification] = useState<UploadItem[] | null>(null);
