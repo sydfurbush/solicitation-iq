@@ -110,7 +110,7 @@ export default function Dashboard() {
       (s) =>
         s.proposal_due_date &&
         isBefore(new Date(s.proposal_due_date), now) &&
-        s.status !== "delivered" &&
+        s.status !== "complete" &&
         s.status !== "archived"
     );
 
