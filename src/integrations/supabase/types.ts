@@ -65,6 +65,33 @@ export type Database = {
           },
         ]
       }
+      ai_model_settings: {
+        Row: {
+          function_name: string
+          max_tokens: number | null
+          model: string
+          provider: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          function_name: string
+          max_tokens?: number | null
+          model: string
+          provider: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          function_name?: string
+          max_tokens?: number | null
+          model?: string
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       annotations: {
         Row: {
           annotation_type: Database["public"]["Enums"]["annotation_type"]
