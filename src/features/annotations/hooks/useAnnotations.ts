@@ -43,20 +43,11 @@ export function useAnnotations(
     queryFn: async () => {
       const { data, error } = await supabase
         .from("annotations")
-        .select("*, author:users!annotations_user_id_fkey(id, full_name, email, avatar_url)")
+        .select("*")
         .eq("solicitation_id", solicitationId!)
         .order("created_at", { ascending: false });
-      if (error) {
-        // Fallback without join if FK alias not available
-        const { data: plain, error: e2 } = await supabase
-          .from("annotations")
-          .select("*")
-          .eq("solicitation_id", solicitationId!)
-          .order("created_at", { ascending: false });
-        if (e2) throw e2;
-        return (plain ?? []) as AnnotationRow[];
-      }
-      return (data ?? []) as unknown as AnnotationRow[];
+      if (error) throw error;
+      return (data ?? []) as AnnotationRow[];
     },
     select: (rows) => {
       let out = rows;
