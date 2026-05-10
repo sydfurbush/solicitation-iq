@@ -125,49 +125,69 @@ Deno.serve(async (req) => {
 
     console.log(`[generate-questions] sol=${solicitationId} docs=${documents.length} promptChars=${userPrompt.length} regenerate=${!!regenerate}`);
 
-    const parsedQ = await callAiTool({
-      functionName: "generate-questions",
-      system: SYSTEM_PROMPT,
-      user: userPrompt,
-      tool: SCHEMA,
-    }) as Record<string, any>;
-    const { questions } = parsedQ;
-
     const docByName = new Map<string, string>();
     documents.forEach((d) => docByName.set(d.file_name, d.id));
-
     const VALID_CATEGORIES = new Set(["clarification", "strategic", "scope_expansion", "risk_concern", "compliance", "other"]);
 
-    const rows = (questions ?? []).map((q: Record<string, unknown>) => {
-      const sourceDocId = q.source_document ? docByName.get(q.source_document as string) : null;
-      let category = (q.category as string) ?? "other";
-      if (!VALID_CATEGORIES.has(category)) {
-        console.warn(`[generate-questions] unknown category "${category}" coerced to "other"`);
-        category = "other";
-      }
-      return {
-        solicitation_id: solicitationId,
-        question_text: q.question_text as string,
-        question_rationale: (q.question_rationale as string) ?? null,
-        category,
-        recommendation: (q.recommendation as string) ?? "monitor",
-        priority: Math.max(1, Math.min(100, Math.round(Number(q.priority) || 50))),
-        source_document_id: sourceDocId ?? null,
-        source_citation: q.source_section ? `Section ${q.source_section}${q.source_page ? `, p.${q.source_page}` : ""}` : null,
-        source_quote: (q.source_quote as string) ?? null,
-        strategic_advantage_notes: (q.strategic_advantage_notes as string) ?? null,
-        potential_answer_insight: (q.potential_answer_insight as string) ?? null,
-        is_ai_generated: true,
-      };
-    });
+    // Run the long AI work in the background so the HTTP request doesn't hit
+    // the 150s edge-function idle timeout. The client polls strategic_questions.
+    const work = (async () => {
+      try {
+        const parsedQ = await callAiTool({
+          functionName: "generate-questions",
+          system: SYSTEM_PROMPT,
+          user: userPrompt,
+          tool: SCHEMA,
+        }) as Record<string, any>;
+        const { questions } = parsedQ;
 
-    if (rows.length === 0) {
-      console.warn(`[generate-questions] AI returned 0 questions for sol=${solicitationId}; preserving existing questions`);
-      return new Response(JSON.stringify({
-        error: "AI returned no questions. Try again, or narrow focus areas/documents to reduce input size.",
-      }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+        const rows = (questions ?? []).map((q: Record<string, unknown>) => {
+          const sourceDocId = q.source_document ? docByName.get(q.source_document as string) : null;
+          let category = (q.category as string) ?? "other";
+          if (!VALID_CATEGORIES.has(category)) category = "other";
+          return {
+            solicitation_id: solicitationId,
+            question_text: q.question_text as string,
+            question_rationale: (q.question_rationale as string) ?? null,
+            category,
+            recommendation: (q.recommendation as string) ?? "monitor",
+            priority: Math.max(1, Math.min(100, Math.round(Number(q.priority) || 50))),
+            source_document_id: sourceDocId ?? null,
+            source_citation: q.source_section ? `Section ${q.source_section}${q.source_page ? `, p.${q.source_page}` : ""}` : null,
+            source_quote: (q.source_quote as string) ?? null,
+            strategic_advantage_notes: (q.strategic_advantage_notes as string) ?? null,
+            potential_answer_insight: (q.potential_answer_insight as string) ?? null,
+            is_ai_generated: true,
+          };
+        });
+
+        if (rows.length === 0) {
+          console.warn(`[generate-questions] AI returned 0 questions for sol=${solicitationId}; preserving existing`);
+          return;
+        }
+        if (regenerate) {
+          await supabase.from("strategic_questions").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
+        }
+        const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
+        if (insErr) console.error("[generate-questions] insert error", insErr);
+        else console.log(`[generate-questions] inserted ${rows.length} questions for sol=${solicitationId}`);
+      } catch (err) {
+        console.error("[generate-questions] background error", err);
+      }
+    })();
+    // @ts-ignore - EdgeRuntime is provided by Supabase edge runtime
+    if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(work);
+
+    return new Response(JSON.stringify({ status: "processing" }), {
+      status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+    // unreachable legacy block below
+    if (false) {
+      const rows: any[] = [];
+      if (rows.length === 0) {
+        return new Response(JSON.stringify({ error: "unreachable" }), {
+          status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
     }
 
     if (rows.length < 8) {
