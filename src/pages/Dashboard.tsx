@@ -518,6 +518,10 @@ export default function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
+                {isFetching && stats.upcoming.length === 0 ? (
+                  <ListSkeleton rows={5} />
+                ) : (
+                  <>
                 {stats.upcoming.slice(0, 6).map((s) => {
                   const due = new Date(s.proposal_due_date!);
                   const soon = isBefore(due, addDays(new Date(), 14));
