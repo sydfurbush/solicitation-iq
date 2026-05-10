@@ -468,7 +468,14 @@ export default function Dashboard() {
                   </Link>
                 ))}
                 {stats.recent.length === 0 && (
-                  <p className="py-6 text-center text-sm text-muted-foreground">No solicitations yet.</p>
+                  <div className="flex flex-col items-center gap-2 py-8 text-center">
+                    <ListChecks className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {stats.isFiltered
+                        ? "No solicitations match these filters."
+                        : "No solicitations yet."}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
