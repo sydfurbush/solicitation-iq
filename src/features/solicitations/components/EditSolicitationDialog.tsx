@@ -40,6 +40,7 @@ function toFormDefaults(s: SolicitationRow): Partial<SolicitationFullInput> {
     agency_type: (s.agency_type ?? undefined) as SolicitationFullInput["agency_type"],
     contract_type: (s.contract_type ?? undefined) as SolicitationFullInput["contract_type"],
     set_aside: ((s as { set_aside?: string | null }).set_aside ?? undefined) as SetAsideType | undefined,
+    sam_url: ((s as { sam_url?: string | null }).sam_url ?? "") as string,
     release_date: s.release_date ?? "",
     questions_due_date: s.questions_due_date ?? "",
     proposal_due_date: s.proposal_due_date ?? "",

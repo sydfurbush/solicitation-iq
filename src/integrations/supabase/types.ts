@@ -1099,6 +1099,7 @@ export type Database = {
           proposal_due_date: string | null
           questions_due_date: string | null
           release_date: string | null
+          sam_url: string | null
           set_aside: string | null
           solicitation_number: string | null
           status: Database["public"]["Enums"]["solicitation_status"] | null
@@ -1133,6 +1134,7 @@ export type Database = {
           proposal_due_date?: string | null
           questions_due_date?: string | null
           release_date?: string | null
+          sam_url?: string | null
           set_aside?: string | null
           solicitation_number?: string | null
           status?: Database["public"]["Enums"]["solicitation_status"] | null
@@ -1167,6 +1169,7 @@ export type Database = {
           proposal_due_date?: string | null
           questions_due_date?: string | null
           release_date?: string | null
+          sam_url?: string | null
           set_aside?: string | null
           solicitation_number?: string | null
           status?: Database["public"]["Enums"]["solicitation_status"] | null

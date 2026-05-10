@@ -55,6 +55,14 @@ export const solicitationBasicSchema = z.object({
   agency_type: z.enum(AGENCY_TYPES).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
   contract_type: z.enum(CONTRACT_TYPES).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
   set_aside: z.enum(SET_ASIDE_TYPES).optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+  sam_url: z
+    .string()
+    .trim()
+    .url({ message: "Must be a valid URL" })
+    .max(500)
+    .optional()
+    .or(z.literal(""))
+    .transform((v) => (v ? v : undefined)),
 });
 
 export const solicitationDatesSchema = z

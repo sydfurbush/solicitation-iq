@@ -54,7 +54,7 @@ const STEPS = [
 type StepId = (typeof STEPS)[number]["id"];
 
 const STEP_FIELDS: Record<StepId, (keyof SolicitationFullInput)[]> = {
-  basic: ["client_id", "title", "solicitation_number", "issuing_agency", "agency_type", "contract_type", "set_aside"],
+  basic: ["client_id", "title", "solicitation_number", "issuing_agency", "agency_type", "contract_type", "set_aside", "sam_url"],
   dates: [
     "release_date",
     "questions_due_date",
@@ -136,6 +136,7 @@ export function SolicitationForm({
       agency_type: defaultValues?.agency_type,
       contract_type: defaultValues?.contract_type,
       set_aside: defaultValues?.set_aside,
+      sam_url: defaultValues?.sam_url ?? "",
       release_date: defaultValues?.release_date ?? "",
       questions_due_date: defaultValues?.questions_due_date ?? "",
       proposal_due_date: defaultValues?.proposal_due_date ?? "",
@@ -333,6 +334,24 @@ export function SolicitationForm({
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="sam_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>SAM.gov URL</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="url"
+                          placeholder="https://sam.gov/opp/.../view"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

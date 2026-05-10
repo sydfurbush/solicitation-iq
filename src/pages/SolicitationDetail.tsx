@@ -5,6 +5,7 @@ import {
   Archive,
   ChevronRight,
   Clock,
+  ExternalLink,
   FileBarChart,
   FileText,
   HelpCircle,
@@ -163,9 +164,22 @@ export default function SolicitationDetail() {
             )}
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
-          {s.issuing_agency && (
-            <p className="text-sm text-muted-foreground">{s.issuing_agency}</p>
-          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            {s.issuing_agency && (
+              <p className="text-sm text-muted-foreground">{s.issuing_agency}</p>
+            )}
+            {(s as { sam_url?: string | null }).sam_url && (
+              <a
+                href={(s as { sam_url: string }).sam_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View on SAM.gov
+              </a>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">

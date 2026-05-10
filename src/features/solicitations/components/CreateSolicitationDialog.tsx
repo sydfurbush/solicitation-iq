@@ -1,4 +1,5 @@
 import { ReactNode, useState } from "react";
+import { Loader2, Sparkles } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -17,9 +18,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SolicitationForm } from "./SolicitationForm";
 import { useCreateSolicitation } from "../hooks/useSolicitations";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import type { SolicitationFullInput } from "@/lib/validators/solicitation";
 
 interface Props {
   trigger: ReactNode;
@@ -39,11 +45,24 @@ export function CreateSolicitationDialog({
   const [internalOpen, setInternalOpen] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [samUrl, setSamUrl] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [prefill, setPrefill] = useState<Partial<SolicitationFullInput> | null>(null);
+  const [formKey, setFormKey] = useState(0);
+  const [attachments, setAttachments] = useState<{ href: string }[]>([]);
+
   const isControlled = open !== undefined;
   const isOpen = isControlled ? open : internalOpen;
   const setOpen = (v: boolean) => {
     if (!isControlled) setInternalOpen(v);
     onOpenChange?.(v);
+    if (!v) {
+      // reset on close
+      setSamUrl("");
+      setPrefill(null);
+      setAttachments([]);
+      setFormKey((k) => k + 1);
+    }
   };
 
   const createMut = useCreateSolicitation();
@@ -56,6 +75,41 @@ export function CreateSolicitationDialog({
     setOpen(v);
   };
 
+  const handleImport = async () => {
+    if (!samUrl.trim()) return;
+    setImporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sam-import", {
+        body: { url: samUrl.trim() },
+      });
+      if (error) throw error;
+      const p = (data as { prefill?: Partial<SolicitationFullInput> & { attachments?: { href: string }[] } })?.prefill;
+      if (!p) throw new Error("No data returned");
+      const { attachments: att, ...rest } = p;
+      setPrefill({
+        ...(defaultClientId ? { client_id: defaultClientId } : {}),
+        ...rest,
+      });
+      setAttachments(att ?? []);
+      setFormKey((k) => k + 1);
+      toast({
+        title: "Imported from SAM.gov",
+        description: rest.title ?? "Review the prefilled fields.",
+      });
+    } catch (e) {
+      toast({
+        title: "SAM.gov import failed",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const initialDefaults: Partial<SolicitationFullInput> | undefined =
+    prefill ?? (defaultClientId ? { client_id: defaultClientId } : undefined);
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -67,8 +121,41 @@ export function CreateSolicitationDialog({
               Capture the basics now — you can fill in details later.
             </DialogDescription>
           </DialogHeader>
+
+          {/* SAM.gov import bar */}
+          <div className="rounded-md border border-dashed bg-muted/30 p-3 space-y-2">
+            <Label className="flex items-center gap-1.5 text-xs font-medium">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+              Import from SAM.gov (optional)
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                type="url"
+                placeholder="https://sam.gov/opp/<noticeId>/view"
+                value={samUrl}
+                onChange={(e) => setSamUrl(e.target.value)}
+                disabled={importing}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleImport}
+                disabled={importing || !samUrl.trim()}
+              >
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : "Prefill"}
+              </Button>
+            </div>
+            {attachments.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {attachments.length} attachment{attachments.length > 1 ? "s" : ""} found on SAM.gov.
+                Upload them in the Documents tab after creating the solicitation.
+              </p>
+            )}
+          </div>
+
           <SolicitationForm
-            defaultValues={defaultClientId ? { client_id: defaultClientId } : undefined}
+            key={formKey}
+            defaultValues={initialDefaults}
             isSubmitting={createMut.isPending}
             onDirtyChange={setDirty}
             onSubmit={async (values, asDraft) => {
