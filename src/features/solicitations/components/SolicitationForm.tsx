@@ -54,7 +54,7 @@ const STEPS = [
 type StepId = (typeof STEPS)[number]["id"];
 
 const STEP_FIELDS: Record<StepId, (keyof SolicitationFullInput)[]> = {
-  basic: ["client_id", "title", "solicitation_number", "issuing_agency", "agency_type", "contract_type", "set_aside"],
+  basic: ["client_id", "title", "solicitation_number", "issuing_agency", "agency_type", "contract_type", "set_aside", "sam_url"],
   dates: [
     "release_date",
     "questions_due_date",
