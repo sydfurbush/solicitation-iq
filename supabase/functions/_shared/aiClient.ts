@@ -120,6 +120,7 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Rec
   }
 
   const json = await res.json();
+  console.log(`[aiClient] anthropic stop_reason=${json.stop_reason} model=${choice.model}`);
   const toolUse = (json.content ?? []).find((c: { type: string }) => c.type === "tool_use");
   if (!toolUse?.input) throw new Error("AI did not return structured tool_use output");
   return toolUse.input as Record<string, unknown>;
