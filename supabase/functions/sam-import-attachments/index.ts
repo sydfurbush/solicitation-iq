@@ -180,7 +180,6 @@ Deno.serve(async (req) => {
           const docId = crypto.randomUUID();
           const safe = sanitize(fileName);
           const path = `${orgId}/${clientId}/${solicitationId}/${docId}/${safe}`;
-          const contentType = res.headers.get("content-type") || "application/octet-stream";
 
           const { error: upErr } = await admin.storage
             .from(BUCKET)
