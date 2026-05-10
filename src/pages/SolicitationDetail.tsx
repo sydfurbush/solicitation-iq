@@ -249,7 +249,11 @@ export default function SolicitationDetail() {
           <SolicitationRisksOpportunities solicitationId={s.id} />
         </TabsContent>
 
-        {["reports", "comparison", "activity"].map((t) => (
+        <TabsContent value="activity" className="mt-6">
+          <SolicitationActivity solicitationId={s.id} />
+        </TabsContent>
+
+        {["reports", "comparison"].map((t) => (
           <TabsContent key={t} value={t} className="mt-6">
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">
