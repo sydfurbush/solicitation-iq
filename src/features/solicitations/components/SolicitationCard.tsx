@@ -1,9 +1,17 @@
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { AlertTriangle, FileText, HelpCircle, ShieldAlert, Clock } from "lucide-react";
+import { AlertTriangle, Archive, FileText, HelpCircle, MoreVertical, ShieldAlert, Clock, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   STATUS_CLASSES,
@@ -18,6 +26,8 @@ import type { SolicitationStatus } from "@/lib/validators/solicitation";
 
 interface Props {
   solicitation: SolicitationWithClient;
+  onArchive?: (s: SolicitationWithClient) => void;
+  onDelete?: (s: SolicitationWithClient) => void;
 }
 
 function clientInitials(name: string) {
@@ -30,11 +40,13 @@ function clientInitials(name: string) {
     .toUpperCase();
 }
 
-export function SolicitationCard({ solicitation: s }: Props) {
+export function SolicitationCard({ solicitation: s, onArchive, onDelete }: Props) {
   const navigate = useNavigate();
   const status = (s.status ?? "intake") as SolicitationStatus;
   const urgency = dueUrgency(s.proposal_due_date);
   const days = daysUntil(s.proposal_due_date);
+  const setAside = (s as { set_aside?: string | null }).set_aside;
+  const hasMenu = !!(onArchive || onDelete);
 
   return (
     <Card
@@ -57,6 +69,37 @@ export function SolicitationCard({ solicitation: s }: Props) {
           <Badge variant="outline" className={cn("ml-auto capitalize", STATUS_CLASSES[status])}>
             {STATUS_LABELS[status]}
           </Badge>
+          {hasMenu && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 -mr-1"
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Solicitation actions"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                {onArchive && (
+                  <DropdownMenuItem onClick={() => onArchive(s)}>
+                    <Archive className="mr-2 h-4 w-4" /> Archive
+                  </DropdownMenuItem>
+                )}
+                {onArchive && onDelete && <DropdownMenuSeparator />}
+                {onDelete && (
+                  <DropdownMenuItem
+                    onClick={() => onDelete(s)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" /> Delete
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         <div>
@@ -65,6 +108,11 @@ export function SolicitationCard({ solicitation: s }: Props) {
             {s.solicitation_number && (
               <Badge variant="secondary" className="font-mono text-[10px]">
                 {s.solicitation_number}
+              </Badge>
+            )}
+            {setAside && (
+              <Badge variant="outline" className="text-[10px]">
+                {setAside}
               </Badge>
             )}
             {s.issuing_agency && (
