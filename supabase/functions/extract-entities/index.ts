@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { callAiTool } from "../_shared/aiClient.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,9 +36,6 @@ function getServiceClient() {
 }
 
 async function callAI(text: string): Promise<ExtractedEntity[]> {
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
-
   // Truncate for token budget
   const MAX = 60_000;
   const slice = text.length > MAX ? text.slice(0, MAX) : text;
