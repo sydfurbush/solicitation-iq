@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, formatDistanceToNow, isAfter, isBefore, addDays } from "date-fns";
 import {
   AlertTriangle,
@@ -91,8 +91,18 @@ function MetricCard({
 export default function Dashboard() {
   const { data: solicitations, isLoading } = useSolicitations();
   const { data: clients } = useClients();
-  const [clientFilter, setClientFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const clientFilter = searchParams.get("client") ?? "all";
+  const statusFilter = searchParams.get("status") ?? "all";
+
+  const updateFilter = (key: "client" | "status", value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === "all") next.delete(key);
+    else next.set(key, value);
+    setSearchParams(next, { replace: true });
+  };
+  const setClientFilter = (v: string) => updateFilter("client", v);
+  const setStatusFilter = (v: string) => updateFilter("status", v);
 
   const stats = useMemo(() => {
     const list: SolicitationWithClient[] = solicitations ?? [];
@@ -237,10 +247,7 @@ export default function Dashboard() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setClientFilter("all");
-              setStatusFilter("all");
-            }}
+            onClick={() => setSearchParams({}, { replace: true })}
           >
             Clear
           </Button>
