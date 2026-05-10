@@ -515,9 +515,14 @@ export default function Dashboard() {
                   );
                 })}
                 {stats.upcoming.length === 0 && (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    No upcoming deadlines.
-                  </p>
+                  <div className="flex flex-col items-center gap-2 py-8 text-center">
+                    <CalendarClock className="h-6 w-6 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      {stats.isFiltered
+                        ? "No upcoming deadlines for these filters."
+                        : "No upcoming deadlines."}
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
