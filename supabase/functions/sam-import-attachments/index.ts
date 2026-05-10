@@ -50,6 +50,21 @@ function filenameFromHeaders(headers: Headers, fallbackUrl: string): string {
   return "attachment";
 }
 
+function mimeFromExt(ext: string): string | null {
+  switch (ext) {
+    case "pdf": return "application/pdf";
+    case "doc": return "application/msword";
+    case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "xls": return "application/vnd.ms-excel";
+    case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    case "ppt": return "application/vnd.ms-powerpoint";
+    case "pptx": return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    case "txt": return "text/plain";
+    case "csv": return "text/csv";
+    default: return null;
+  }
+}
+
 function classify(name: string): string {
   const f = name.toLowerCase();
   if (f.includes("amend")) return "amendment";
