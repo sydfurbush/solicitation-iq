@@ -1,14 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CloudOff, Loader2, Pencil, Plus, Save, X } from "lucide-react";
+import { Check, CloudOff, Loader2, Pencil, Plus, Save, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useUpdateClient } from "@/features/clients/hooks/useClients";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
+import { CAPABILITY_TEMPLATES, type CapabilityTemplate } from "@/features/clients/lib/capabilityTemplates";
 
 type ClientRow = Database["public"]["Tables"]["clients"]["Row"];
 
