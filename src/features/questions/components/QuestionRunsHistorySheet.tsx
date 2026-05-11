@@ -52,6 +52,7 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
   const generate = useGenerateQuestions(solicitationId);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ completed: number; total: number; inserted: number; step: string | null } | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const docMap = useMemo(() => new Map(documents.map((d) => [d.id, d.file_name])), [documents]);
   const runById = useMemo(() => new Map(runs.map((r) => [r.id, r])), [runs]);
