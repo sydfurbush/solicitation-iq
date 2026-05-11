@@ -198,7 +198,11 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
  */
 export async function waitForDocumentsParsed(
   solicitationId: string,
-  opts: { timeoutMs?: number; intervalMs?: number } = {},
+  opts: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    onProgress?: (p: { parsed: number; total: number }) => void;
+  } = {},
 ) {
   const timeoutMs = opts.timeoutMs ?? 4 * 60 * 1000;
   const intervalMs = opts.intervalMs ?? 4000;
@@ -212,9 +216,12 @@ export async function waitForDocumentsParsed(
       .is("deleted_at", null);
     if (error) throw error;
     const rows = data ?? [];
-    if (rows.length === 0) return { ready: true, total: 0 };
+    const total = rows.length;
+    if (total === 0) return { ready: true, total: 0 };
     const pending = rows.filter((r) => r.status === "uploading" || r.status === "processing").length;
-    if (pending === 0) return { ready: true, total: rows.length };
+    const parsed = total - pending;
+    opts.onProgress?.({ parsed, total });
+    if (pending === 0) return { ready: true, total };
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
   return { ready: false, total: -1 };
