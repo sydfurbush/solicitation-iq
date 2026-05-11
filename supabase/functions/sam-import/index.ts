@@ -240,10 +240,13 @@ Deno.serve(async (req) => {
       if (fatal) break;
     }
 
+    const backfillConfig = { maxYearsBack: MAX_YEARS_BACK, windowDays: WINDOW_DAYS };
+
     console.log("[sam-import] lookup summary", {
       matched: !!notice,
       matchedStrategy: matchedStrategy?.label,
       totalAttempts: attempts.length,
+      backfillConfig,
     });
 
     if (!notice && lastStatus && (lastStatus === 401 || lastStatus === 403 || lastStatus === 429)) {
@@ -252,6 +255,7 @@ Deno.serve(async (req) => {
           error: `SAM.gov API returned ${lastStatus}`,
           detail: lastErrorText.slice(0, 500),
           attempts,
+          backfillConfig,
         }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
@@ -264,6 +268,7 @@ Deno.serve(async (req) => {
           lookup: { noticeId, solicitationNumber },
           triedStrategies: strategies.map((s) => s.label),
           attempts,
+          backfillConfig,
         }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
