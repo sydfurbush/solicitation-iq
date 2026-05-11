@@ -308,7 +308,7 @@ Deno.serve(async (req) => {
     for (const s of (sections ?? []) as Section[]) sectionsByDoc.get(s.document_id)?.push(s);
 
     const isRetry = retryRunId !== undefined && retryRunId !== null;
-    const isCrossDocOnlyRetry = isRetry && (retryDocIds?.length ?? 0) === 0;
+    const isCrossDocOnlyRetry = isRetry && !retryUnknownScope && retryDocIds !== null && retryDocIds.length === 0;
     const runCrossDoc = !isRetry || retryCrossDoc;
 
     const batches = isCrossDocOnlyRetry ? [] : packBatches(documents as Doc[], sectionsByDoc);
