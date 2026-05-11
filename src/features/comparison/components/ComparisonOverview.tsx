@@ -101,6 +101,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         importedCount: result.imported,
         failedCount: result.failed,
         failedAttachments: result.failedAttachments,
+        lookupParams: result.lookupParams,
         startedAt,
       });
       invalidateHistory(result.priorRecordId);
