@@ -48,6 +48,8 @@ export type LogImportInput = {
   failedCount: number;
   failedAttachments?: FailedAttachment[];
   errorMessage?: string | null;
+  lookupParams?: LookupParams | null;
+  errorResponse?: SamErrorResponse | null;
   startedAt: string;
 };
 
@@ -64,6 +66,8 @@ export async function logPriorImport(input: LogImportInput) {
     failed_count: input.failedCount,
     failed_attachments: input.failedAttachments ?? [],
     error_message: input.errorMessage ?? null,
+    lookup_params: (input.lookupParams ?? {}) as never,
+    error_response: (input.errorResponse ?? null) as never,
     started_at: input.startedAt,
     completed_at: new Date().toISOString(),
     performed_by: userRes.user?.id ?? null,
