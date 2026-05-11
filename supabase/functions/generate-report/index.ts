@@ -38,12 +38,13 @@ const SCHEMA = {
       subtitle: { type: "string" },
       sections: {
         type: "array",
+        description: "Ordered report sections.",
         items: {
           type: "object",
           properties: {
-            id: { type: "string" },
-            heading: { type: "string" },
-            level: { type: "number", enum: [1, 2, 3] },
+            id: { type: "string", description: "Stable section identifier." },
+            heading: { type: "string", description: "Section heading text." },
+            level: { type: "integer", description: "Heading level 1-3." },
             body: { type: "string", description: "Markdown body for this section." },
           },
           required: ["heading", "body"],
@@ -51,14 +52,15 @@ const SCHEMA = {
       },
       citations: {
         type: "array",
+        description: "Inline source citations referenced in section bodies.",
         items: {
           type: "object",
           properties: {
-            id: { type: "string" },
-            document: { type: "string" },
-            section: { type: "string" },
-            page: { type: "number" },
-            quote: { type: "string" },
+            id: { type: "string", description: "Citation identifier." },
+            document: { type: "string", description: "Source document name." },
+            section: { type: "string", description: "Source section." },
+            page: { type: "integer", description: "Source page number." },
+            quote: { type: "string", description: "Optional quoted text." },
           },
           required: ["id", "document"],
         },
