@@ -12,8 +12,9 @@ import { toast } from "@/hooks/use-toast";
 import { useSolicitations, useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useLinkPriorSolicitation } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
-import { useImportPriorFromSam, waitForDocumentsParsed, ImportCancelledError, type ImportProgress } from "../hooks/useImportPriorFromSam";
+import { useImportPriorFromSam, waitForDocumentsParsed, ImportCancelledError, SamNoticeNotFoundError, type ImportProgress, type SamNotFoundDetails } from "../hooks/useImportPriorFromSam";
 import { ImportProgressPanel } from "./ImportProgressPanel";
+import { SamNotFoundAlert } from "./SamNotFoundAlert";
 
 type Props = {
   solicitationId: string;
