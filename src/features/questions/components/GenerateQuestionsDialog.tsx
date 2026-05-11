@@ -29,21 +29,35 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [docIds, setDocIds] = useState<string[]>([]);
   const [regenerate, setRegenerate] = useState(false);
+  const [progress, setProgress] = useState<{ completed: number; total: number; inserted: number; step: string | null } | null>(null);
   const generate = useGenerateQuestions(solicitationId);
 
   const toggle = (arr: string[], v: string) => arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
 
   const handleRun = async () => {
+    setProgress({ completed: 0, total: 0, inserted: 0, step: "Starting…" });
     try {
       const result = await generate.mutateAsync({
         focusAreas: focusAreas.length ? focusAreas : undefined,
         focusDocumentIds: docIds.length ? docIds : undefined,
         regenerate,
+        onProgress: setProgress,
       });
-      toast({ title: "Questions generated", description: `${result?.count ?? 0} questions added.` });
+      if (result.status === "completed") {
+        toast({ title: "Questions generated", description: `${result.count} questions added.` });
+      } else if (result.status === "partial") {
+        toast({
+          title: "Partially generated",
+          description: `${result.count} questions added · ${result.failedBatches} batch(es) failed. You can re-run to fill gaps.`,
+        });
+      } else {
+        toast({ title: "Generation failed", description: result.error ?? "All batches failed.", variant: "destructive" });
+      }
       onOpenChange(false);
     } catch (e) {
       toast({ title: "Generation failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setProgress(null);
     }
   };
 
