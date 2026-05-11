@@ -25,7 +25,6 @@ async function getCallerSamKey(req: Request): Promise<{ key?: string; error?: Re
       ),
     };
   }
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
   const { data: row } = await admin
     .from("user_integrations")
     .select("api_key")
