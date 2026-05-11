@@ -327,6 +327,15 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
             )}
           </TabsContent>
 
+          <TabsContent value="upload" className="space-y-3">
+            <UploadTabContent
+              form={uploadForm}
+              files={uploadFiles}
+              setFiles={setUploadFiles}
+              disabled={busy}
+            />
+          </TabsContent>
+
           <TabsContent value="external" className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="ref">Reference (contract or solicitation #)</Label>
