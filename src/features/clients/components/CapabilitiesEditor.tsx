@@ -428,6 +428,30 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
         </div>
         <div className="flex items-center gap-3">
           {editing && <SaveIndicator status={status} savedAt={savedAt} error={errorMsg} />}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Sparkles className="h-3.5 w-3.5 mr-1" /> Templates
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Apply a capability template</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {CAPABILITY_TEMPLATES.map((tpl) => (
+                <DropdownMenuItem
+                  key={tpl.id}
+                  className="flex flex-col items-start gap-0.5 py-2"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleTemplatePick(tpl);
+                  }}
+                >
+                  <span className="font-medium text-sm">{tpl.name}</span>
+                  <span className="text-xs text-muted-foreground">{tpl.description}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {!editing ? (
             <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
               <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
