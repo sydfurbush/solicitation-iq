@@ -111,6 +111,59 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
     }
   };
 
+  // ---- Cover page ----
+  if (!opts.noCover) {
+    const cover = doc.cover ?? {};
+    const centerY = pageH / 2 - 80;
+    const drawCenter = (text: string, size: number, weight: "bold" | "normal", color: [number, number, number], offset: number) => {
+      pdf.setFont("helvetica", weight);
+      pdf.setFontSize(size);
+      pdf.setTextColor(...color);
+      const lines = pdf.splitTextToSize(text, pageW - margin * 2);
+      lines.forEach((line: string, idx: number) => {
+        pdf.text(line, pageW / 2, centerY + offset + idx * (size + 4), { align: "center" });
+      });
+      return lines.length * (size + 4);
+    };
+
+    // Top accent bar
+    pdf.setFillColor(40, 60, 90);
+    pdf.rect(0, 0, pageW, 8, "F");
+
+    let coverY = 0;
+    if (cover.clientName) {
+      coverY += drawCenter(cover.clientName.toUpperCase(), 11, "bold", [40, 60, 90], coverY) + 8;
+    }
+    coverY += drawCenter(doc.title, 28, "bold", [25, 25, 25], coverY) + 16;
+    if (cover.solicitationTitle) {
+      coverY += drawCenter(cover.solicitationTitle, 14, "normal", [80, 80, 80], coverY) + 24;
+    }
+
+    // Meta block
+    const meta: [string, string][] = [];
+    const phase = phaseLabel(cover.phase);
+    if (phase) meta.push(["Phase", phase]);
+    if (opts.version?.trim()) meta.push(["Version", opts.version.trim()]);
+    meta.push(["Generated", fmtDateTime()]);
+
+    const metaTop = centerY + coverY + 40;
+    pdf.setDrawColor(220, 220, 220);
+    pdf.line(pageW / 2 - 100, metaTop - 16, pageW / 2 + 100, metaTop - 16);
+    meta.forEach((row, i) => {
+      const ry = metaTop + i * 18;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(row[0].toUpperCase(), pageW / 2 - 12, ry, { align: "right" });
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(40, 40, 40);
+      pdf.text(row[1], pageW / 2 + 12, ry, { align: "left" });
+    });
+
+    pdf.addPage();
+    y = margin;
+  }
+
   // Title
   writeWrapped(doc.title, { size: 20, bold: true });
   if (doc.subtitle) writeWrapped(doc.subtitle, { size: 11, color: [110, 110, 110] });
