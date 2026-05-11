@@ -25,8 +25,71 @@ const SEV_COLOR: Record<string, string> = {
 export default function DeepDiveTab({ solicitationId, currentPhase }: { solicitationId: string; currentPhase: string }) {
   const [tab, setTab] = useState("rtm");
   const { data: items = [] } = useRequirementItems(solicitationId);
+  const { data: sections = [] } = useSectionAnalyses(solicitationId);
+  const { data: gaps = [] } = useCapabilityGaps(solicitationId);
   const analyzeGaps = useAnalyzeGaps(solicitationId);
   const hasRequirements = items.length > 0;
+  const canExport = items.length + sections.length + gaps.length > 0;
+
+  const buildExport = (): ExportDocument | null => {
+    if (!canExport) return null;
+    const out: ExportSection[] = [];
+
+    if (items.length) {
+      out.push({
+        heading: "Requirements Traceability Matrix",
+        paragraphs: [`${items.length} requirement${items.length === 1 ? "" : "s"}.`],
+        table: {
+          head: ["#", "Volume / Section", "Shall text", "Owner", "Status"],
+          rows: items.map((r) => [
+            r.req_number ?? "",
+            [r.volume, r.section_code].filter(Boolean).join(" / "),
+            r.shall_text ?? "",
+            r.owner ?? "",
+            r.status ?? "",
+          ]),
+        },
+      });
+    }
+
+    if (sections.length) {
+      out.push({
+        heading: "Section-by-section analysis",
+        children: sections.map((s) => ({
+          heading: `${s.section_code} — ${s.section_title ?? "Untitled"}`,
+          paragraphs: [
+            s.scoring_weight ? `Weight: ${s.scoring_weight}` : "",
+            s.summary ?? "",
+          ].filter(Boolean),
+          bullets: Array.isArray(s.risk_flags) ? (s.risk_flags as string[]) : undefined,
+        })),
+      });
+    }
+
+    if (gaps.length) {
+      out.push({
+        heading: "Capability gaps",
+        table: {
+          head: ["Severity", "Type", "Title", "Recommendation", "Resolved", "Description"],
+          rows: gaps.map((g) => [
+            g.severity ?? "",
+            (g.gap_type ?? "").toString().replace("_", " "),
+            g.title ?? "",
+            (g.recommendation ?? "").toString().replace("_", " "),
+            g.is_resolved ? "Yes" : "No",
+            g.description ?? "",
+          ]),
+        },
+      });
+    }
+
+    return {
+      title: "Deep Dive Analysis",
+      subtitle: "Requirements, section breakdown, and capability gaps",
+      filenameBase: "deep_dive",
+      sections: out,
+    };
+  };
 
   const autoRunGaps = async () => {
     try {
@@ -44,6 +107,9 @@ export default function DeepDiveTab({ solicitationId, currentPhase }: { solicita
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <ExportMenu build={buildExport} disabled={!canExport} label="Export deep dive" />
+      </div>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="rtm">Requirements (RTM)</TabsTrigger>
