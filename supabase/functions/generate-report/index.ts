@@ -250,6 +250,22 @@ ${JSON.stringify(options ?? {})}`;
       tool: SCHEMA,
     }) as Record<string, any>;
 
+    // Normalize blocks: AI returns bullets/steps `items` as object arrays,
+    // but our bullets renderer expects string[].
+    const normalizeSections = (sections: any[] = []) => sections.map((s) => {
+      const blocks = Array.isArray(s.blocks) ? s.blocks.map((b: any) => {
+        if (!b || typeof b !== "object") return b;
+        if (b.kind === "bullets" && Array.isArray(b.items)) {
+          return { ...b, items: b.items.map((it: any) => typeof it === "string" ? it : (it?.text ?? "")) };
+        }
+        if (b.kind === "steps" && Array.isArray(b.items)) {
+          return { ...b, items: b.items.map((it: any) => ({ title: it?.title ?? "", detail: it?.detail ?? "" })) };
+        }
+        return b;
+      }) : undefined;
+      return blocks ? { ...s, blocks } : s;
+    });
+
     const content = {
       title: parsed.title ?? `${reportType.replace(/_/g, " ")} – ${sol.title}`,
       subtitle: parsed.subtitle ?? sol.solicitation_number ?? null,
@@ -260,9 +276,10 @@ ${JSON.stringify(options ?? {})}`;
         client: (sol.client as { name?: string } | null)?.name,
         contract_type: sol.contract_type,
       },
-      sections: parsed.sections ?? [],
+      sections: normalizeSections(parsed.sections),
       citations: parsed.citations ?? [],
       options: options ?? {},
+      branding: options?.branding ?? null,
     };
 
     const { data: report, error } = await supabase
