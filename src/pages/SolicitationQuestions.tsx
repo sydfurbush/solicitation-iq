@@ -180,6 +180,12 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
         open={exportOpen}
         onOpenChange={setExportOpen}
       />
+      <QuestionRunsHistorySheet
+        solicitationId={solicitationId}
+        documents={documents}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
       <QuestionDetailPanel
         question={selected}
         documents={documents}
