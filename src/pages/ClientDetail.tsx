@@ -250,6 +250,8 @@ export default function ClientDetail() {
             </Card>
           </div>
 
+          <CapabilitiesEditor client={client} />
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Recent solicitations</CardTitle>
