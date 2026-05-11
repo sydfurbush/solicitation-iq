@@ -234,7 +234,11 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
         {progress && <ImportProgressPanel progress={progress} />}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+          {importing ? (
+            <Button variant="outline" onClick={handleCancelImport}>Cancel import</Button>
+          ) : (
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Close</Button>
+          )}
           <Button onClick={handleLink} disabled={busy}>
             <ExternalLink className="mr-2 h-4 w-4" /> {busy ? "Working…" : "Link & compare"}
           </Button>
