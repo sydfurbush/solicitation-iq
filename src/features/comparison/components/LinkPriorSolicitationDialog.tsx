@@ -157,7 +157,13 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
           setProgress({ stage: "error", message: "Cancelled by user." });
           return;
         }
-        // Fall back to a plain external-reference link so the user isn't blocked
+        if (samErr instanceof SamNoticeNotFoundError) {
+          // Don't auto-link as external — surface a clear "not found" alert with next steps
+          setProgress(null);
+          setNotFound(samErr.details);
+          return;
+        }
+        // Other failures: fall back to a plain external-reference link so the user isn't blocked
         console.warn("SAM import failed, falling back to external-reference link", samErr);
         setProgress({
           stage: "error",
