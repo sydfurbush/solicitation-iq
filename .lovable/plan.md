@@ -1,41 +1,30 @@
-## Problem (from screenshots)
+# Fix: Citations missing in PDF and Word
 
-**Image 17** (current):
-- "Recommendation," "Key Success Factors," and "Next Steps" all render as one wall of text under a single Recommendation heading. Cause: AI is emitting them as a single `paragraph` block instead of separate sections with `recommendation` / `bullets` / `steps` blocks.
-- Top of every page has too much vertical space between the running header and the first content.
+## Root cause
+Both renderers (`pdfGenerator.ts`, `wordGenerator.ts`) already render a **Source Citations** section — but only when `report.citations.length > 0`. The current edge function (`supabase/functions/generate-report/index.ts`) never instructs the AI to populate the top-level `citations` array, and it ignores the user's `options.includeCitations` toggle. The model only emits inline `[Doc §Section p.X]` strings inside prose, so `citations` comes back empty and the section is skipped.
 
-**Image 18** (target): Cream-and-amber RECOMMENDATION callout, then a "Key Success Factors" subheading + bullet list, then a NEXT STEPS section with the navy/light-blue numbered table. The renderers for all three already exist — the AI just isn't using them.
+Toggling "Include source citations" and "Include recommendations" in the dialog has no effect today — the flags are passed in the payload but never read by the prompt.
 
-## Changes
+## Changes (edge function only — renderers already correct)
 
-### 1. Tighten top spacing
-- `pdfGenerator.ts`: `MARGIN.top 64 → 36`, `HEADER_H 36 → 18`, gap before first content `12 → 6`. Footer untouched.
-- `wordGenerator.ts`: `page.margin.top 1800 → 1080`, `header offset 720 → 432`, drop trailing space on header paragraph.
+**File: `supabase/functions/generate-report/index.ts`**
 
-### 2. Force structured blocks in the executive summary prompt
-Rewrite `PROMPTS.executive_summary` in `supabase/functions/generate-report/index.ts` with a strict per-section contract. Each bullet below = one separate section returned in `sections[]`, in order, each with the required block kinds and nothing else:
+1. **Honor `options.includeCitations`** — inject explicit instruction into the system prompt at request time:
+   - When `true` (default): require `citations[]` to contain every source referenced inline, with stable IDs `C1, C2, …` and matching `[C1]` markers in section text. Minimum 3 citations when supporting documents exist.
+   - When `false`: instruct the model to omit inline citation markers and return `citations: []`.
 
-1. **Executive Overview** — 1-2 `paragraph` blocks.
-2. **Opportunity Snapshot** — exactly one `kv` block; rows: Agency, Solicitation #, Contract Type, Set-Aside, Incumbent, Release Date, Q&A / Proposal Due, Award Date.
-3. **Strategic Assessment** — one `category` (tone=opportunity, title="TOP OPPORTUNITIES", 3 rows) + one `category` (tone=risk, title="TOP RISKS", 3 rows).
-4. **Competitive Positioning** — one `paragraph` + one `bullets` block.
-5. **Recommendation** — exactly one `recommendation` block (verdict + rationale). No paragraphs, no bullets in this section.
-6. **Key Success Factors** — exactly one `bullets` block (3-5 items).
-7. **Next Steps** — exactly one `steps` block (3-5 items, each `{title, detail}`).
+2. **Honor `options.includeRecommendations`** — when `false`, drop the "Recommendation" and "Next Steps" sections from the executive summary contract; when `true` (default), keep current behavior.
 
-Add an explicit "DO NOT bundle multiple sections together; DO NOT use paragraph/markdown for Recommendation, Key Success Factors, or Next Steps" rule. Strengthen `BLOCKS_GUIDE` with a one-line example per kind.
+3. **Tighten the citation contract in `PROMPTS.executive_summary`** — change "Cite inline as [Doc §Section p.X]" to require `[C#]` markers tied to entries in `citations[]`, populated from the DOCUMENTS / RISKS / OPPORTUNITIES / QUESTIONS context already gathered (each row carries `source_citation` / `source_quote`).
 
-### 3. Defensive normalization
-In the `normalizeSections` helper, if a section heading matches "Recommendation" / "Key Success Factors" / "Next Steps" but the AI returned a `paragraph` block, log a warning. (Don't try to auto-split — rely on the strengthened prompt.)
+4. **Defensive backfill** — after AI returns, if `options.includeCitations !== false` and `parsed.citations` is empty but `ctx.risks/opportunities/questions` have `source_citation` values, synthesize citation entries from those rows so the section is never blank.
 
-### 4. Out of scope
-- Renderers in `pdfGenerator.ts` / `wordGenerator.ts` already match Image 18 — no rendering changes beyond the spacing tweaks above.
-- `ClientReportViewer.tsx` already renders all block kinds — no change.
-- Logo upload, page x-of-y, TOC.
+## Out of scope
+- No renderer changes (PDF/Word citation blocks already work — verified in `pdfGenerator.ts:drawCitations` and `wordGenerator.ts` lines 293-305).
+- No UI changes to the options dialog.
+- Existing reports won't update — user clicks **Generate report** again to refresh.
 
 ## Verification
-1. Generate a fresh Executive Summary on the current solicitation.
-2. Confirm: tighter top gap, RECOMMENDATION callout renders as cream/amber box, Key Success Factors appears as its own section with bullets, Next Steps renders as the numbered navy/light-blue table.
-3. Download both PDF and Word; spot-check page 2/3 spacing.
-
-Older reports won't update — user can click "Generate report" again to refresh.
+1. Generate a new Executive Summary with both toggles ON → confirm "SOURCE CITATIONS" section appears at end of PDF and DOCX with `[C1] Document §X p.Y` entries.
+2. Generate again with "Include source citations" OFF → confirm section is absent and inline `[C#]` markers don't appear.
+3. Generate with "Include recommendations" OFF → confirm Recommendation + Next Steps sections are omitted.

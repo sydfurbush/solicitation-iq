@@ -190,8 +190,17 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const prompt = PROMPTS[reportType as ReportType];
-    if (!prompt) {
+    const basePrompt = PROMPTS[reportType as ReportType];
+    const includeCitations = options?.includeCitations !== false;
+    const includeRecommendations = options?.includeRecommendations !== false;
+    const citationsRule = includeCitations
+      ? `\n\nCITATIONS (REQUIRED): Populate the top-level 'citations' array with every source you reference. Use stable IDs C1, C2, C3… Each entry: { id, document, section?, page?, quote? }. In section prose/blocks, cite as [C1], [C2] — NOT [Doc §X p.Y]. Pull sources from DOCUMENTS, RISKS.source_citation, OPPORTUNITIES.source_citation, and STRATEGIC QUESTIONS.source_citation in the user message. Aim for 4-8 citations minimum when documents exist.`
+      : `\n\nCITATIONS: Do NOT include any inline citation markers. Return citations: [].`;
+    const recRule = includeRecommendations
+      ? ""
+      : `\n\nRECOMMENDATIONS: OMIT the "Recommendation" and "Next Steps" sections entirely. Do not emit them in sections[].`;
+    const prompt = basePrompt + citationsRule + recRule;
+    if (!basePrompt) {
       return new Response(JSON.stringify({ error: `Unknown reportType: ${reportType}` }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
