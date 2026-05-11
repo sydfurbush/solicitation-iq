@@ -10,6 +10,9 @@ export const CATEGORIES: QuestionCategory[] = [
   "scope_expansion",
   "risk_concern",
   "compliance",
+  "drafting_error",
+  "contradiction",
+  "quantitative_gap",
   "other",
 ];
 
@@ -21,6 +24,9 @@ export const CATEGORY_LABEL: Record<QuestionCategory, string> = {
   scope_expansion: "Scope Expansion",
   risk_concern: "Risk / Concern",
   compliance: "Compliance",
+  drafting_error: "Drafting Error",
+  contradiction: "Contradiction",
+  quantitative_gap: "Quantitative Gap",
   other: "Other",
 };
 
@@ -38,6 +44,9 @@ export function getCategoryColor(c: QuestionCategory): string {
     case "scope_expansion": return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30";
     case "risk_concern": return "bg-destructive/15 text-destructive border-destructive/30";
     case "compliance": return "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30";
+    case "drafting_error": return "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30";
+    case "contradiction": return "bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30";
+    case "quantitative_gap": return "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400 border-cyan-500/30";
     case "other": return "bg-muted text-muted-foreground border-border";
   }
 }
