@@ -1,57 +1,78 @@
-# One-Page Sales Sheet (PDF) — Solicitation IQ
 
-## Goal
-Produce a single-page, design-forward PDF sales sheet that a sales rep can email or hand to a prospect. Saved to `/mnt/documents/solicitation-iq-sales-sheet.pdf`.
+# Branded Client Report Templates — Option A
 
-## Layout (single US Letter page, portrait)
+Match the uploaded **Army TAP Executive Summary** look across all generated reports (PDF + Word). Replace the current plain `jsPDF` + `docx` generators with a templated, branded renderer.
 
+## Decisions locked in
+- **Option A**: full brand match in both PDF and Word.
+- **Footer**: default `CONFIDENTIAL — FOR CLIENT USE ONLY` (overridable via `branding.footerText`).
+- **Logo**: deferred — leave a slot in the header band for a follow-up.
+
+## Visual spec (from sample)
+- **Running header** (every page): bold project name + amber `|` + amber solicitation number, navy/amber rule beneath.
+- **Cover band**: solid navy block, small amber eyebrow ("EXECUTIVE SUMMARY"), large white title, white meta line `Solicitation # • Generated <date>`.
+- **Section headings**: navy ALL-CAPS with thin amber underline rule.
+- **Snapshot table**: navy left column / white bold labels, light-gray right column.
+- **Category callout tables**: green header bar for Opportunities, red for Risks; tinted left cell, white right cell.
+- **Recommendation box**: cream fill, amber border, centered "RECOMMENDATION / VERDICT" + italic rationale.
+- **Numbered Steps table**: navy square w/ white step number, light-blue title cell, white description cell.
+- **Source Citations**: flat list `[C#] Document §Section`.
+- **Footer**: amber rule, "CONFIDENTIAL — FOR CLIENT USE ONLY" left, "Confidential" right.
+
+## Design tokens
+New `src/features/reports/templates/theme.ts`:
+- Navy `#1E3A5F`, Amber `#C9A227`, Opp green `#2E7D32` + tint `#E8F3EA`, Risk red `#C62828` + tint `#FBEAEA`, Cream `#FFF8E1`, Light-blue `#EAF2FA`, Slate text `#374151`.
+- Fonts: Helvetica (PDF) / Arial (Word).
+
+## Content model
+Extend `ReportSection` with optional structured `blocks` (markdown `body` stays as fallback):
+```ts
+type Block =
+  | { kind: "paragraph"; text: string }
+  | { kind: "bullets"; items: string[] }
+  | { kind: "kv"; rows: Array<[string, string]> }
+  | { kind: "category"; tone: "opportunity" | "risk" | "neutral"; title: string;
+      rows: Array<[string, string]> }
+  | { kind: "recommendation"; verdict: string; rationale: string }
+  | { kind: "steps"; items: Array<{ title: string; detail: string }> };
+
+type ReportSection = { id: string; heading: string; level?: 1|2|3;
+                       body?: string; blocks?: Block[] };
 ```
-┌─────────────────────────────────────────────────┐
-│  SOLICITATION IQ            [tagline / mark]    │  ← Header band (dark navy)
-├─────────────────────────────────────────────────┤
-│  HERO LINE                                      │
-│  "Win more government work in a fraction of     │
-│   the time."                                    │
-│  1-sentence positioning                         │
-├──────────────────┬──────────────────────────────┤
-│ TIME SAVINGS     │  COST REDUCTION              │
-│ • 200pg RFP:     │  • ~$3K saved per pursuit    │
-│   8–16h → 5–10m  │  • Faster no-bid decisions   │
-│ • SAM import: 1c │  • Per-user API keys         │
-│ • Q&A: hrs → min │                              │
-├──────────────────┼──────────────────────────────┤
-│ RISK REDUCTION   │  EVALUATION & COMPARISON     │
-│ • AI compliance  │  • Bid/no-bid scoring        │
-│ • Amendment diff │  • Prior-solicitation diff   │
-│ • Audit trail    │  • Citations on every claim  │
-│ • RLS isolation  │  • Incumbent intel           │
-├──────────────────┴──────────────────────────────┤
-│  SAMPLE WORKFLOW (5 steps, horizontal)          │
-│  1 Import → 2 Analyze → 3 Compare → 4 Generate  │
-│    Questions → 5 Export Client Report           │
-├─────────────────────────────────────────────────┤
-│  ROI CALLOUT (large stat)                       │
-│  ~$70K/yr returned for a 30-pursuit firm        │
-├─────────────────────────────────────────────────┤
-│  Footer: contact / URL / "Book a demo"          │
-└─────────────────────────────────────────────────┘
-```
 
-## Design direction
-- Palette: deep navy primary (#0F172A), slate accents, single warm accent (amber #F59E0B) for stat callouts. Clean, executive — matches the existing app's serious GovCon tone.
-- Typography: Inter/Helvetica family (already used in PDF generator). Big bold numbers for stats, small caps for section labels.
-- Heavy use of icon + label + 2-line description blocks (no long paragraphs).
-- One large ROI stat block as the visual anchor.
-- Footer with placeholder contact (user can edit later).
+## Files to add / change
 
-## Build approach
-- Python + ReportLab (already used in `src/features/reports/utils/pdfGenerator.ts` patterns; ReportLab is the server-side equivalent here).
-- Single script in `/tmp/`, output to `/mnt/documents/solicitation-iq-sales-sheet.pdf`.
-- Visual QA: render to JPG with `pdftoppm`, inspect, fix overflow/contrast/alignment, re-render until clean.
+**New**
+- `src/features/reports/templates/theme.ts` — color/typography tokens.
+- `src/features/reports/templates/blocks.ts` — `Block` type + helpers (parse legacy markdown body into a paragraph block when `blocks` is missing).
 
-## Open questions (will use sensible defaults if not answered)
-- Company / contact info to show in the footer? (Default: "solicitation-iq.lovable.app · Book a demo")
-- Logo file to embed? (Default: typographic wordmark only)
+**Rewrite**
+- `src/features/reports/utils/pdfGenerator.ts`
+  - Small layout engine on top of `jsPDF`: `drawHeader`, `drawFooter`, `drawCoverBand`, `drawSectionHeading`, `drawKV`, `drawCategory`, `drawRecommendation`, `drawSteps`, `drawCitations`, `ensureSpace` (re-draws header/footer on new page).
+- `src/features/reports/utils/wordGenerator.ts`
+  - `docx` `Header`/`Footer`, custom `styles` (Heading1 navy ALL-CAPS, etc.), styled `Table`s with shading/borders for KV / category / steps, callout rendered as a single-cell shaded table with amber border.
+- `supabase/functions/generate-report/index.ts`
+  - Extend the AI tool schema so each section can return optional `blocks` (paragraph/bullets/kv/category/recommendation/steps). Keep `body` markdown for prose-only sections. Update the per-report-type prompts in `src/features/reports/templates/prompts.ts` to ask the model to use:
+    - `kv` for "Opportunity Snapshot",
+    - `category` (opportunity/risk) for "Strategic Assessment",
+    - `recommendation` for "Recommendation",
+    - `steps` for "Next Steps".
 
-## Deliverable
-A single `<lov-artifact>` link to the finished PDF.
+**Touch (minor)**
+- `src/features/reports/templates/types.ts` — export new `Block` type, allow `body?` and `blocks?` on `ReportSection`.
+- `src/features/portal/components/ClientReportViewer.tsx` — render the new block types inline so the in-app preview matches the downloaded file (KV tables, callouts, steps).
+
+**Branding hook** — already present on `ReportOptions.branding`:
+- `headerText` → top running header (defaults to solicitation title).
+- `footerText` → footer left (defaults to `CONFIDENTIAL — FOR CLIENT USE ONLY`).
+- `firmLogoUrl` slot reserved in cover band but not rendered yet.
+
+## Verification
+1. Generate Executive Summary on the current solicitation (`/solicitations/0d2c19f3…?tab=reports`) → PDF + Word.
+2. Open both, confirm: header runs, navy cover band, snapshot table, green/red category tables, cream recommendation box, numbered Next Steps table, citations, footer.
+3. Spot-check Risk Assessment and Questions Brief to confirm the shared template still looks right when blocks are sparser.
+
+## Out of scope (follow-ups)
+- Firm/client logo upload + placement in header.
+- Per-client color theme overrides via `branding.primaryColor`.
+- Page-x-of-y numbering and a TOC for long reports.
