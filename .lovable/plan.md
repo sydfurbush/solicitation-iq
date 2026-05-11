@@ -1,58 +1,57 @@
-# Per-user SAM.gov API keys
+# One-Page Sales Sheet (PDF) — Solicitation IQ
 
-Each user brings their own SAM.gov API key. Edge functions use the caller's key. If a user hasn't added one, SAM.gov actions (import URL, pull attachments, prior solicitation import) fail with a clear "Add your SAM.gov API key in Settings → Integrations" message and a link to the page. The shared `SAM_GOV_API_KEY` secret is no longer used at runtime.
+## Goal
+Produce a single-page, design-forward PDF sales sheet that a sales rep can email or hand to a prospect. Saved to `/mnt/documents/solicitation-iq-sales-sheet.pdf`.
 
-## UX
+## Layout (single US Letter page, portrait)
 
-- **Settings → Integrations tab** (currently a placeholder) becomes a real form:
-  - Card "SAM.gov API key" with a masked input (show last 4 chars when set), Save / Remove buttons, and a help line linking to https://open.gsa.gov/api/get-opportunities-public-api/ for getting a key.
-  - Status badge: "Connected" / "Not configured".
-- **SAM import dialogs / buttons** (Create solicitation from SAM URL, "Pull attachments from SAM.gov", "Import from SAM.gov" in Comparison) detect the missing-key error and show a toast: *"Add your SAM.gov API key in Settings → Integrations"* with an action button that navigates to `/settings?tab=integrations`.
-
-## Data
-
-New table `user_integrations` (one row per user per provider; start with `sam_gov`):
-
-```text
-user_integrations
-  id            uuid pk
-  user_id       uuid not null  -- == auth.uid()
-  provider      text not null  -- 'sam_gov'
-  api_key       text not null  -- stored as-is (Postgres at-rest encrypted; RLS hides from others)
-  last_four     text generated -- right(api_key, 4) for UI display
-  created_at, updated_at
-  unique (user_id, provider)
+```
+┌─────────────────────────────────────────────────┐
+│  SOLICITATION IQ            [tagline / mark]    │  ← Header band (dark navy)
+├─────────────────────────────────────────────────┤
+│  HERO LINE                                      │
+│  "Win more government work in a fraction of     │
+│   the time."                                    │
+│  1-sentence positioning                         │
+├──────────────────┬──────────────────────────────┤
+│ TIME SAVINGS     │  COST REDUCTION              │
+│ • 200pg RFP:     │  • ~$3K saved per pursuit    │
+│   8–16h → 5–10m  │  • Faster no-bid decisions   │
+│ • SAM import: 1c │  • Per-user API keys         │
+│ • Q&A: hrs → min │                              │
+├──────────────────┼──────────────────────────────┤
+│ RISK REDUCTION   │  EVALUATION & COMPARISON     │
+│ • AI compliance  │  • Bid/no-bid scoring        │
+│ • Amendment diff │  • Prior-solicitation diff   │
+│ • Audit trail    │  • Citations on every claim  │
+│ • RLS isolation  │  • Incumbent intel           │
+├──────────────────┴──────────────────────────────┤
+│  SAMPLE WORKFLOW (5 steps, horizontal)          │
+│  1 Import → 2 Analyze → 3 Compare → 4 Generate  │
+│    Questions → 5 Export Client Report           │
+├─────────────────────────────────────────────────┤
+│  ROI CALLOUT (large stat)                       │
+│  ~$70K/yr returned for a 30-pursuit firm        │
+├─────────────────────────────────────────────────┤
+│  Footer: contact / URL / "Book a demo"          │
+└─────────────────────────────────────────────────┘
 ```
 
-RLS: a user can `SELECT/INSERT/UPDATE/DELETE` only rows where `user_id = auth.uid()`. No cross-org visibility, no service-role policy needed for users (edge functions use service role which bypasses RLS).
+## Design direction
+- Palette: deep navy primary (#0F172A), slate accents, single warm accent (amber #F59E0B) for stat callouts. Clean, executive — matches the existing app's serious GovCon tone.
+- Typography: Inter/Helvetica family (already used in PDF generator). Big bold numbers for stats, small caps for section labels.
+- Heavy use of icon + label + 2-line description blocks (no long paragraphs).
+- One large ROI stat block as the visual anchor.
+- Footer with placeholder contact (user can edit later).
 
-## Edge functions
+## Build approach
+- Python + ReportLab (already used in `src/features/reports/utils/pdfGenerator.ts` patterns; ReportLab is the server-side equivalent here).
+- Single script in `/tmp/`, output to `/mnt/documents/solicitation-iq-sales-sheet.pdf`.
+- Visual QA: render to JPG with `pdftoppm`, inspect, fix overflow/contrast/alignment, re-render until clean.
 
-- `sam-import` and `sam-import-attachments`: stop reading `SAM_GOV_API_KEY`. Instead:
-  1. Read the caller's JWT from the `Authorization` header, resolve `user_id` via `supabase.auth.getUser(jwt)`.
-  2. With a service-role client, `select api_key from user_integrations where user_id = ? and provider='sam_gov'`.
-  3. If missing, return HTTP 400 with `{ error: "SAM_KEY_MISSING", message: "Add your SAM.gov API key in Settings → Integrations." }`.
-  4. Otherwise use that key for all SAM API calls in the request.
-- Both functions already require auth (caller is signed in from the app), so this is straightforward.
+## Open questions (will use sensible defaults if not answered)
+- Company / contact info to show in the footer? (Default: "solicitation-iq.lovable.app · Book a demo")
+- Logo file to embed? (Default: typographic wordmark only)
 
-## Frontend
-
-- New `IntegrationsTab.tsx` replacing the placeholder in `src/pages/Settings.tsx`:
-  - `useQuery` `['integration','sam_gov']` → `select last_four, updated_at from user_integrations`.
-  - `useMutation` upsert and delete.
-  - Validates a non-empty key; trims whitespace.
-- New small hook `useSamKeyStatus()` (returns `{ hasKey, lastFour }`) used by:
-  - `useSamPullAttachments`, `useImportPriorFromSam`, the "Create from SAM URL" dialog — to disable the button + show inline hint when not configured (avoids a round-trip to discover the error).
-- Shared error handler: when an edge function returns `SAM_KEY_MISSING`, show a toast with a "Open Settings" action that routes to `/settings` and selects the Integrations tab (Tabs already supports `defaultValue`; switch to controlled `value` driven by `?tab=` search param).
-
-## Migration / cleanup
-
-- Migration creates `user_integrations` + RLS policies.
-- Keep the `SAM_GOV_API_KEY` secret in place for now (harmless), but remove all reads in code. We can delete the secret after verification.
-- Existing SAM-linked solicitations are unaffected; only future SAM API calls require a per-user key.
-
-## Out of scope
-
-- Per-org shared key (rejected — per-user only).
-- Encrypting the key with pgsodium/Vault (can be added later; RLS already prevents cross-user reads).
-- Other providers (structure leaves room via `provider` column).
+## Deliverable
+A single `<lov-artifact>` link to the finished PDF.
