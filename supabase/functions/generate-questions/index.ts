@@ -295,8 +295,12 @@ Deno.serve(async (req) => {
     for (const d of documents) sectionsByDoc.set(d.id, []);
     for (const s of (sections ?? []) as Section[]) sectionsByDoc.get(s.document_id)?.push(s);
 
-    const batches = packBatches(documents as Doc[], sectionsByDoc);
-    const totalBatches = batches.length + 1; // +1 for cross-doc pass
+    const isRetry = retryRunId !== undefined && retryRunId !== null;
+    const isCrossDocOnlyRetry = isRetry && (retryDocIds?.length ?? 0) === 0;
+    const runCrossDoc = !isRetry || retryCrossDoc;
+
+    const batches = isCrossDocOnlyRetry ? [] : packBatches(documents as Doc[], sectionsByDoc);
+    const totalBatches = batches.length + (runCrossDoc ? 1 : 0);
 
     // Create the run record
     const { data: runRow } = await supabase
@@ -308,14 +312,17 @@ Deno.serve(async (req) => {
         completed_batches: 0,
         failed_batches: 0,
         inserted_count: 0,
-        current_step: `Preparing ${batches.length} document batch(es)`,
+        current_step: isRetry
+          ? `Retrying ${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""}`
+          : `Preparing ${batches.length} document batch(es)`,
+        parent_run_id: parentRunId,
       })
       .select("id")
       .single();
     const runId = runRow?.id;
 
     console.log(
-      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} regenerate=${!!regenerate} runId=${runId}`,
+      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} retry=${isRetry} crossDoc=${runCrossDoc} regenerate=${!!regenerate} runId=${runId} parentRunId=${parentRunId ?? "-"}`,
     );
 
     const focusText = focusAreas?.length
@@ -327,7 +334,19 @@ Deno.serve(async (req) => {
       let totalInserted = 0;
       let completed = 0;
       let failed = 0;
-      let didRegenDelete = false;
+      // Retry mode never deletes — only appends.
+      let didRegenDelete = isRetry;
+      const failedDocIds: string[] = [];
+      let crossDocFailed = false;
+
+      const updateRun = async (patch: Record<string, unknown>) => {
+        if (!runId) return;
+        await supabase
+          .from("question_generation_runs")
+          .update({ ...patch, updated_at: new Date().toISOString() })
+          .eq("id", runId);
+      };
+
 
       const updateRun = async (patch: Record<string, unknown>) => {
         if (!runId) return;
