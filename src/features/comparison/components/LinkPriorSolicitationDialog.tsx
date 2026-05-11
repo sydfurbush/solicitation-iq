@@ -178,13 +178,17 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
               <Label htmlFor="notes">Notes (optional)</Label>
               <Textarea id="notes" {...externalForm.register("notes")} rows={3} />
             </div>
+            <p className="text-xs text-muted-foreground">
+              We'll look up SAM.gov, create a shadow prior solicitation, and pull its attachments so the comparison has real content to diff.
+            </p>
           </TabsContent>
         </Tabs>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={handleLink} disabled={link.isPending}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Link &amp; compare
+          {stage && <span className="text-xs text-muted-foreground mr-auto">{stage}</span>}
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+          <Button onClick={handleLink} disabled={busy}>
+            <ExternalLink className="mr-2 h-4 w-4" /> {busy ? "Working…" : "Link & compare"}
           </Button>
         </DialogFooter>
       </DialogContent>
