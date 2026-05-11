@@ -66,11 +66,15 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
     if (!latestRun) return null;
     const failedIds = (latestRun.failed_doc_ids ?? []) as string[];
     const crossDoc = !!latestRun.cross_doc_failed;
+    const failedBatches = (latestRun.failed_batches ?? 0) as number;
     const status = latestRun.status as string;
-    if ((status === "partial" || status === "failed") && (failedIds.length > 0 || crossDoc)) {
+    const hasFailure = failedIds.length > 0 || crossDoc || failedBatches > 0;
+    if ((status === "partial" || status === "failed") && hasFailure) {
       const docMap = new Map(documents.map((d) => [d.id, d.file_name]));
       const failedNames = failedIds.map((id) => docMap.get(id)).filter(Boolean) as string[];
-      return { runId: latestRun.id as string, failedNames, crossDoc, count: failedIds.length + (crossDoc ? 1 : 0) };
+      const unknownScope = failedIds.length === 0 && !crossDoc;
+      const count = unknownScope ? failedBatches : failedIds.length + (crossDoc ? 1 : 0);
+      return { runId: latestRun.id as string, failedNames, crossDoc, count, unknownScope };
     }
     return null;
   }, [latestRun, documents]);
@@ -136,8 +140,14 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
                 {retryable.failedNames.length === 0 && retryable.crossDoc && (
                   <div className="text-muted-foreground">Failed: cross-document pass</div>
                 )}
+                {retryable.unknownScope && (
+                  <div className="text-muted-foreground italic">
+                    Original failure scope unknown — will re-run all documents and append new questions.
+                  </div>
+                )}
                 <Button size="sm" variant="outline" onClick={handleRetry} disabled={generate.isPending}>
-                  <RotateCcw className="h-4 w-4 mr-2" /> Retry failed batches
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  {retryable.unknownScope ? "Retry run" : "Retry failed batches"}
                 </Button>
               </AlertDescription>
             </Alert>

@@ -157,9 +157,11 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
               {runs.map((run) => {
                 const failedNames = run.failed_doc_ids
                   .map((id) => docMap.get(id) ?? "Unknown document");
-                const canRetry =
-                  (run.status === "partial" || run.status === "failed") &&
-                  (run.failed_doc_ids.length > 0 || run.cross_doc_failed);
+                const hasFailure =
+                  run.failed_doc_ids.length > 0 || run.cross_doc_failed || run.failed_batches > 0;
+                const canRetry = (run.status === "partial" || run.status === "failed") && hasFailure;
+                const unknownScope =
+                  canRetry && run.failed_doc_ids.length === 0 && !run.cross_doc_failed;
                 const parent = run.parent_run_id ? runById.get(run.parent_run_id) : null;
                 return (
                   <div
@@ -229,7 +231,7 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                             ) : (
                               <RotateCcw className="h-3 w-3 mr-1" />
                             )}
-                            Retry failed
+                            {unknownScope ? "Retry run" : "Retry failed"}
                           </Button>
                         )}
                       </div>
