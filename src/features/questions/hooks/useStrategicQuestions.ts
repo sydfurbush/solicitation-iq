@@ -9,6 +9,16 @@ import {
 
 const qsKey = (id: string) => ["strategic-questions", id] as const;
 
+// Invalidate every query that exposes a question count for this solicitation.
+// The detail StatCard and Solicitations list both read embedded counts from
+// `["solicitation", id]` / `["solicitations", ...]`, so they must be refreshed
+// whenever questions are added, edited, or removed.
+function invalidateQuestionCounts(qc: ReturnType<typeof useQueryClient>, solicitationId: string) {
+  qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+  qc.invalidateQueries({ queryKey: ["solicitation", solicitationId] });
+  qc.invalidateQueries({ queryKey: ["solicitations"] });
+}
+
 export function useStrategicQuestions(
   solicitationId: string | undefined,
   filters?: QuestionFilters,
@@ -100,7 +110,7 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
             inserted: run.inserted_count ?? 0,
             step: run.current_step ?? null,
           });
-          qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+          invalidateQuestionCounts(qc, solicitationId);
           if (run.status === "completed" || run.status === "partial" || run.status === "failed") {
             return {
               status: run.status as "completed" | "partial" | "failed",
@@ -115,7 +125,7 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
     },
     onSuccess: () => {
       if (solicitationId) {
-        qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+        invalidateQuestionCounts(qc, solicitationId);
         qc.invalidateQueries({ queryKey: ["latest-question-run", solicitationId] });
       }
     },
@@ -146,7 +156,7 @@ export function useCreateQuestion(solicitationId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) invalidateQuestionCounts(qc, solicitationId);
     },
   });
 }
@@ -159,7 +169,7 @@ export function useUpdateQuestion(solicitationId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) invalidateQuestionCounts(qc, solicitationId);
     },
   });
 }
@@ -172,7 +182,7 @@ export function useDeleteQuestion(solicitationId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) invalidateQuestionCounts(qc, solicitationId);
     },
   });
 }
@@ -185,7 +195,7 @@ export function useBulkUpdateQuestions(solicitationId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) invalidateQuestionCounts(qc, solicitationId);
     },
   });
 }

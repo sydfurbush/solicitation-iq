@@ -107,9 +107,42 @@ type Section = {
   sort_order: number | null;
 };
 
-const PER_BATCH_BUDGET = 70_000; // chars of doc body per AI call
+const PER_BATCH_BUDGET = 50_000; // chars of doc body per AI call (lowered from 70K for headroom)
 const PER_SECTION_HEAD = 2400;
 const PER_SECTION_TAIL = 1200;
+const SECTION_SPLIT_THRESHOLD = 8_000; // sections larger than this are split into sub-chunks
+const SUB_CHUNK_SIZE = 6_000;
+const SUB_CHUNK_OVERLAP = 500;
+
+// Split oversized sections into overlapping sub-chunks so the model sees the
+// full verbatim middle of giant sections (e.g., 89K-char Site Management Manual sections)
+// instead of a head+tail truncation that drops 80K chars in the middle.
+function expandSections(sections: Section[]): Section[] {
+  const out: Section[] = [];
+  for (const s of sections) {
+    const content = (s.content ?? "").trim();
+    if (content.length <= SECTION_SPLIT_THRESHOLD) {
+      out.push(s);
+      continue;
+    }
+    let start = 0;
+    let part = 1;
+    const totalParts = Math.ceil((content.length - SUB_CHUNK_OVERLAP) / (SUB_CHUNK_SIZE - SUB_CHUNK_OVERLAP));
+    while (start < content.length) {
+      const end = Math.min(start + SUB_CHUNK_SIZE, content.length);
+      const chunk = content.slice(start, end);
+      out.push({
+        ...s,
+        content: chunk,
+        section_title: `${s.section_title ?? ""} [part ${part}/${totalParts}]`.trim(),
+      });
+      if (end >= content.length) break;
+      start += SUB_CHUNK_SIZE - SUB_CHUNK_OVERLAP;
+      part++;
+    }
+  }
+  return out;
+}
 
 function buildDocBlock(doc: Doc, sections: Section[], budget: number): { text: string; used: number } {
   const toc = sections
@@ -136,6 +169,7 @@ function buildDocBlock(doc: Doc, sections: Section[], budget: number): { text: s
 }
 
 // Pack documents into batches: ≤3 docs per batch, ≤PER_BATCH_BUDGET projected chars.
+// Oversized docs may also be split across multiple batches via packDocSlices below.
 function packBatches(docs: Doc[], sectionsByDoc: Map<string, Section[]>): Doc[][] {
   // Estimate cost per doc by total content length (capped per section).
   const cost = new Map<string, number>();
@@ -176,6 +210,26 @@ function packBatches(docs: Doc[], sectionsByDoc: Map<string, Section[]>): Doc[][
     }
   }
   return batches;
+}
+
+// For an oversized single doc, slice its (already-expanded) sections into
+// multiple batches so each AI call stays under the per-batch budget.
+function sliceOversizedDoc(doc: Doc, sections: Section[]): Section[][] {
+  const slices: Section[][] = [];
+  let current: Section[] = [];
+  let used = 0;
+  for (const s of sections) {
+    const cost = Math.min((s.content ?? "").length, PER_SECTION_HEAD + PER_SECTION_TAIL + 40) + 100;
+    if (used + cost > PER_BATCH_BUDGET && current.length > 0) {
+      slices.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(s);
+    used += cost;
+  }
+  if (current.length > 0) slices.push(current);
+  return slices.length > 0 ? slices : [sections];
 }
 
 function mapRows(
@@ -303,15 +357,55 @@ Deno.serve(async (req) => {
       .in("document_id", docIds)
       .order("sort_order", { ascending: true });
 
+    const rawSectionsByDoc = new Map<string, Section[]>();
+    for (const d of documents) rawSectionsByDoc.set(d.id, []);
+    for (const s of (sections ?? []) as Section[]) rawSectionsByDoc.get(s.document_id)?.push(s);
+    // Expand giant sections into overlapping sub-chunks so we don't lose middle content.
     const sectionsByDoc = new Map<string, Section[]>();
-    for (const d of documents) sectionsByDoc.set(d.id, []);
-    for (const s of (sections ?? []) as Section[]) sectionsByDoc.get(s.document_id)?.push(s);
+    for (const [docId, secs] of rawSectionsByDoc) sectionsByDoc.set(docId, expandSections(secs));
 
     const isRetry = retryRunId !== undefined && retryRunId !== null;
     const isCrossDocOnlyRetry = isRetry && !retryUnknownScope && retryDocIds !== null && retryDocIds.length === 0;
     const runCrossDoc = !isRetry || retryCrossDoc;
 
-    const batches = isCrossDocOnlyRetry ? [] : packBatches(documents as Doc[], sectionsByDoc);
+    // Build "work units" — each is one AI call. A normal batch contains 1-3 docs.
+    // An oversized doc is split into multiple slices, each its own work unit so
+    // its body is not truncated and a single chunk failure is recoverable.
+    type WorkUnit = { docs: Doc[]; sectionsByDoc: Map<string, Section[]>; label: string };
+    const workUnits: WorkUnit[] = [];
+    if (!isCrossDocOnlyRetry) {
+      const baseBatches = packBatches(documents as Doc[], sectionsByDoc);
+      for (const batch of baseBatches) {
+        // If single oversized doc, slice it.
+        if (batch.length === 1) {
+          const d = batch[0];
+          const ds = sectionsByDoc.get(d.id) ?? [];
+          const totalCost = ds.reduce(
+            (sum, s) => sum + Math.min((s.content ?? "").length, PER_SECTION_HEAD + PER_SECTION_TAIL + 40) + 100,
+            200,
+          );
+          if (totalCost > PER_BATCH_BUDGET) {
+            const slices = sliceOversizedDoc(d, ds);
+            slices.forEach((slice, idx) => {
+              const m = new Map<string, Section[]>();
+              m.set(d.id, slice);
+              workUnits.push({
+                docs: [d],
+                sectionsByDoc: m,
+                label: `${d.file_name} (part ${idx + 1}/${slices.length})`,
+              });
+            });
+            continue;
+          }
+        }
+        workUnits.push({
+          docs: batch,
+          sectionsByDoc,
+          label: batch.map((d) => d.file_name).join(", "),
+        });
+      }
+    }
+    const batches = workUnits;
     const totalBatches = batches.length + (runCrossDoc ? 1 : 0);
 
     // Create the run record
@@ -359,16 +453,18 @@ Deno.serve(async (req) => {
           .eq("id", runId);
       };
       for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
+        const unit = batches[i];
+        const batch = unit.docs;
+        const unitSections = unit.sectionsByDoc;
         const batchLabel = `${i + 1}/${batches.length}`;
-        const batchNames = batch.map((d) => d.file_name).join(", ");
+        const batchNames = unit.label;
         await updateRun({ current_step: `Batch ${batchLabel}: ${batchNames}` });
 
         // Build prompt for this batch
         const perDocBudget = Math.floor(PER_BATCH_BUDGET / batch.length);
         let docBlocks = "";
         for (const d of batch) {
-          const ds = sectionsByDoc.get(d.id) ?? [];
+          const ds = unitSections.get(d.id) ?? [];
           const { text } = buildDocBlock(d, ds, perDocBudget);
           docBlocks += text;
         }
@@ -433,37 +529,69 @@ Deno.serve(async (req) => {
         try {
           let crossPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
           for (const d of documents) {
-            const ds = sectionsByDoc.get(d.id) ?? [];
+            const ds = rawSectionsByDoc.get(d.id) ?? [];
             const toc = ds
               .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
-              .slice(0, 80)
+              .slice(0, 50)
               .join("\n");
             crossPrompt += `\n--- ${d.file_name} ---\n${toc}\n`;
           }
-          const { data: entities } = await supabase
-            .from("extracted_entities")
-            .select("document_id, entity_type, entity_value, page_number, context_snippet")
-            .in("document_id", docIds)
-            .limit(800);
-          if (entities && entities.length) {
-            const docName = new Map<string, string>();
-            documents.forEach((d) => docName.set(d.id, d.file_name));
-            crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS ---\n`;
-            for (const e of entities) {
-              crossPrompt += `[${docName.get(e.document_id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 160)}` : ""}\n`;
+          // Per-doc entity cap so a single chatty doc can't crowd out others.
+          const PER_DOC_ENTITY_CAP = 80;
+          const entitiesByDoc = new Map<string, Array<Record<string, unknown>>>();
+          for (const id of docIds) entitiesByDoc.set(id, []);
+          {
+            const { data: entities } = await supabase
+              .from("extracted_entities")
+              .select("document_id, entity_type, entity_value, page_number, context_snippet")
+              .in("document_id", docIds)
+              .limit(2000);
+            for (const e of entities ?? []) {
+              const list = entitiesByDoc.get(e.document_id as string);
+              if (list && list.length < PER_DOC_ENTITY_CAP) list.push(e as Record<string, unknown>);
             }
+          }
+          const docName = new Map<string, string>();
+          documents.forEach((d) => docName.set(d.id, d.file_name));
+          let entityCount = 0;
+          let entitiesBlock = "";
+          for (const [id, list] of entitiesByDoc) {
+            for (const e of list) {
+              const snip = e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 100)}` : "";
+              entitiesBlock += `[${docName.get(id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${snip}\n`;
+              entityCount++;
+            }
+          }
+          if (entityCount > 0) {
+            crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS (${entityCount} facts, capped at ${PER_DOC_ENTITY_CAP}/doc) ---\n${entitiesBlock}`;
           }
           crossPrompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
 
-          if (crossPrompt.length > 120_000) crossPrompt = crossPrompt.slice(0, 120_000) + "\n…[truncated]…";
+          if (crossPrompt.length > 100_000) crossPrompt = crossPrompt.slice(0, 100_000) + "\n…[truncated]…";
 
-          console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length}`);
-          const parsed = (await callAiTool({
-            functionName: "generate-questions",
-            system: CROSS_DOC_SYSTEM_PROMPT,
-            user: crossPrompt,
-            tool: SCHEMA,
-          })) as Record<string, any>;
+          console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length} entities=${entityCount}`);
+
+          // One soft retry on transient failure before marking the pass failed.
+          let parsed: Record<string, any> | null = null;
+          let lastErr: unknown = null;
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+              parsed = (await callAiTool({
+                functionName: "generate-questions",
+                system: CROSS_DOC_SYSTEM_PROMPT,
+                user: crossPrompt,
+                tool: SCHEMA,
+              })) as Record<string, any>;
+              lastErr = null;
+              break;
+            } catch (err) {
+              lastErr = err;
+              console.warn(`[generate-questions] cross-doc attempt ${attempt} failed`, err);
+              if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
+            }
+          }
+          if (lastErr || !parsed) throw lastErr ?? new Error("cross-doc pass returned no result");
+
           const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
           const rows = mapRows(questions, solicitationId, docByName);
           console.log(`[generate-questions] cross-doc got ${rows.length} questions`);
