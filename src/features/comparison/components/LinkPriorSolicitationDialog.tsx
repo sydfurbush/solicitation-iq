@@ -74,8 +74,8 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
     }
   };
 
-  const busy = link.isPending || importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
-  const importing = importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
+  const busy = link.isPending || importFromSam.isPending || uploadPrior.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
+  const importing = importFromSam.isPending || uploadPrior.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
 
   const handleCancelImport = () => {
     abortRef.current?.abort();
