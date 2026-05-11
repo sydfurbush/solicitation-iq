@@ -89,32 +89,53 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
 
   const handleExport = async () => {
     if (!doc) return;
+    if (inflightRef.current) return; // hard guard against double clicks
     const sections = doc.sections.filter((_, i) => selected[i]);
     if (sections.length === 0) {
-      toast({
-        title: "Select at least one section",
-        variant: "destructive",
-      });
+      toast({ title: "Select at least one section", variant: "destructive" });
       return;
     }
+
+    inflightRef.current = true;
+    setBusy(true);
+    setProgress(5);
+    setStage("Preparing document…");
+
+    // Yield to the browser so the spinner/progress paints before heavy work
+    const tick = (p: number, s: string) =>
+      new Promise<void>((r) => {
+        setProgress(p);
+        setStage(s);
+        // double rAF then a microtask gap so React commits before we block on render
+        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0)));
+      });
+
     try {
-      setBusy(true);
+      await tick(20, "Building cover & sections…");
+      await tick(45, format === "pdf" ? "Rendering PDF pages…" : "Rendering Word document…");
+
       await exportDocument({ ...doc, sections }, format, {
         pageSize,
         filenameBase: filename || doc.filenameBase,
         version,
         noCover: !includeCover,
       });
+
+      await tick(95, "Saving file…");
+      await tick(100, "Done");
       toast({ title: "Export ready", description: `${format.toUpperCase()} downloaded.` });
-      setOpen(false);
+      // brief pause so the user sees 100% before close
+      setTimeout(() => setOpen(false), 350);
     } catch (e) {
       toast({
         title: "Export failed",
         description: e instanceof Error ? e.message : String(e),
         variant: "destructive",
       });
+      setStage("Failed");
     } finally {
       setBusy(false);
+      inflightRef.current = false;
     }
   };
 
