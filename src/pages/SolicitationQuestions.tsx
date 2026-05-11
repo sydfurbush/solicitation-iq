@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { CreateQuestionDialog } from "@/features/questions/components/CreateQuestionDialog";
 import { GenerateQuestionsDialog } from "@/features/questions/components/GenerateQuestionsDialog";
+import { QuestionRunsHistorySheet } from "@/features/questions/components/QuestionRunsHistorySheet";
 import { QuestionDetailPanel } from "@/features/questions/components/QuestionDetailPanel";
 import { QuestionExport } from "@/features/questions/components/QuestionExport";
 import { QuestionsFilters } from "@/features/questions/components/QuestionsFilters";
