@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { usePriorSolicitation, useUnlinkPriorSolicitation, type PriorSolicitationRow, type ComparisonChanges } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
-import { useImportPriorFromSam, waitForDocumentsParsed } from "../hooks/useImportPriorFromSam";
+import { useImportPriorFromSam, waitForDocumentsParsed, type ImportProgress } from "../hooks/useImportPriorFromSam";
+import { ImportProgressPanel } from "./ImportProgressPanel";
 import { fmtCurrency, fmtDate, pctDelta } from "../utils/diffHelpers";
 import { toast } from "@/hooks/use-toast";
 
