@@ -92,6 +92,33 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
     }
   };
 
+  const handleDownload = async (run: QuestionRun) => {
+    setDownloadingId(run.id);
+    try {
+      const count = await downloadRunReport({
+        runId: run.id,
+        solicitationId: solicitationId,
+        status: run.status,
+        startedAt: run.started_at,
+        completedAt: run.completed_at,
+        totalBatches: run.total_batches,
+        completedBatches: run.completed_batches,
+        failedBatches: run.failed_batches,
+        insertedCount: run.inserted_count,
+        currentStep: run.current_step,
+        errorMessage: run.error_message,
+        failedDocNames: run.failed_doc_ids.map((id) => docMap.get(id) ?? "Unknown document"),
+        crossDocFailed: run.cross_doc_failed,
+        parentRunId: run.parent_run_id,
+      });
+      toast({ title: "Report downloaded", description: `${count} question${count === 1 ? "" : "s"} included.` });
+    } catch (e) {
+      toast({ title: "Download failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-2xl overflow-hidden flex flex-col">
