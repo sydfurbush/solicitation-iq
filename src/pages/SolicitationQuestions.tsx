@@ -65,6 +65,27 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
   const remove = useDeleteQuestion(solicitationId);
 
   const hasExistingAi = useMemo(() => allQuestions.some((q) => q.is_ai_generated), [allQuestions]);
+  const filterCounts = useMemo<FilterCounts>(() => {
+    const c: FilterCounts = {
+      total: allQuestions.length,
+      categories: {},
+      recommendations: {},
+      priorities: {},
+      submitted: 0,
+      notSubmitted: 0,
+      ai: 0,
+      manual: 0,
+    };
+    for (const q of allQuestions) {
+      c.categories[q.category] = (c.categories[q.category] ?? 0) + 1;
+      if (q.recommendation) c.recommendations[q.recommendation] = (c.recommendations[q.recommendation] ?? 0) + 1;
+      const p = getPriorityLevel(q.priority);
+      c.priorities[p] = (c.priorities[p] ?? 0) + 1;
+      if (q.is_submitted) c.submitted++; else c.notSubmitted++;
+      if (q.is_ai_generated) c.ai++; else c.manual++;
+    }
+    return c;
+  }, [allQuestions]);
   const empty = !isLoading && allQuestions.length === 0;
 
   const handleUpdate = async (id: string, updates: Partial<QuestionRow>) => {
