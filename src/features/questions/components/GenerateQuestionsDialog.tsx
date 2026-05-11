@@ -140,8 +140,14 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
                 {retryable.failedNames.length === 0 && retryable.crossDoc && (
                   <div className="text-muted-foreground">Failed: cross-document pass</div>
                 )}
+                {retryable.unknownScope && (
+                  <div className="text-muted-foreground italic">
+                    Original failure scope unknown — will re-run all documents and append new questions.
+                  </div>
+                )}
                 <Button size="sm" variant="outline" onClick={handleRetry} disabled={generate.isPending}>
-                  <RotateCcw className="h-4 w-4 mr-2" /> Retry failed batches
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  {retryable.unknownScope ? "Retry run" : "Retry failed batches"}
                 </Button>
               </AlertDescription>
             </Alert>
