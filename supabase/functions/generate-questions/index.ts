@@ -9,9 +9,9 @@ import { callAiTool } from "../_shared/aiClient.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const SYSTEM_PROMPT = `You are an expert federal proposal strategist performing an EXHAUSTIVE strategic question review of a government solicitation package. Your job is to surface EVERY question a sophisticated bidder would want answered before submitting a proposal — across ALL provided documents (PWS, Technical Exhibits, attachments, instructions, evaluation criteria, CLINs, etc.).
+const SYSTEM_PROMPT = `You are an expert federal proposal strategist performing an EXHAUSTIVE strategic question review of a government solicitation package. Your job is to surface EVERY question a sophisticated bidder would want answered before submitting a proposal — across the documents provided in this batch.
 
-Be thorough. It is far better to surface a borderline question than to omit a real one. Generate as many questions as the documents warrant — 60, 80, 100+ is normal for a full draft RFP package.
+Be thorough. It is far better to surface a borderline question than to omit a real one. Generate as many questions as the documents in this batch warrant.
 
 For EACH question, you MUST:
 - Provide the exact question text as it would be submitted to the agency (professional, neutral tone).
@@ -23,9 +23,9 @@ For EACH question, you MUST:
 - Choose the most specific category from the list below.
 
 CATEGORIES — use the most specific one that fits:
-- drafting_error: Typos, anachronisms, outdated dates, broken/incorrect regulatory citations, duplicate or near-duplicate language across sections, internally contradictory sentences. Examples: "RFO FAR 12.105" (not a real cite), "25/Nov/13" (decade-old date), "Department of War" (renamed 1947), "no later than 5 days upon hiring prior to commencement" (self-contradictory).
+- drafting_error: Typos, anachronisms, outdated dates, broken/incorrect regulatory citations, duplicate or near-duplicate language across sections, internally contradictory sentences.
 - contradiction: A real conflict BETWEEN two sources — PWS vs. Technical Exhibit, Section X vs. Section Y, CLIN vs. PWS schedule, KPI threshold vs. task requirement, place-of-performance list vs. staffing rule. ALWAYS name BOTH sources in conflict_with_document/conflict_with_section.
-- quantitative_gap: A numeric requirement (percentage, day count, headcount, dollar cap, ratio, threshold) is stated but its BASIS, FLOOR, CAP, or ADJUSTMENT MECHANISM is missing. Examples: "Tier 1: 50%, Tier 2: 40%" with no basis; financial liability with no cap; education-experience substitution with no floor.
+- quantitative_gap: A numeric requirement (percentage, day count, headcount, dollar cap, ratio, threshold) is stated but its BASIS, FLOOR, CAP, or ADJUSTMENT MECHANISM is missing.
 - compliance: FAR/DFARS/agency-specific regulatory or certification questions; security clearance, background-investigation timing vs. phase-in; foreign-law compliance burdens.
 - risk_concern: Cost/risk allocation gaps — who bears cost if assumption X fails; force-majeure/disaster/disruption coverage; vacancy gaps in key personnel; performance standards during transition.
 - scope_expansion: Opportunities to grow scope, add value-add services, surge capacity, optional CLINs.
@@ -34,34 +34,28 @@ CATEGORIES — use the most specific one that fits:
 - other: Only if truly none of the above apply.
 
 CRITICAL TECHNIQUES — apply ALL of these systematically:
-1. CROSS-REFERENCE every Technical Exhibit against the PWS section it supports. Conflicts in KPI thresholds, deliverable timelines, place-of-performance counts, staffing minimums, and quantities are extremely common — flag every one.
-2. SCAN for drafting errors: search every regulatory citation for validity; flag any date older than ~3 years; flag any agency or program name that may be anachronistic; flag duplicate/near-duplicate paragraphs.
-3. For every NUMBER (%, days, headcount, $, ratio), ask: what is the basis? what if actuals differ? is there a cap/floor/adjustment?
-4. For every CONTRACTOR OBLIGATION, ask: who pays if assumption X breaks? what is the consequence of delay?
-5. For every KEY-PERSONNEL or LOCATION rule, ask: what about vacancies, simultaneous-presence requirements, OCONUS variations?
-6. For every SCHEDULE or PHASE-IN/OUT timing, ask: is it feasible given upstream dependencies (background checks, clearances, training)?
-
-EXAMPLE — cross-document contradiction:
-{
-  "question_text": "PWS Section 5.10.6 establishes a Virtual Center wait-time standard, while Technical Exhibit A KPI #16 establishes a different threshold for the same metric. Which standard governs performance evaluation, and will the conflicting language be reconciled before final RFP release?",
-  "category": "contradiction",
-  "source_document": "PWS.pdf", "source_section": "5.10.6",
-  "conflict_with_document": "Technical Exhibit A.pdf", "conflict_with_section": "KPI #16",
-  ...
-}
-
-EXAMPLE — drafting error:
-{
-  "question_text": "Section 1.5.1 references 'RFO FAR 12.105,' which is not a recognized FAR citation. Is this a typographical error, and what is the intended reference?",
-  "category": "drafting_error",
-  ...
-}
+1. CROSS-REFERENCE every Technical Exhibit against the PWS section it supports. Flag KPI/timing/quantity conflicts.
+2. SCAN for drafting errors: invalid regulatory cites; dates older than ~3 years; anachronistic agency names; duplicate paragraphs.
+3. For every NUMBER (%, days, headcount, $, ratio), ask: basis? cap/floor/adjustment?
+4. For every CONTRACTOR OBLIGATION, ask: who pays if assumption X breaks? consequence of delay?
+5. For every KEY-PERSONNEL or LOCATION rule, ask: vacancies, simultaneous-presence, OCONUS variations?
+6. For every SCHEDULE or PHASE-IN/OUT timing, ask: feasibility given upstream dependencies?
 
 Return ONLY the JSON via the tool call. Do not narrate.`;
 
+const CROSS_DOC_SYSTEM_PROMPT = `You are an expert federal proposal strategist performing a CROSS-DOCUMENT contradiction review across an entire solicitation package.
+
+You will receive: each document's table of contents and key extracted snippets (KPIs, numeric thresholds, dates, places of performance, staffing minimums, deliverable timelines).
+
+Your ONLY job is to surface questions about CONTRADICTIONS, INCONSISTENCIES, and CROSS-DOCUMENT GAPS between two or more documents. Do NOT repeat single-document questions — those have already been generated.
+
+For every contradiction, name BOTH sources (document + section) and quote the conflicting language. Use the "contradiction" category. Be exhaustive — borderline conflicts are valuable.
+
+Return ONLY the JSON via the tool call.`;
+
 const SCHEMA = {
   name: "generate_strategic_questions",
-  description: "Exhaustive strategic questions for a government solicitation package",
+  description: "Strategic questions for the documents in this batch",
   parameters: {
     type: "object",
     properties: {
@@ -87,8 +81,8 @@ const SCHEMA = {
             source_section: { type: "string" },
             source_page: { type: "number" },
             source_quote: { type: "string" },
-            conflict_with_document: { type: "string", description: "For contradiction category: the second document in conflict" },
-            conflict_with_section: { type: "string", description: "For contradiction category: the section in the second document" },
+            conflict_with_document: { type: "string" },
+            conflict_with_section: { type: "string" },
           },
           required: ["question_text", "category", "recommendation", "priority", "question_rationale"],
         },
@@ -103,31 +97,35 @@ const VALID_CATEGORIES = new Set([
   "compliance", "drafting_error", "contradiction", "quantitative_gap", "other",
 ]);
 
-// Build a single document block: TOC + body windows for each section.
-// Long sections keep head + tail so trailing references survive.
-function buildDocBlock(
-  doc: { id: string; file_name: string },
-  sections: Array<{ section_number: string | null; section_title: string | null; content: string | null; page_start: number | null }>,
-  budget: number,
-): { text: string; used: number } {
+type Doc = { id: string; file_name: string };
+type Section = {
+  document_id: string;
+  section_number: string | null;
+  section_title: string | null;
+  content: string | null;
+  page_start: number | null;
+  sort_order: number | null;
+};
+
+const PER_BATCH_BUDGET = 70_000; // chars of doc body per AI call
+const PER_SECTION_HEAD = 2400;
+const PER_SECTION_TAIL = 1200;
+
+function buildDocBlock(doc: Doc, sections: Section[], budget: number): { text: string; used: number } {
   const toc = sections
     .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
     .join("\n");
   const header = `\n\n=== DOCUMENT: ${doc.file_name} ===\n--- TABLE OF CONTENTS ---\n${toc}\n--- BODY ---\n`;
   let used = header.length;
   const parts: string[] = [header];
-  const PER_SECTION_HEAD = 2400;
-  const PER_SECTION_TAIL = 1200;
   for (const s of sections) {
     if (used >= budget) break;
     const content = (s.content ?? "").trim();
     if (!content) continue;
-    let body: string;
-    if (content.length <= PER_SECTION_HEAD + PER_SECTION_TAIL + 40) {
-      body = content;
-    } else {
-      body = content.slice(0, PER_SECTION_HEAD) + "\n…[truncated]…\n" + content.slice(-PER_SECTION_TAIL);
-    }
+    let body =
+      content.length <= PER_SECTION_HEAD + PER_SECTION_TAIL + 40
+        ? content
+        : content.slice(0, PER_SECTION_HEAD) + "\n…[truncated]…\n" + content.slice(-PER_SECTION_TAIL);
     const remaining = budget - used;
     if (body.length > remaining) body = body.slice(0, Math.max(0, remaining - 200)) + "\n…[truncated]…";
     const chunk = `\n[§${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${body}\n`;
@@ -135,6 +133,81 @@ function buildDocBlock(
     used += chunk.length;
   }
   return { text: parts.join(""), used };
+}
+
+// Pack documents into batches: ≤3 docs per batch, ≤PER_BATCH_BUDGET projected chars.
+function packBatches(docs: Doc[], sectionsByDoc: Map<string, Section[]>): Doc[][] {
+  // Estimate cost per doc by total content length (capped per section).
+  const cost = new Map<string, number>();
+  for (const d of docs) {
+    const ds = sectionsByDoc.get(d.id) ?? [];
+    let c = 200; // header overhead
+    for (const s of ds) {
+      const len = (s.content ?? "").length;
+      c += Math.min(len, PER_SECTION_HEAD + PER_SECTION_TAIL + 40) + 100;
+    }
+    cost.set(d.id, c);
+  }
+  // Sort by cost desc so big docs go in their own / small batches.
+  const sorted = [...docs].sort((a, b) => (cost.get(b.id) ?? 0) - (cost.get(a.id) ?? 0));
+  const batches: Doc[][] = [];
+  const totals: number[] = [];
+  for (const d of sorted) {
+    const c = cost.get(d.id) ?? 0;
+    // Big doc gets own batch.
+    if (c > PER_BATCH_BUDGET * 0.7) {
+      batches.push([d]);
+      totals.push(c);
+      continue;
+    }
+    // Try to fit into an existing batch with room and <3 docs.
+    let placed = false;
+    for (let i = 0; i < batches.length; i++) {
+      if (batches[i].length < 3 && totals[i] + c <= PER_BATCH_BUDGET) {
+        batches[i].push(d);
+        totals[i] += c;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      batches.push([d]);
+      totals.push(c);
+    }
+  }
+  return batches;
+}
+
+function mapRows(
+  questions: Array<Record<string, unknown>>,
+  solicitationId: string,
+  docByName: Map<string, string>,
+) {
+  return questions.map((q) => {
+    const sourceDocId = q.source_document ? docByName.get(q.source_document as string) : null;
+    let category = (q.category as string) ?? "other";
+    if (!VALID_CATEGORIES.has(category)) category = "other";
+    const conflictDoc = q.conflict_with_document as string | undefined;
+    const conflictSec = q.conflict_with_section as string | undefined;
+    const baseCitation = q.source_section
+      ? `Section ${q.source_section}${q.source_page ? `, p.${q.source_page}` : ""}`
+      : null;
+    const conflictCitation = conflictDoc ? ` ↔ ${conflictDoc}${conflictSec ? ` §${conflictSec}` : ""}` : "";
+    return {
+      solicitation_id: solicitationId,
+      question_text: q.question_text as string,
+      question_rationale: (q.question_rationale as string) ?? null,
+      category,
+      recommendation: (q.recommendation as string) ?? "monitor",
+      priority: Math.max(1, Math.min(100, Math.round(Number(q.priority) || 50))),
+      source_document_id: sourceDocId ?? null,
+      source_citation: baseCitation ? `${baseCitation}${conflictCitation}` : (conflictCitation || null),
+      source_quote: (q.source_quote as string) ?? null,
+      strategic_advantage_notes: (q.strategic_advantage_notes as string) ?? null,
+      potential_answer_insight: (q.potential_answer_insight as string) ?? null,
+      is_ai_generated: true,
+    };
+  });
 }
 
 Deno.serve(async (req) => {
@@ -150,7 +223,7 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, ai_summary, key_requirements, evaluation_factors")
+      .select("title, ai_summary")
       .eq("id", solicitationId)
       .maybeSingle();
 
@@ -179,92 +252,203 @@ Deno.serve(async (req) => {
       .in("document_id", docIds)
       .order("sort_order", { ascending: true });
 
-    const sectionsByDoc = new Map<string, typeof sections>();
+    const sectionsByDoc = new Map<string, Section[]>();
     for (const d of documents) sectionsByDoc.set(d.id, []);
-    for (const s of sections ?? []) sectionsByDoc.get(s.document_id)?.push(s);
+    for (const s of (sections ?? []) as Section[]) sectionsByDoc.get(s.document_id)?.push(s);
 
-    // Distribute a generous total budget across documents proportionally
-    // to their section count, so big PWS docs get more room than 1-page exhibits.
-    const TOTAL_BUDGET = 240_000;
-    const totalSections = (sections ?? []).length || 1;
-    let docBlocks = "";
-    let totalUsed = 0;
-    for (const d of documents) {
-      const ds = sectionsByDoc.get(d.id) ?? [];
-      const share = Math.max(8_000, Math.floor((ds.length / totalSections) * TOTAL_BUDGET));
-      const remaining = TOTAL_BUDGET - totalUsed;
-      const budget = Math.min(share, remaining);
-      if (budget < 1_000) break;
-      const { text, used } = buildDocBlock(d, ds, budget);
-      docBlocks += text;
-      totalUsed += used;
-    }
+    const batches = packBatches(documents as Doc[], sectionsByDoc);
+    const totalBatches = batches.length + 1; // +1 for cross-doc pass
 
-    const focusText = focusAreas?.length ? `\n\nFOCUS AREAS (emphasize these but do NOT skip other issues): ${focusAreas.join(", ")}` : "";
+    // Create the run record
+    const { data: runRow } = await supabase
+      .from("question_generation_runs")
+      .insert({
+        solicitation_id: solicitationId,
+        status: "running",
+        total_batches: totalBatches,
+        completed_batches: 0,
+        failed_batches: 0,
+        inserted_count: 0,
+        current_step: `Preparing ${batches.length} document batch(es)`,
+      })
+      .select("id")
+      .single();
+    const runId = runRow?.id;
+
+    console.log(
+      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} regenerate=${!!regenerate} runId=${runId}`,
+    );
+
+    const focusText = focusAreas?.length
+      ? `\n\nFOCUS AREAS (emphasize these but do NOT skip other issues): ${focusAreas.join(", ")}`
+      : "";
     const summaryText = sol?.ai_summary ? `\n\nEXISTING ANALYSIS SUMMARY:\n${sol.ai_summary}` : "";
-    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}${focusText}\n${docBlocks}\n\nGenerate the FULL exhaustive list of strategic questions for this package now.`;
-
-    console.log(`[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} promptChars=${userPrompt.length} regenerate=${!!regenerate}`);
 
     const work = (async () => {
-      try {
-        const parsedQ = await callAiTool({
-          functionName: "generate-questions",
-          system: SYSTEM_PROMPT,
-          user: userPrompt,
-          tool: SCHEMA,
-        }) as Record<string, any>;
-        const { questions } = parsedQ;
+      let totalInserted = 0;
+      let completed = 0;
+      let failed = 0;
+      let didRegenDelete = false;
 
-        const rows = (questions ?? []).map((q: Record<string, unknown>) => {
-          const sourceDocId = q.source_document ? docByName.get(q.source_document as string) : null;
-          let category = (q.category as string) ?? "other";
-          if (!VALID_CATEGORIES.has(category)) category = "other";
-          const conflictDoc = q.conflict_with_document as string | undefined;
-          const conflictSec = q.conflict_with_section as string | undefined;
-          const baseCitation = q.source_section ? `Section ${q.source_section}${q.source_page ? `, p.${q.source_page}` : ""}` : null;
-          const conflictCitation = conflictDoc ? ` ↔ ${conflictDoc}${conflictSec ? ` §${conflictSec}` : ""}` : "";
-          return {
-            solicitation_id: solicitationId,
-            question_text: q.question_text as string,
-            question_rationale: (q.question_rationale as string) ?? null,
-            category,
-            recommendation: (q.recommendation as string) ?? "monitor",
-            priority: Math.max(1, Math.min(100, Math.round(Number(q.priority) || 50))),
-            source_document_id: sourceDocId ?? null,
-            source_citation: baseCitation ? `${baseCitation}${conflictCitation}` : (conflictCitation || null),
-            source_quote: (q.source_quote as string) ?? null,
-            strategic_advantage_notes: (q.strategic_advantage_notes as string) ?? null,
-            potential_answer_insight: (q.potential_answer_insight as string) ?? null,
-            is_ai_generated: true,
-          };
+      const updateRun = async (patch: Record<string, unknown>) => {
+        if (!runId) return;
+        await supabase
+          .from("question_generation_runs")
+          .update({ ...patch, updated_at: new Date().toISOString() })
+          .eq("id", runId);
+      };
+
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        const batchLabel = `${i + 1}/${batches.length}`;
+        const batchNames = batch.map((d) => d.file_name).join(", ");
+        await updateRun({ current_step: `Batch ${batchLabel}: ${batchNames}` });
+
+        // Build prompt for this batch
+        const perDocBudget = Math.floor(PER_BATCH_BUDGET / batch.length);
+        let docBlocks = "";
+        for (const d of batch) {
+          const ds = sectionsByDoc.get(d.id) ?? [];
+          const { text } = buildDocBlock(d, ds, perDocBudget);
+          docBlocks += text;
+        }
+        const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}${focusText}\n\nThis is batch ${batchLabel} of ${batches.length}. Documents in this batch: ${batchNames}.\n${docBlocks}\n\nGenerate the FULL exhaustive list of strategic questions for THESE documents now.`;
+
+        console.log(
+          `[generate-questions] batch=${batchLabel} docs=[${batchNames}] promptChars=${userPrompt.length}`,
+        );
+
+        try {
+          const parsed = (await callAiTool({
+            functionName: "generate-questions",
+            system: SYSTEM_PROMPT,
+            user: userPrompt,
+            tool: SCHEMA,
+          })) as Record<string, any>;
+          const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
+          const rows = mapRows(questions, solicitationId, docByName);
+          console.log(`[generate-questions] batch=${batchLabel} got ${rows.length} questions`);
+
+          // Delete prior AI rows once, before inserting the FIRST successful batch.
+          if (regenerate && !didRegenDelete && rows.length > 0) {
+            const { error: delErr } = await supabase
+              .from("strategic_questions")
+              .delete()
+              .eq("solicitation_id", solicitationId)
+              .eq("is_ai_generated", true);
+            if (delErr) console.error("[generate-questions] delete error", delErr);
+            didRegenDelete = true;
+          }
+
+          if (rows.length > 0) {
+            const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
+            if (insErr) {
+              console.error(`[generate-questions] batch=${batchLabel} insert error`, insErr);
+              failed++;
+            } else {
+              totalInserted += rows.length;
+              completed++;
+            }
+          } else {
+            completed++;
+          }
+        } catch (err) {
+          console.error(`[generate-questions] batch=${batchLabel} failed`, err);
+          failed++;
+        }
+
+        await updateRun({
+          completed_batches: completed,
+          failed_batches: failed,
+          inserted_count: totalInserted,
         });
-
-        if (rows.length === 0) {
-          console.warn(`[generate-questions] AI returned 0 questions for sol=${solicitationId}; preserving existing`);
-          return;
-        }
-        // Only delete prior AI rows AFTER we have a non-empty result, so a failed
-        // run never wipes the prior baseline.
-        if (regenerate) {
-          const { error: delErr } = await supabase
-            .from("strategic_questions")
-            .delete()
-            .eq("solicitation_id", solicitationId)
-            .eq("is_ai_generated", true);
-          if (delErr) console.error("[generate-questions] delete error", delErr);
-        }
-        const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
-        if (insErr) console.error("[generate-questions] insert error", insErr);
-        else console.log(`[generate-questions] inserted ${rows.length} questions for sol=${solicitationId}`);
-      } catch (err) {
-        console.error("[generate-questions] background error", err);
       }
+
+      // Cross-document contradiction pass
+      await updateRun({ current_step: "Cross-document contradiction pass" });
+      try {
+        let crossPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
+        for (const d of documents) {
+          const ds = sectionsByDoc.get(d.id) ?? [];
+          const toc = ds
+            .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
+            .slice(0, 80)
+            .join("\n");
+          crossPrompt += `\n--- ${d.file_name} ---\n${toc}\n`;
+        }
+        // Append extracted entities (KPIs/numbers/dates/places)
+        const { data: entities } = await supabase
+          .from("extracted_entities")
+          .select("document_id, entity_type, entity_value, page_number, context_snippet")
+          .in("document_id", docIds)
+          .limit(800);
+        if (entities && entities.length) {
+          const docName = new Map<string, string>();
+          documents.forEach((d) => docName.set(d.id, d.file_name));
+          crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS ---\n`;
+          for (const e of entities) {
+            crossPrompt += `[${docName.get(e.document_id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 160)}` : ""}\n`;
+          }
+        }
+        crossPrompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
+
+        if (crossPrompt.length > 120_000) crossPrompt = crossPrompt.slice(0, 120_000) + "\n…[truncated]…";
+
+        console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length}`);
+        const parsed = (await callAiTool({
+          functionName: "generate-questions",
+          system: CROSS_DOC_SYSTEM_PROMPT,
+          user: crossPrompt,
+          tool: SCHEMA,
+        })) as Record<string, any>;
+        const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
+        const rows = mapRows(questions, solicitationId, docByName);
+        console.log(`[generate-questions] cross-doc got ${rows.length} questions`);
+        if (rows.length > 0) {
+          if (regenerate && !didRegenDelete) {
+            await supabase
+              .from("strategic_questions")
+              .delete()
+              .eq("solicitation_id", solicitationId)
+              .eq("is_ai_generated", true);
+            didRegenDelete = true;
+          }
+          const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
+          if (insErr) {
+            console.error("[generate-questions] cross-doc insert error", insErr);
+            failed++;
+          } else {
+            totalInserted += rows.length;
+            completed++;
+          }
+        } else {
+          completed++;
+        }
+      } catch (err) {
+        console.error("[generate-questions] cross-doc failed", err);
+        failed++;
+      }
+
+      const finalStatus =
+        failed === 0 ? "completed" : completed > 0 ? "partial" : "failed";
+      await updateRun({
+        completed_batches: completed,
+        failed_batches: failed,
+        inserted_count: totalInserted,
+        status: finalStatus,
+        current_step: null,
+        completed_at: new Date().toISOString(),
+        error_message: failed > 0 ? `${failed} batch(es) failed` : null,
+      });
+      console.log(
+        `[generate-questions] DONE sol=${solicitationId} status=${finalStatus} inserted=${totalInserted} ok=${completed} failed=${failed}`,
+      );
     })();
+
     // @ts-ignore - EdgeRuntime is provided by Supabase edge runtime
     if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(work);
 
-    return new Response(JSON.stringify({ status: "processing" }), {
+    return new Response(JSON.stringify({ status: "processing", runId, totalBatches }), {
       status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
