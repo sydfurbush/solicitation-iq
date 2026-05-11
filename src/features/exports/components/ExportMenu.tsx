@@ -141,13 +141,24 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
 
   return (
     <>
-      <Button variant="outline" size="sm" disabled={disabled} onClick={openDialog}>
-        <Download className="h-4 w-4 mr-2" />
-        {label}
+      <Button variant="outline" size="sm" disabled={disabled || busy} onClick={openDialog}>
+        {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+        {busy ? "Exporting…" : label}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Prevent closing while a download is in flight
+          if (busy && !next) return;
+          setOpen(next);
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-lg"
+          onInteractOutside={(e) => busy && e.preventDefault()}
+          onEscapeKeyDown={(e) => busy && e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Export settings</DialogTitle>
             <DialogDescription>
