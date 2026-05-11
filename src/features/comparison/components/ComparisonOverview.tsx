@@ -20,6 +20,9 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   const { refetch: refetchLink } = usePriorSolicitation(solicitationId);
   const unlink = useUnlinkPriorSolicitation(solicitationId);
   const compare = useRunComparison(solicitationId);
+  const importFromSam = useImportPriorFromSam(solicitationId);
+  const [importStage, setImportStage] = useState<string | null>(null);
+  const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const valueDelta = pctDelta(prior?.estimated_value_high ?? null, current?.estimated_value_high ?? null);
   const reqDelta = (current?.key_requirements as unknown[] | null)?.length ?? 0
