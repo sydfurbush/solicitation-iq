@@ -393,6 +393,7 @@ Deno.serve(async (req) => {
             if (insErr) {
               console.error(`[generate-questions] batch=${batchLabel} insert error`, insErr);
               failed++;
+              for (const d of batch) failedDocIds.push(d.id);
             } else {
               totalInserted += rows.length;
               completed++;
@@ -403,12 +404,14 @@ Deno.serve(async (req) => {
         } catch (err) {
           console.error(`[generate-questions] batch=${batchLabel} failed`, err);
           failed++;
+          for (const d of batch) failedDocIds.push(d.id);
         }
 
         await updateRun({
           completed_batches: completed,
           failed_batches: failed,
           inserted_count: totalInserted,
+          failed_doc_ids: failedDocIds,
         });
       }
 
