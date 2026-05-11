@@ -1,18 +1,25 @@
-import { useRef, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, AlertTriangle, DownloadCloud, Minus, RefreshCw, Unlink, X } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { useDropzone } from "react-dropzone";
+import { ArrowDownRight, ArrowUpRight, AlertTriangle, DownloadCloud, FileText, Minus, RefreshCw, Unlink, UploadCloud, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { usePriorSolicitation, useUnlinkPriorSolicitation, type PriorSolicitationRow, type ComparisonChanges } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
 import { useImportPriorFromSam, waitForDocumentsParsed, retryAttachmentImport, ImportCancelledError, SamNoticeNotFoundError, type ImportProgress, type FailedAttachment, type SamNotFoundDetails } from "../hooks/useImportPriorFromSam";
+import { useUploadPriorDocuments } from "../hooks/useUploadPriorDocuments";
 import { SamNotFoundAlert } from "./SamNotFoundAlert";
 import { ImportProgressPanel } from "./ImportProgressPanel";
 import { logPriorImport, usePriorImportHistory, useInvalidatePriorImportHistory } from "../hooks/usePriorImportHistory";
 import { ImportHistoryList } from "./ImportHistoryList";
+import { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES, MAX_FILE_SIZE, formatFileSize } from "@/features/documents/utils/fileHelpers";
 import { fmtCurrency, fmtDate, pctDelta } from "../utils/diffHelpers";
 import { toast } from "@/hooks/use-toast";
 
@@ -34,6 +41,8 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   } | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [notFound, setNotFound] = useState<SamNotFoundDetails | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const uploadPrior = useUploadPriorDocuments(solicitationId);
   const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const handleCancelImport = () => {
@@ -190,6 +199,102 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     }
   };
 
+  const handleUploadPrior = async (input: { title: string; notes: string | null; files: File[] }) => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const startedAt = new Date().toISOString();
+    const linkIdAtStart = priorRecord.id;
+    setUploadOpen(false);
+    try {
+      const result = await uploadPrior.mutateAsync({
+        title: input.title,
+        externalReference: priorRecord.external_reference ?? null,
+        notes: input.notes,
+        files: input.files,
+        onProgress: setProgress,
+      });
+      if (controller.signal.aborted) throw new ImportCancelledError();
+
+      await logPriorImport({
+        priorLinkId: result.priorRecordId,
+        priorSolicitationId: result.priorSolicitationId,
+        source: "upload",
+        action: "initial",
+        status: result.failed === 0 ? "success" : result.uploaded === 0 ? "failed" : "partial",
+        foundCount: input.files.length,
+        importedCount: result.uploaded,
+        failedCount: result.failed,
+        failedAttachments: result.failedFiles.map((f) => ({ href: f.fileName, fileName: f.fileName, error: f.error })),
+        lookupParams: { url: null, solicitationNumber: priorRecord.external_reference ?? null },
+        startedAt,
+      });
+      invalidateHistory(result.priorRecordId);
+
+      try { await unlink.mutateAsync(linkIdAtStart); } catch { /* ignore */ }
+
+      if (result.uploaded > 0) {
+        setProgress({
+          stage: "parsing",
+          message: `Parsing ${result.uploaded} document(s)…`,
+          found: result.uploaded,
+          imported: result.uploaded,
+          failed: result.failed,
+          parsed: 0,
+          totalDocs: result.uploaded,
+        });
+        await waitForDocumentsParsed(result.priorSolicitationId, {
+          signal: controller.signal,
+          onProgress: ({ parsed, total }) =>
+            setProgress((p) => p && {
+              ...p,
+              stage: "parsing",
+              message: `Parsing documents (${parsed}/${total})…`,
+              parsed,
+              totalDocs: total,
+            }),
+        });
+      }
+
+      if (controller.signal.aborted) throw new ImportCancelledError();
+      setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
+      await new Promise<void>((resolve, reject) =>
+        compare.mutate(
+          { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+          { onSuccess: () => { refetchLink(); resolve(); }, onError: (e) => reject(e) },
+        ),
+      );
+      setProgress((p) => p && {
+        ...p,
+        stage: "done",
+        message: `Done — ${result.uploaded} document(s) uploaded, comparison updated.`,
+      });
+      toast({ title: "Comparison updated" });
+    } catch (e) {
+      const cancelled = e instanceof ImportCancelledError || controller.signal.aborted;
+      if (cancelled) {
+        setProgress({ stage: "error", message: "Cancelled by user." });
+      } else {
+        setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
+        toast({ title: "Upload failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      }
+      await logPriorImport({
+        priorLinkId: linkIdAtStart,
+        source: "upload",
+        action: "initial",
+        status: cancelled ? "cancelled" : "failed",
+        foundCount: input.files.length,
+        importedCount: 0,
+        failedCount: input.files.length,
+        errorMessage: e instanceof Error ? e.message : String(e),
+        lookupParams: { url: null, solicitationNumber: priorRecord.external_reference ?? null },
+        startedAt,
+      });
+      invalidateHistory(linkIdAtStart);
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+    }
+  };
+
   const handleRetryFailed = async () => {
     if (!lastImport || lastImport.failedAttachments.length === 0) return;
     const controller = new AbortController();
@@ -285,6 +390,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
 
   const importing =
     importFromSam.isPending ||
+    uploadPrior.isPending ||
     compare.isPending ||
     retrying ||
     (!!progress && progress.stage !== "done" && progress.stage !== "error");
@@ -329,16 +435,20 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
               <p>
                 The prior solicitation is only referenced ({priorRecord.external_reference}) — its documents
                 were never imported, so the AI has nothing concrete to diff against. Import attachments from
-                SAM.gov to get a full requirement-level comparison.
+                SAM.gov, or upload the prior solicitation documents directly to get a full requirement-level comparison.
               </p>
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={handleImportFromSam} disabled={importing}>
                     <DownloadCloud className={cn("mr-2 h-4 w-4", importing && "animate-pulse")} />
-                    {importing ? (progress?.message ?? "Importing…") : "Import from SAM.gov"}
+                    {importing ? (progress?.message ?? "Working…") : "Import from SAM.gov"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)} disabled={importing}>
+                    <UploadCloud className="mr-2 h-4 w-4" />
+                    Upload documents
                   </Button>
                   {importing && (
-                    <Button size="sm" variant="outline" onClick={handleCancelImport}>
+                    <Button size="sm" variant="ghost" onClick={handleCancelImport}>
                       <X className="mr-2 h-4 w-4" /> Cancel
                     </Button>
                   )}
@@ -411,7 +521,146 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
           <ImportHistoryList priorLinkId={priorRecord.id} />
         </CardContent>
       )}
+      <UploadPriorDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        defaultTitle={priorRecord.external_reference ?? ""}
+        onSubmit={handleUploadPrior}
+      />
     </Card>
+  );
+}
+
+function UploadPriorDialog({
+  open,
+  onOpenChange,
+  defaultTitle,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  defaultTitle: string;
+  onSubmit: (input: { title: string; notes: string | null; files: File[] }) => void;
+}) {
+  const [title, setTitle] = useState(defaultTitle);
+  const [notes, setNotes] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+
+  const onDrop = useCallback((accepted: File[]) => {
+    setFiles((prev) => {
+      const merged = [...prev];
+      for (const f of accepted) {
+        if (!merged.some((m) => m.name === f.name && m.size === f.size)) merged.push(f);
+      }
+      return merged;
+    });
+  }, []);
+  const { getRootProps, getInputProps, isDragActive, open: openPicker } = useDropzone({
+    onDrop,
+    accept: ALLOWED_MIME_TYPES,
+    maxSize: MAX_FILE_SIZE,
+    noClick: true,
+    noKeyboard: true,
+    multiple: true,
+  });
+
+  const handleSubmit = () => {
+    if (!title.trim()) {
+      toast({ title: "Enter a title", variant: "destructive" });
+      return;
+    }
+    if (files.length === 0) {
+      toast({ title: "Add at least one document", variant: "destructive" });
+      return;
+    }
+    onSubmit({ title: title.trim(), notes: notes.trim() || null, files });
+    setFiles([]);
+    setNotes("");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Upload prior solicitation documents</DialogTitle>
+          <DialogDescription>
+            Upload the prior solicitation files (e.g. the PDF you downloaded from SAM.gov) so the AI can run a full comparison.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="upload-prior-title">Title</Label>
+            <Input
+              id="upload-prior-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. FY24 RFP – W912DY-19-R-0001"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="upload-prior-notes">Notes (optional)</Label>
+            <Textarea
+              id="upload-prior-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+            />
+          </div>
+          <div
+            {...getRootProps()}
+            className={cn(
+              "relative border-2 border-dashed rounded-lg p-5 transition-colors",
+              isDragActive ? "border-primary bg-primary/5" : "border-border bg-muted/30",
+            )}
+          >
+            <input {...getInputProps()} />
+            <div className="flex flex-col items-center justify-center text-center gap-2">
+              <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <UploadCloud className="h-5 w-5" />
+              </div>
+              <p className="text-sm font-medium">
+                {isDragActive ? "Drop files here" : "Drag prior solicitation documents here"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                up to 50MB · {ALLOWED_EXTENSIONS.join(", ")}
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={openPicker}>
+                Browse files
+              </Button>
+            </div>
+          </div>
+          {files.length > 0 && (
+            <ul className="space-y-1.5 max-h-40 overflow-auto">
+              {files.map((f, i) => (
+                <li
+                  key={`${f.name}-${i}`}
+                  className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm"
+                >
+                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="flex-1 truncate">{f.name}</span>
+                  <span className="text-xs text-muted-foreground">{formatFileSize(f.size)}</span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    title="Remove"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSubmit}>
+            <UploadCloud className="mr-2 h-4 w-4" /> Upload &amp; compare
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
