@@ -5,11 +5,38 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { useActiveOutline, useOutlineNodes, useGenerateOutline } from "@/features/outline/hooks/useProposalOutline";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
+import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import type { ExportDocument } from "@/features/exports/lib/exporters";
 
 export default function SolicitationOutline({ solicitationId, currentPhase }: { solicitationId: string; currentPhase: string }) {
   const { data: outline, isLoading } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
   const gen = useGenerateOutline(solicitationId);
+
+  const buildExport = (): ExportDocument | null => {
+    if (!outline || nodes.length === 0) return null;
+    return {
+      title: outline.title ?? "Proposal outline",
+      subtitle: `Version ${outline.version} · ${nodes.length} nodes`,
+      filenameBase: "proposal_outline",
+      sections: [
+        {
+          heading: "Outline",
+          table: {
+            head: ["#", "Volume", "Title", "Pages", "L Reference", "Notes"],
+            rows: nodes.map((n) => [
+              n.section_number ?? "",
+              n.volume ?? "",
+              n.title ?? "",
+              n.page_allocation ? String(n.page_allocation) : "",
+              n.source_l_reference ?? "",
+              n.notes ?? "",
+            ]),
+          },
+        },
+      ],
+    };
+  };
 
   const run = async () => {
     try {
