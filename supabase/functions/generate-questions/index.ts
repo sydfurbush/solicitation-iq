@@ -453,16 +453,18 @@ Deno.serve(async (req) => {
           .eq("id", runId);
       };
       for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
+        const unit = batches[i];
+        const batch = unit.docs;
+        const unitSections = unit.sectionsByDoc;
         const batchLabel = `${i + 1}/${batches.length}`;
-        const batchNames = batch.map((d) => d.file_name).join(", ");
+        const batchNames = unit.label;
         await updateRun({ current_step: `Batch ${batchLabel}: ${batchNames}` });
 
         // Build prompt for this batch
         const perDocBudget = Math.floor(PER_BATCH_BUDGET / batch.length);
         let docBlocks = "";
         for (const d of batch) {
-          const ds = sectionsByDoc.get(d.id) ?? [];
+          const ds = unitSections.get(d.id) ?? [];
           const { text } = buildDocBlock(d, ds, perDocBudget);
           docBlocks += text;
         }
