@@ -1,6 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
-import { Link2, ExternalLink } from "lucide-react";
+import { useDropzone } from "react-dropzone";
+import { Link2, ExternalLink, UploadCloud, X, FileText } from "lucide-react";
+import { useUploadPriorDocuments } from "../hooks/useUploadPriorDocuments";
+import { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES, MAX_FILE_SIZE, formatFileSize } from "@/features/documents/utils/fileHelpers";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
