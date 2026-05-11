@@ -104,8 +104,21 @@ Deno.serve(async (req) => {
     const fmt = (d: Date) =>
       `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
 
-    const MAX_YEARS_BACK = 6;
-    const WINDOW_DAYS = 364;
+    const parsePositiveInt = (raw: string | undefined, fallback: number, min: number, max: number) => {
+      const n = Number.parseInt(raw ?? "", 10);
+      if (!Number.isFinite(n) || n < min || n > max) return fallback;
+      return n;
+    };
+    const MAX_YEARS_BACK = parsePositiveInt(Deno.env.get("SAM_BACKFILL_MAX_YEARS"), 6, 1, 25);
+    const WINDOW_DAYS = parsePositiveInt(Deno.env.get("SAM_BACKFILL_WINDOW_DAYS"), 364, 1, 365);
+    console.log("[sam-import] backfill config", {
+      MAX_YEARS_BACK,
+      WINDOW_DAYS,
+      source: {
+        SAM_BACKFILL_MAX_YEARS: Deno.env.get("SAM_BACKFILL_MAX_YEARS") ?? "(unset, default 6)",
+        SAM_BACKFILL_WINDOW_DAYS: Deno.env.get("SAM_BACKFILL_WINDOW_DAYS") ?? "(unset, default 364)",
+      },
+    });
 
     // Build a prioritized list of identifier strategies to try.
     type Strategy = { kind: "noticeid" | "solnum"; value: string; label: string };
