@@ -32,6 +32,9 @@ interface Props {
 export function ExportMenu({ build, disabled, label = "Export" }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<string>("");
+  const inflightRef = useRef(false);
   const [doc, setDoc] = useState<ExportDocument | null>(null);
 
   const [format, setFormat] = useState<ExportFormat>("pdf");
