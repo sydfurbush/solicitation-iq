@@ -1,18 +1,25 @@
-import { useRef, useState } from "react";
-import { ArrowDownRight, ArrowUpRight, AlertTriangle, DownloadCloud, Minus, RefreshCw, Unlink, X } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { useDropzone } from "react-dropzone";
+import { ArrowDownRight, ArrowUpRight, AlertTriangle, DownloadCloud, FileText, Minus, RefreshCw, Unlink, UploadCloud, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { usePriorSolicitation, useUnlinkPriorSolicitation, type PriorSolicitationRow, type ComparisonChanges } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
 import { useImportPriorFromSam, waitForDocumentsParsed, retryAttachmentImport, ImportCancelledError, SamNoticeNotFoundError, type ImportProgress, type FailedAttachment, type SamNotFoundDetails } from "../hooks/useImportPriorFromSam";
+import { useUploadPriorDocuments } from "../hooks/useUploadPriorDocuments";
 import { SamNotFoundAlert } from "./SamNotFoundAlert";
 import { ImportProgressPanel } from "./ImportProgressPanel";
 import { logPriorImport, usePriorImportHistory, useInvalidatePriorImportHistory } from "../hooks/usePriorImportHistory";
 import { ImportHistoryList } from "./ImportHistoryList";
+import { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES, MAX_FILE_SIZE, formatFileSize } from "@/features/documents/utils/fileHelpers";
 import { fmtCurrency, fmtDate, pctDelta } from "../utils/diffHelpers";
 import { toast } from "@/hooks/use-toast";
 
