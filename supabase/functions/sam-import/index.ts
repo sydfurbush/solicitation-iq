@@ -261,12 +261,50 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Fallback: the v2 opportunities/search endpoint sometimes fails to match by
+    // noticeId even when the notice exists (commonly for older notices or
+    // contract/award URLs). The noticedesc endpoint accepts a bare noticeId
+    // without a date window, so use it to at least confirm the notice exists
+    // and extract a description for a minimal prefill.
+    let descFallback: { description?: string; status: number; ok: boolean } | null = null;
+    if (!notice && noticeId) {
+      try {
+        const descUrl = new URL("https://api.sam.gov/prod/opportunities/v1/noticedesc");
+        descUrl.searchParams.set("api_key", apiKey);
+        descUrl.searchParams.set("noticeid", noticeId);
+        const descRes = await fetch(descUrl.toString(), { headers: { Accept: "application/json" } });
+        const descJson = await descRes.json().catch(() => ({} as { description?: string }));
+        descFallback = {
+          status: descRes.status,
+          ok: descRes.ok && typeof descJson?.description === "string" && descJson.description.length > 0,
+          description: descJson?.description,
+        };
+        console.log("[sam-import] noticedesc fallback", {
+          status: descRes.status,
+          hasDescription: descFallback.ok,
+        });
+        if (descFallback.ok) {
+          notice = {
+            noticeId,
+            description: descFallback.description,
+            uiLink: url ?? `https://sam.gov/opp/${noticeId}/view`,
+          };
+          matchedStrategy = { kind: "noticeid", value: noticeId, label: "noticedesc fallback" };
+        }
+      } catch (e) {
+        console.error("[sam-import] noticedesc fallback failed", e);
+      }
+    }
+
     if (!notice) {
       return new Response(
         JSON.stringify({
           error: "No SAM.gov notice found for that URL",
           lookup: { noticeId, solicitationNumber },
-          triedStrategies: strategies.map((s) => s.label),
+          triedStrategies: [
+            ...strategies.map((s) => s.label),
+            ...(descFallback ? [`noticedesc fallback (status ${descFallback.status})`] : []),
+          ],
           attempts,
           backfillConfig,
         }),
