@@ -1,78 +1,41 @@
+## Problem (from screenshots)
 
-# Branded Client Report Templates — Option A
+**Image 17** (current):
+- "Recommendation," "Key Success Factors," and "Next Steps" all render as one wall of text under a single Recommendation heading. Cause: AI is emitting them as a single `paragraph` block instead of separate sections with `recommendation` / `bullets` / `steps` blocks.
+- Top of every page has too much vertical space between the running header and the first content.
 
-Match the uploaded **Army TAP Executive Summary** look across all generated reports (PDF + Word). Replace the current plain `jsPDF` + `docx` generators with a templated, branded renderer.
+**Image 18** (target): Cream-and-amber RECOMMENDATION callout, then a "Key Success Factors" subheading + bullet list, then a NEXT STEPS section with the navy/light-blue numbered table. The renderers for all three already exist — the AI just isn't using them.
 
-## Decisions locked in
-- **Option A**: full brand match in both PDF and Word.
-- **Footer**: default `CONFIDENTIAL — FOR CLIENT USE ONLY` (overridable via `branding.footerText`).
-- **Logo**: deferred — leave a slot in the header band for a follow-up.
+## Changes
 
-## Visual spec (from sample)
-- **Running header** (every page): bold project name + amber `|` + amber solicitation number, navy/amber rule beneath.
-- **Cover band**: solid navy block, small amber eyebrow ("EXECUTIVE SUMMARY"), large white title, white meta line `Solicitation # • Generated <date>`.
-- **Section headings**: navy ALL-CAPS with thin amber underline rule.
-- **Snapshot table**: navy left column / white bold labels, light-gray right column.
-- **Category callout tables**: green header bar for Opportunities, red for Risks; tinted left cell, white right cell.
-- **Recommendation box**: cream fill, amber border, centered "RECOMMENDATION / VERDICT" + italic rationale.
-- **Numbered Steps table**: navy square w/ white step number, light-blue title cell, white description cell.
-- **Source Citations**: flat list `[C#] Document §Section`.
-- **Footer**: amber rule, "CONFIDENTIAL — FOR CLIENT USE ONLY" left, "Confidential" right.
+### 1. Tighten top spacing
+- `pdfGenerator.ts`: `MARGIN.top 64 → 36`, `HEADER_H 36 → 18`, gap before first content `12 → 6`. Footer untouched.
+- `wordGenerator.ts`: `page.margin.top 1800 → 1080`, `header offset 720 → 432`, drop trailing space on header paragraph.
 
-## Design tokens
-New `src/features/reports/templates/theme.ts`:
-- Navy `#1E3A5F`, Amber `#C9A227`, Opp green `#2E7D32` + tint `#E8F3EA`, Risk red `#C62828` + tint `#FBEAEA`, Cream `#FFF8E1`, Light-blue `#EAF2FA`, Slate text `#374151`.
-- Fonts: Helvetica (PDF) / Arial (Word).
+### 2. Force structured blocks in the executive summary prompt
+Rewrite `PROMPTS.executive_summary` in `supabase/functions/generate-report/index.ts` with a strict per-section contract. Each bullet below = one separate section returned in `sections[]`, in order, each with the required block kinds and nothing else:
 
-## Content model
-Extend `ReportSection` with optional structured `blocks` (markdown `body` stays as fallback):
-```ts
-type Block =
-  | { kind: "paragraph"; text: string }
-  | { kind: "bullets"; items: string[] }
-  | { kind: "kv"; rows: Array<[string, string]> }
-  | { kind: "category"; tone: "opportunity" | "risk" | "neutral"; title: string;
-      rows: Array<[string, string]> }
-  | { kind: "recommendation"; verdict: string; rationale: string }
-  | { kind: "steps"; items: Array<{ title: string; detail: string }> };
+1. **Executive Overview** — 1-2 `paragraph` blocks.
+2. **Opportunity Snapshot** — exactly one `kv` block; rows: Agency, Solicitation #, Contract Type, Set-Aside, Incumbent, Release Date, Q&A / Proposal Due, Award Date.
+3. **Strategic Assessment** — one `category` (tone=opportunity, title="TOP OPPORTUNITIES", 3 rows) + one `category` (tone=risk, title="TOP RISKS", 3 rows).
+4. **Competitive Positioning** — one `paragraph` + one `bullets` block.
+5. **Recommendation** — exactly one `recommendation` block (verdict + rationale). No paragraphs, no bullets in this section.
+6. **Key Success Factors** — exactly one `bullets` block (3-5 items).
+7. **Next Steps** — exactly one `steps` block (3-5 items, each `{title, detail}`).
 
-type ReportSection = { id: string; heading: string; level?: 1|2|3;
-                       body?: string; blocks?: Block[] };
-```
+Add an explicit "DO NOT bundle multiple sections together; DO NOT use paragraph/markdown for Recommendation, Key Success Factors, or Next Steps" rule. Strengthen `BLOCKS_GUIDE` with a one-line example per kind.
 
-## Files to add / change
+### 3. Defensive normalization
+In the `normalizeSections` helper, if a section heading matches "Recommendation" / "Key Success Factors" / "Next Steps" but the AI returned a `paragraph` block, log a warning. (Don't try to auto-split — rely on the strengthened prompt.)
 
-**New**
-- `src/features/reports/templates/theme.ts` — color/typography tokens.
-- `src/features/reports/templates/blocks.ts` — `Block` type + helpers (parse legacy markdown body into a paragraph block when `blocks` is missing).
-
-**Rewrite**
-- `src/features/reports/utils/pdfGenerator.ts`
-  - Small layout engine on top of `jsPDF`: `drawHeader`, `drawFooter`, `drawCoverBand`, `drawSectionHeading`, `drawKV`, `drawCategory`, `drawRecommendation`, `drawSteps`, `drawCitations`, `ensureSpace` (re-draws header/footer on new page).
-- `src/features/reports/utils/wordGenerator.ts`
-  - `docx` `Header`/`Footer`, custom `styles` (Heading1 navy ALL-CAPS, etc.), styled `Table`s with shading/borders for KV / category / steps, callout rendered as a single-cell shaded table with amber border.
-- `supabase/functions/generate-report/index.ts`
-  - Extend the AI tool schema so each section can return optional `blocks` (paragraph/bullets/kv/category/recommendation/steps). Keep `body` markdown for prose-only sections. Update the per-report-type prompts in `src/features/reports/templates/prompts.ts` to ask the model to use:
-    - `kv` for "Opportunity Snapshot",
-    - `category` (opportunity/risk) for "Strategic Assessment",
-    - `recommendation` for "Recommendation",
-    - `steps` for "Next Steps".
-
-**Touch (minor)**
-- `src/features/reports/templates/types.ts` — export new `Block` type, allow `body?` and `blocks?` on `ReportSection`.
-- `src/features/portal/components/ClientReportViewer.tsx` — render the new block types inline so the in-app preview matches the downloaded file (KV tables, callouts, steps).
-
-**Branding hook** — already present on `ReportOptions.branding`:
-- `headerText` → top running header (defaults to solicitation title).
-- `footerText` → footer left (defaults to `CONFIDENTIAL — FOR CLIENT USE ONLY`).
-- `firmLogoUrl` slot reserved in cover band but not rendered yet.
+### 4. Out of scope
+- Renderers in `pdfGenerator.ts` / `wordGenerator.ts` already match Image 18 — no rendering changes beyond the spacing tweaks above.
+- `ClientReportViewer.tsx` already renders all block kinds — no change.
+- Logo upload, page x-of-y, TOC.
 
 ## Verification
-1. Generate Executive Summary on the current solicitation (`/solicitations/0d2c19f3…?tab=reports`) → PDF + Word.
-2. Open both, confirm: header runs, navy cover band, snapshot table, green/red category tables, cream recommendation box, numbered Next Steps table, citations, footer.
-3. Spot-check Risk Assessment and Questions Brief to confirm the shared template still looks right when blocks are sparser.
+1. Generate a fresh Executive Summary on the current solicitation.
+2. Confirm: tighter top gap, RECOMMENDATION callout renders as cream/amber box, Key Success Factors appears as its own section with bullets, Next Steps renders as the numbered navy/light-blue table.
+3. Download both PDF and Word; spot-check page 2/3 spacing.
 
-## Out of scope (follow-ups)
-- Firm/client logo upload + placement in header.
-- Per-client color theme overrides via `branding.primaryColor`.
-- Page-x-of-y numbering and a TOC for long reports.
+Older reports won't update — user can click "Generate report" again to refresh.

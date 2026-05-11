@@ -35,7 +35,17 @@ Use paragraphs/bullets for narrative sections.
 `;
 
 const PROMPTS: Record<ReportType, string> = {
-  executive_summary: `Generate a professional executive summary report. Sections in order: Executive Overview (1-2 paragraph blocks), Opportunity Snapshot (kv block with rows: Agency, Solicitation #, Contract Type, Set-Aside, Incumbent, Release Date, Q&A / Proposal Due, Award Date), Strategic Assessment (one category block tone='opportunity' titled 'TOP OPPORTUNITIES' with 3 rows, one category block tone='risk' titled 'TOP RISKS' with 3 rows), Competitive Positioning (paragraph + bullets), Recommendation (recommendation block with verdict GO / NO-GO / CONDITIONAL GO + rationale), Key Success Factors (bullets), Next Steps (steps block, 3-5 items). Crisp executive language. Cite inline as [Doc §Section p.X].${BLOCKS_GUIDE}`,
+  executive_summary: `Generate a professional Executive Summary. Return EXACTLY these 7 sections, in this order, each as a SEPARATE entry in 'sections[]' with the EXACT heading text shown and ONLY the block kinds specified. DO NOT bundle multiple sections into one. DO NOT use markdown body — every section must use 'blocks'.
+
+1. heading="Executive Overview" — 1 to 2 'paragraph' blocks. Narrative overview, our overall assessment.
+2. heading="Opportunity Snapshot" — exactly ONE 'kv' block. Rows in this order: ["Agency", ...], ["Solicitation #", ...], ["Contract Type", ...], ["Set-Aside", ...], ["Incumbent", ...], ["Release Date", ...], ["Q&A / Proposal Due", ...], ["Award Date", ...]. Use "—" if unknown.
+3. heading="Strategic Assessment" — exactly TWO 'category' blocks. First: tone="opportunity", title="TOP OPPORTUNITIES", 3 rows of [shortTitle, oneSentenceDescription]. Second: tone="risk", title="TOP RISKS", 3 rows.
+4. heading="Competitive Positioning" — one 'paragraph' block + one 'bullets' block (3-5 items).
+5. heading="Recommendation" — exactly ONE 'recommendation' block. verdict is one of "GO" | "NO-GO" | "CONDITIONAL GO". rationale is 2-3 sentences. NO other blocks in this section. NEVER include Key Success Factors or Next Steps text inside this block.
+6. heading="Key Success Factors" — exactly ONE 'bullets' block, 3-5 items. Each item is a single sentence (no numbering prefixes — the renderer handles formatting).
+7. heading="Next Steps" — exactly ONE 'steps' block, 3-5 items. Each item is { title: short action (2-4 words), detail: one-sentence explanation }.
+
+Cite inline as [Doc §Section p.X] where relevant. Crisp executive language.${BLOCKS_GUIDE}`,
   full_analysis: `Generate a comprehensive solicitation analysis report. Sections: Executive Summary, Solicitation Overview, Requirements Analysis, Evaluation Criteria Analysis, Risk Assessment, Opportunities Analysis, Competitive Landscape, Strategic Questions, Comparison to Prior Solicitation (skip if no data), Proposal Strategy Recommendations, Appendices. Every claim cites [Doc §Section p.X]. Use markdown.`,
   questions_brief: `Generate a Strategic Questions brief. Sections: Submitted Questions (recommendation 'ask', numbered Q&A with rationale), Strategic Hold Questions (recommendation 'hold', explain advantage), Internal Discussion Items (monitor/internal). Citations required.`,
   risk_assessment: `Generate a Risk Assessment. Sections: Risk Overview (summary + count by severity), Critical Risks (each high/critical risk with description, citation, mitigation), Mitigation Plan (prioritized actions).`,
@@ -252,7 +262,16 @@ ${JSON.stringify(options ?? {})}`;
 
     // Normalize blocks: AI returns bullets/steps `items` as object arrays,
     // but our bullets renderer expects string[].
+    const STRUCTURED = new Set(["recommendation", "key success factors", "next steps"]);
     const normalizeSections = (sections: any[] = []) => sections.map((s) => {
+      const headingKey = String(s.heading ?? "").trim().toLowerCase();
+      if (STRUCTURED.has(headingKey)) {
+        const kinds = Array.isArray(s.blocks) ? s.blocks.map((b: any) => b?.kind) : [];
+        const hasParagraphOnly = kinds.length > 0 && kinds.every((k: string) => k === "paragraph" || k === "bullets" && headingKey !== "key success factors");
+        if (hasParagraphOnly && headingKey !== "key success factors") {
+          console.warn(`[generate-report] section "${s.heading}" returned paragraph blocks; expected structured block.`);
+        }
+      }
       const blocks = Array.isArray(s.blocks) ? s.blocks.map((b: any) => {
         if (!b || typeof b !== "object") return b;
         if (b.kind === "bullets" && Array.isArray(b.items)) {

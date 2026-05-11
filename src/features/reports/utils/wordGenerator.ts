@@ -321,7 +321,7 @@ export async function generateDocx(report: ReportContent): Promise<Blob> {
       properties: {
         page: {
           size: { width: 12240, height: 15840 },
-          margin: { top: 1800, right: 1440, bottom: 1440, left: 1440, header: 720, footer: 720 },
+          margin: { top: 1080, right: 1440, bottom: 1440, left: 1440, header: 432, footer: 720 },
         },
       },
       headers: { default: new Header({ children: [headerPara] }) },
