@@ -36,6 +36,8 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
   const [format, setFormat] = useState<ExportFormat>("pdf");
   const [pageSize, setPageSize] = useState<ExportPageSize>("letter");
   const [filename, setFilename] = useState("");
+  const [version, setVersion] = useState("v1");
+  const [includeCover, setIncludeCover] = useState(true);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
 
   const openDialog = () => {
