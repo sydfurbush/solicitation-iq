@@ -47,12 +47,15 @@ export type ImportPriorInput = {
   onProgress?: (p: ImportProgress) => void;
 };
 
+export type FailedAttachment = { href: string; fileName?: string; error?: string };
+
 export type ImportPriorResult = {
   priorSolicitationId: string;
   priorRecordId: string;
   imported: number;
   failed: number;
   found: number;
+  failedAttachments: FailedAttachment[];
 };
 
 /**
