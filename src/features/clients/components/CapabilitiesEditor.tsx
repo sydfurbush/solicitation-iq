@@ -268,6 +268,66 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(client.updated_at ? new Date(client.updated_at) : null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingTemplate, setPendingTemplate] = useState<CapabilityTemplate | null>(null);
+
+  const applyTemplate = (tpl: CapabilityTemplate, mode: "merge" | "replace") => {
+    const base: Capabilities = mode === "replace" ? {} : { ...draft };
+    const mergeText = (a?: string, b?: string) => {
+      const aa = (a ?? "").trim();
+      const bb = (b ?? "").trim();
+      if (!aa) return bb || undefined;
+      if (!bb) return aa || undefined;
+      if (aa.toLowerCase().includes(bb.toLowerCase())) return aa;
+      return `${aa}\n\n${bb}`;
+    };
+    const mergeChips = (a?: string[], b?: string[]) => {
+      const set = new Set<string>([...(a ?? []), ...(b ?? [])]);
+      return Array.from(set);
+    };
+    const next: Capabilities = {
+      core_capabilities:
+        mode === "replace"
+          ? tpl.data.core_capabilities
+          : mergeText(base.core_capabilities, tpl.data.core_capabilities),
+      differentiators:
+        mode === "replace"
+          ? tpl.data.differentiators
+          : mergeText(base.differentiators, tpl.data.differentiators),
+      past_performance:
+        mode === "replace"
+          ? tpl.data.past_performance
+          : mergeText(base.past_performance, tpl.data.past_performance),
+      key_personnel:
+        mode === "replace" ? tpl.data.key_personnel : mergeText(base.key_personnel, tpl.data.key_personnel),
+      teaming_partners:
+        mode === "replace"
+          ? tpl.data.teaming_partners
+          : mergeText(base.teaming_partners, tpl.data.teaming_partners),
+      notes: mode === "replace" ? tpl.data.notes : mergeText(base.notes, tpl.data.notes),
+      naics_codes:
+        mode === "replace" ? tpl.data.naics_codes ?? [] : mergeChips(base.naics_codes, tpl.data.naics_codes),
+      certifications:
+        mode === "replace"
+          ? tpl.data.certifications ?? []
+          : mergeChips(base.certifications, tpl.data.certifications),
+    };
+    setDraft(next);
+    setEditing(true);
+    setPendingTemplate(null);
+    toast({
+      title: `Applied "${tpl.name}" template`,
+      description: mode === "replace" ? "Existing fields were replaced." : "Merged into existing fields.",
+    });
+  };
+
+  const handleTemplatePick = (tpl: CapabilityTemplate) => {
+    const hasContent = Object.keys(buildCleaned(draft)).length > 0;
+    if (hasContent) {
+      setPendingTemplate(tpl);
+    } else {
+      applyTemplate(tpl, "replace");
+    }
+  };
 
   const lastSavedJsonRef = useRef<string>(JSON.stringify(buildCleaned(initial)));
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
