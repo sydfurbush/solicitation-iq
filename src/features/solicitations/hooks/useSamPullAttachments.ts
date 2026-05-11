@@ -88,10 +88,11 @@ export function useSamPullAttachments(solicitationId: string, samUrl: string | n
         variant: r.imported === 0 && failedCount > 0 ? "destructive" : undefined,
       });
     },
-    onError: (e) => {
+    onError: async (e) => {
+      const description = await readEdgeError(e);
       toast({
         title: "SAM.gov pull failed",
-        description: e instanceof Error ? e.message : String(e),
+        description,
         variant: "destructive",
       });
     },
