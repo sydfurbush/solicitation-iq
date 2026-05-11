@@ -13,7 +13,7 @@ export interface ModelChoice {
 export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "analyze-solicitation": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "identify-risks-opportunities": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
-  "generate-questions": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 32000 },
+  "generate-questions": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
   "generate-report": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
   "compare-solicitations": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "extract-entities": { provider: "anthropic", model: "claude-haiku-4-5", maxTokens: 4096 },

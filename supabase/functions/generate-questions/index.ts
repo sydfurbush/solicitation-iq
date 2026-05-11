@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
 
     // Distribute a generous total budget across documents proportionally
     // to their section count, so big PWS docs get more room than 1-page exhibits.
-    const TOTAL_BUDGET = 220_000;
+    const TOTAL_BUDGET = 180_000;
     const totalSections = (sections ?? []).length || 1;
     let docBlocks = "";
     let totalUsed = 0;
