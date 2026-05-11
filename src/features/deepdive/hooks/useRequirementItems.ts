@@ -6,6 +6,7 @@ export type RequirementItem = Database["public"]["Tables"]["requirement_items"][
 export type RequirementUpdate = Database["public"]["Tables"]["requirement_items"]["Update"];
 
 const key = (id: string) => ["requirement-items", id] as const;
+const versionsKey = (reqId: string) => ["requirement-item-versions", reqId] as const;
 
 export function useRequirementItems(solicitationId: string | undefined) {
   return useQuery({
@@ -52,9 +53,27 @@ export function useUpdateRequirement(solicitationId: string | undefined) {
         .eq("id", input.id);
       if (error) throw error;
     },
+    onSuccess: (_d, vars) => {
+      if (solicitationId) qc.invalidateQueries({ queryKey: key(solicitationId) });
+      qc.invalidateQueries({ queryKey: versionsKey(vars.id) });
+    },
+  });
+}
+
+export function useBulkUpdateRequirements(solicitationId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { ids: string[]; patch: RequirementUpdate }) => {
+      if (!input.ids.length) return { count: 0 };
+      const { error } = await supabase
+        .from("requirement_items")
+        .update(input.patch)
+        .in("id", input.ids);
+      if (error) throw error;
+      return { count: input.ids.length };
+    },
     onSuccess: () => {
-      if (!solicitationId) return;
-      qc.invalidateQueries({ queryKey: key(solicitationId) });
+      if (solicitationId) qc.invalidateQueries({ queryKey: key(solicitationId) });
     },
   });
 }
@@ -69,6 +88,64 @@ export function useDeleteRequirement(solicitationId: string | undefined) {
     onSuccess: () => {
       if (!solicitationId) return;
       qc.invalidateQueries({ queryKey: key(solicitationId) });
+    },
+  });
+}
+
+export type RequirementVersion = {
+  id: string;
+  requirement_id: string;
+  solicitation_id: string;
+  snapshot: Record<string, unknown>;
+  change_summary: string | null;
+  changed_by: string | null;
+  changed_at: string;
+};
+
+export function useRequirementVersions(requirementId: string | undefined) {
+  return useQuery({
+    queryKey: requirementId ? versionsKey(requirementId) : ["requirement-item-versions", "none"],
+    enabled: !!requirementId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("requirement_item_versions" as never)
+        .select("*")
+        .eq("requirement_id", requirementId!)
+        .order("changed_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as RequirementVersion[];
+    },
+  });
+}
+
+export function useRevertRequirement(solicitationId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { requirementId: string; snapshot: Record<string, unknown> }) => {
+      const allowed: (keyof RequirementUpdate)[] = [
+        "shall_text",
+        "compliance_owner",
+        "proposal_volume",
+        "proposal_section",
+        "status",
+        "notes",
+        "source_section",
+      ];
+      const patch: RequirementUpdate = {};
+      for (const k of allowed) {
+        if (k in input.snapshot) {
+          (patch as Record<string, unknown>)[k] = input.snapshot[k as string] ?? null;
+        }
+      }
+      const { error } = await supabase
+        .from("requirement_items")
+        .update(patch)
+        .eq("id", input.requirementId);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      if (solicitationId) qc.invalidateQueries({ queryKey: key(solicitationId) });
+      qc.invalidateQueries({ queryKey: versionsKey(vars.requirementId) });
     },
   });
 }
