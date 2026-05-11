@@ -12,6 +12,7 @@ import { useSectionAnalyses, useAnalyzeSections } from "@/features/deepdive/hook
 import { useCapabilityGaps, useAnalyzeGaps, useUpdateGap } from "@/features/deepdive/hooks/useCapabilityGaps";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { RTMTable } from "@/features/deepdive/components/RTMTable";
+import { CapabilitiesProfileCard } from "@/features/deepdive/components/CapabilitiesProfileCard";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
