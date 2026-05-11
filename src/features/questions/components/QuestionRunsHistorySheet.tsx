@@ -36,6 +36,16 @@ const STATUS_STYLES: Record<QuestionRun["status"], string> = {
   failed: "bg-destructive/10 text-destructive border-destructive/30",
 };
 
+const STALLED_STYLE =
+  "bg-amber-500/10 text-amber-700 dark:text-amber-500 border-amber-500/30";
+
+const STALL_THRESHOLD_MS = 5 * 60 * 1000;
+
+function isStalled(run: QuestionRun): boolean {
+  if (run.status !== "running") return false;
+  return Date.now() - new Date(run.updated_at).getTime() > STALL_THRESHOLD_MS;
+}
+
 function formatDuration(startedAt: string, completedAt: string | null): string {
   if (!completedAt) return "running…";
   const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
