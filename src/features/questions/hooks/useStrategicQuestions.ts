@@ -156,7 +156,7 @@ export function useCreateQuestion(solicitationId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) invalidateQuestionCounts(qc, solicitationId);
     },
   });
 }
@@ -169,7 +169,7 @@ export function useUpdateQuestion(solicitationId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) invalidateQuestionCounts(qc, solicitationId);
     },
   });
 }
@@ -182,7 +182,7 @@ export function useDeleteQuestion(solicitationId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) invalidateQuestionCounts(qc, solicitationId);
     },
   });
 }
@@ -195,7 +195,7 @@ export function useBulkUpdateQuestions(solicitationId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) invalidateQuestionCounts(qc, solicitationId);
     },
   });
 }
