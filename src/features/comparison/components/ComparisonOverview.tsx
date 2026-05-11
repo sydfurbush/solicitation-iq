@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { usePriorSolicitation, useUnlinkPriorSolicitation, type PriorSolicitationRow, type ComparisonChanges } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
-import { useImportPriorFromSam, waitForDocumentsParsed, retryAttachmentImport, ImportCancelledError, type ImportProgress, type FailedAttachment } from "../hooks/useImportPriorFromSam";
+import { useImportPriorFromSam, waitForDocumentsParsed, retryAttachmentImport, ImportCancelledError, SamNoticeNotFoundError, type ImportProgress, type FailedAttachment, type SamNotFoundDetails } from "../hooks/useImportPriorFromSam";
+import { SamNotFoundAlert } from "./SamNotFoundAlert";
 import { ImportProgressPanel } from "./ImportProgressPanel";
 import { logPriorImport, usePriorImportHistory, useInvalidatePriorImportHistory } from "../hooks/usePriorImportHistory";
 import { ImportHistoryList } from "./ImportHistoryList";
@@ -32,6 +33,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     failedAttachments: FailedAttachment[];
   } | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [notFound, setNotFound] = useState<SamNotFoundDetails | null>(null);
   const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const handleCancelImport = () => {
@@ -74,6 +76,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     abortRef.current = controller;
     const startedAt = new Date().toISOString();
     const linkIdAtStart = priorRecord.id;
+    setNotFound(null);
     try {
       const result = await importFromSam.mutateAsync({
         url: priorRecord.external_url,
@@ -148,8 +151,12 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       toast({ title: "Comparison updated" });
     } catch (e) {
       const cancelled = e instanceof ImportCancelledError || controller.signal.aborted;
+      const isNotFound = e instanceof SamNoticeNotFoundError;
       if (cancelled) {
         setProgress({ stage: "error", message: "Cancelled by user." });
+      } else if (isNotFound) {
+        setProgress(null);
+        setNotFound(e.details);
       } else {
         setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
         toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
@@ -324,7 +331,13 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
                     </Button>
                   )}
                 </div>
-                {progress && <ImportProgressPanel progress={progress} />}
+                {progress && !notFound && <ImportProgressPanel progress={progress} />}
+                {notFound && (
+                  <SamNotFoundAlert
+                    {...notFound}
+                    onDismiss={() => setNotFound(null)}
+                  />
+                )}
               </div>
             </AlertDescription>
           </Alert>

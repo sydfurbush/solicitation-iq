@@ -58,6 +58,22 @@ export type ImportPriorResult = {
   failedAttachments: FailedAttachment[];
 };
 
+export type SamNotFoundDetails = {
+  lookup?: { noticeId?: string | null; solicitationNumber?: string | null };
+  triedStrategies?: string[];
+  url?: string | null;
+  solicitationNumber?: string | null;
+};
+
+export class SamNoticeNotFoundError extends Error {
+  details: SamNotFoundDetails;
+  constructor(message: string, details: SamNotFoundDetails = {}) {
+    super(message);
+    this.name = "SamNoticeNotFoundError";
+    this.details = details;
+  }
+}
+
 /**
  * Orchestrates: SAM lookup → create shadow prior solicitation → import attachments → link.
  * Comparison is NOT auto-run here — caller decides when to invoke compare-solicitations
@@ -93,11 +109,42 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
         prefill?: SamPrefill;
         noticeId?: string | null;
         error?: string;
+        lookup?: { noticeId?: string | null; solicitationNumber?: string | null };
+        triedStrategies?: string[];
       }>("sam-import", { body: samBody });
+
+      // Try to read structured error body even when invoke marks the call as failed (non-2xx)
+      let errorPayload: {
+        error?: string;
+        lookup?: { noticeId?: string | null; solicitationNumber?: string | null };
+        triedStrategies?: string[];
+      } | null = samData ?? null;
+      if (samErr) {
+        const ctx = (samErr as unknown as { context?: { response?: Response } }).context;
+        if (ctx?.response) {
+          try {
+            errorPayload = await ctx.response.clone().json();
+          } catch { /* ignore */ }
+        }
+      }
+
+      if (errorPayload?.error?.toLowerCase().includes("no sam.gov notice found")) {
+        throw new SamNoticeNotFoundError(errorPayload.error, {
+          lookup: errorPayload.lookup,
+          triedStrategies: errorPayload.triedStrategies,
+          url: input.url ?? null,
+          solicitationNumber: input.solicitationNumber ?? null,
+        });
+      }
       if (samErr) throw samErr;
       if (samData?.error) throw new Error(samData.error);
       const prefill = samData?.prefill;
-      if (!prefill) throw new Error("SAM.gov returned no notice for that reference");
+      if (!prefill) {
+        throw new SamNoticeNotFoundError("SAM.gov returned no notice for that reference", {
+          url: input.url ?? null,
+          solicitationNumber: input.solicitationNumber ?? null,
+        });
+      }
 
       const attachments = prefill.attachments ?? [];
       report({

@@ -12,8 +12,9 @@ import { toast } from "@/hooks/use-toast";
 import { useSolicitations, useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useLinkPriorSolicitation } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
-import { useImportPriorFromSam, waitForDocumentsParsed, ImportCancelledError, type ImportProgress } from "../hooks/useImportPriorFromSam";
+import { useImportPriorFromSam, waitForDocumentsParsed, ImportCancelledError, SamNoticeNotFoundError, type ImportProgress, type SamNotFoundDetails } from "../hooks/useImportPriorFromSam";
 import { ImportProgressPanel } from "./ImportProgressPanel";
+import { SamNotFoundAlert } from "./SamNotFoundAlert";
 
 type Props = {
   solicitationId: string;
@@ -42,6 +43,28 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
   const importFromSam = useImportPriorFromSam(solicitationId);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [notFound, setNotFound] = useState<SamNotFoundDetails | null>(null);
+
+  const linkAsExternalReference = async () => {
+    const v = externalForm.getValues();
+    const ref = v.external_reference?.trim();
+    const url = v.external_url?.trim();
+    try {
+      const linked = await link.mutateAsync({
+        externalReference: ref || null,
+        externalUrl: url || null,
+      });
+      toast({
+        title: "Linked as external reference",
+        description: "Comparison will be limited until documents are added.",
+      });
+      onLinked?.();
+      compare.mutate({ priorSolicitationId: null, priorRecordId: linked?.id ?? null });
+      setOpen(false);
+    } catch (e) {
+      toast({ title: "Failed to link", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
 
   const busy = link.isPending || importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
   const importing = importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
@@ -78,6 +101,7 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
 
       const controller = new AbortController();
       abortRef.current = controller;
+      setNotFound(null);
       try {
         const result = await importFromSam.mutateAsync({
           url: url || null,
@@ -133,7 +157,13 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
           setProgress({ stage: "error", message: "Cancelled by user." });
           return;
         }
-        // Fall back to a plain external-reference link so the user isn't blocked
+        if (samErr instanceof SamNoticeNotFoundError) {
+          // Don't auto-link as external — surface a clear "not found" alert with next steps
+          setProgress(null);
+          setNotFound(samErr.details);
+          return;
+        }
+        // Other failures: fall back to a plain external-reference link so the user isn't blocked
         console.warn("SAM import failed, falling back to external-reference link", samErr);
         setProgress({
           stage: "error",
@@ -231,7 +261,14 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
           </TabsContent>
         </Tabs>
 
-        {progress && <ImportProgressPanel progress={progress} />}
+        {progress && !notFound && <ImportProgressPanel progress={progress} />}
+        {notFound && (
+          <SamNotFoundAlert
+            {...notFound}
+            onDismiss={() => setNotFound(null)}
+            onLinkAsExternal={linkAsExternalReference}
+          />
+        )}
 
         <DialogFooter>
           {importing ? (
