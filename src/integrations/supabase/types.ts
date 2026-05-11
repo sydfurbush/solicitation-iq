@@ -916,6 +916,51 @@ export type Database = {
           },
         ]
       }
+      question_generation_runs: {
+        Row: {
+          completed_at: string | null
+          completed_batches: number
+          current_step: string | null
+          error_message: string | null
+          failed_batches: number
+          id: string
+          inserted_count: number
+          solicitation_id: string
+          started_at: string
+          status: string
+          total_batches: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_batches?: number
+          current_step?: string | null
+          error_message?: string | null
+          failed_batches?: number
+          id?: string
+          inserted_count?: number
+          solicitation_id: string
+          started_at?: string
+          status?: string
+          total_batches?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_batches?: number
+          current_step?: string | null
+          error_message?: string | null
+          failed_batches?: number
+          id?: string
+          inserted_count?: number
+          solicitation_id?: string
+          started_at?: string
+          status?: string
+          total_batches?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       risks: {
         Row: {
           created_at: string | null
