@@ -30,7 +30,7 @@ export function usePriorImportHistory(priorLinkId: string | undefined) {
         .eq("prior_link_id", priorLinkId!)
         .order("started_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as PriorImportHistoryRow[];
+      return (data ?? []) as unknown as PriorImportHistoryRow[];
     },
   });
 }
