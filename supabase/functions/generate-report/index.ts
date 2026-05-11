@@ -227,6 +227,123 @@ Deno.serve(async (req) => {
     }
 
     const sol = ctx.sol;
+
+    // Deterministic path: questions_brief renders ALL questions from DB,
+    // bypassing the model so nothing is dropped/summarized.
+    if (reportType === "questions_brief") {
+      const all = (ctx.questions ?? []) as Array<{
+        category: string | null;
+        recommendation: string | null;
+        priority: number | null;
+        question_text: string;
+        question_rationale: string | null;
+        source_citation: string | null;
+        source_quote: string | null;
+        is_submitted: boolean | null;
+        agency_response: string | null;
+      }>;
+
+      const groupOf = (rec: string | null) => {
+        const r = (rec ?? "").toLowerCase();
+        if (r === "ask") return "ask";
+        if (r === "hold") return "hold";
+        return "internal";
+      };
+      const groups: Record<"ask" | "hold" | "internal", typeof all> = { ask: [], hold: [], internal: [] };
+      for (const q of all) groups[groupOf(q.recommendation)].push(q);
+      for (const k of Object.keys(groups) as Array<keyof typeof groups>) {
+        groups[k].sort((a, b) =>
+          (b.priority ?? 0) - (a.priority ?? 0) ||
+          String(a.category ?? "").localeCompare(String(b.category ?? ""))
+        );
+      }
+
+      const sectionDef: Array<{ key: keyof typeof groups; heading: string; intro: (n: number) => string }> = [
+        { key: "ask", heading: "Submitted Questions", intro: (n) => `${n} question${n === 1 ? "" : "s"} recommended for submission to the agency.` },
+        { key: "hold", heading: "Strategic Hold Questions", intro: (n) => `${n} question${n === 1 ? "" : "s"} held for strategic advantage — do not submit.` },
+        { key: "internal", heading: "Internal Discussion Items", intro: (n) => `${n} item${n === 1 ? "" : "s"} for internal review and capture planning.` },
+      ];
+
+      const sections = sectionDef
+        .filter((s) => groups[s.key].length > 0)
+        .map((s) => {
+          const rows = groups[s.key];
+          const items = rows.map((q, i) => {
+            const cat = q.category ? `[${q.category}] ` : "";
+            const lines: string[] = [`Q${i + 1}. ${cat}${q.question_text}`];
+            if (q.question_rationale) lines.push(`   Rationale: ${q.question_rationale}`);
+            if (q.source_citation) lines.push(`   Source: ${q.source_citation}`);
+            if (q.agency_response) lines.push(`   Agency response: ${q.agency_response}`);
+            return lines.join("\n");
+          });
+          return {
+            id: s.key,
+            heading: s.heading,
+            level: 1,
+            blocks: [
+              { kind: "paragraph", text: s.intro(rows.length) },
+              { kind: "bullets", items },
+            ],
+          };
+        });
+
+      const includeCitationsQ = options?.includeCitations !== false;
+      let citationsQ: any[] = [];
+      if (includeCitationsQ) {
+        const seen = new Set<string>();
+        for (const q of all) {
+          const cite = (q.source_citation ?? "").trim();
+          if (!cite || seen.has(cite)) continue;
+          seen.add(cite);
+          const pageMatch = cite.match(/p(?:age|\.)?\s*(\d+)/i);
+          const sectionMatch = cite.match(/§\s*([\w.\-]+)|section\s+([\w.\-]+)/i);
+          citationsQ.push({
+            id: `C${citationsQ.length + 1}`,
+            document: cite.split(/[§,;]/)[0].trim() || cite,
+            section: sectionMatch ? (sectionMatch[1] || sectionMatch[2]) : undefined,
+            page: pageMatch ? Number(pageMatch[1]) : undefined,
+            quote: q.source_quote ?? undefined,
+          });
+          if (citationsQ.length >= 20) break;
+        }
+      }
+
+      const content = {
+        title: `Strategic Questions Brief – ${sol.title}`,
+        subtitle: sol.solicitation_number ?? null,
+        generatedAt: new Date().toISOString(),
+        meta: {
+          solicitation_number: sol.solicitation_number,
+          agency: sol.issuing_agency,
+          client: (sol.client as { name?: string } | null)?.name,
+          contract_type: sol.contract_type,
+          total_questions: all.length,
+        },
+        sections,
+        citations: citationsQ,
+        options: options ?? {},
+        branding: options?.branding ?? null,
+      };
+
+      console.log(`[generate-report] sol=${solicitationId} type=questions_brief deterministic count=${all.length}`);
+
+      const { data: report, error } = await supabase
+        .from("executive_reports")
+        .insert({
+          solicitation_id: solicitationId,
+          title: content.title,
+          report_type: reportType,
+          content,
+          generated_by: userId,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true, report }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const userPrompt = `SOLICITATION DATA
 Title: ${sol.title}
 Number: ${sol.solicitation_number ?? "—"}
