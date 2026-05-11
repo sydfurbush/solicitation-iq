@@ -1476,6 +1476,9 @@ export type Database = {
         | "risk_concern"
         | "compliance"
         | "other"
+        | "drafting_error"
+        | "contradiction"
+        | "quantitative_gap"
       question_recommendation: "ask" | "hold" | "monitor" | "internal_only"
       risk_severity: "critical" | "high" | "medium" | "low" | "informational"
       solicitation_status:
@@ -1670,6 +1673,9 @@ export const Constants = {
         "risk_concern",
         "compliance",
         "other",
+        "drafting_error",
+        "contradiction",
+        "quantitative_gap",
       ],
       question_recommendation: ["ask", "hold", "monitor", "internal_only"],
       risk_severity: ["critical", "high", "medium", "low", "informational"],
