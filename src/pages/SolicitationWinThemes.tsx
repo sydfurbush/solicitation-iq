@@ -5,12 +5,39 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { useWinThemes, useGenerateWinThemes, useUpdateWinTheme, useDeleteWinTheme } from "@/features/winthemes/hooks/useWinThemes";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
+import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
 export default function SolicitationWinThemes({ solicitationId, currentPhase }: { solicitationId: string; currentPhase: string }) {
   const { data: themes = [], isLoading } = useWinThemes(solicitationId);
   const gen = useGenerateWinThemes(solicitationId);
   const update = useUpdateWinTheme(solicitationId);
   const del = useDeleteWinTheme(solicitationId);
+
+  const buildExport = (): ExportDocument | null => {
+    if (themes.length === 0) return null;
+    const approved = themes.filter((t) => t.status === "approved");
+    const exportable = approved.length > 0 ? approved : themes;
+
+    const sections: ExportSection[] = exportable.map((t) => {
+      const children: ExportSection[] = [];
+      if (t.theme_statement) children.push({ heading: "Theme statement", paragraphs: [t.theme_statement] });
+      if (t.discriminators?.length) children.push({ heading: "Discriminators", bullets: t.discriminators });
+      if (t.proof_points?.length) children.push({ heading: "Proof points", bullets: t.proof_points });
+      if (t.ghosting_points?.length) children.push({ heading: "Ghosting points", bullets: t.ghosting_points });
+      return {
+        heading: `${t.title}  (${t.status})`,
+        children,
+      };
+    });
+
+    return {
+      title: "Win Themes",
+      subtitle: `${exportable.length} ${approved.length > 0 ? "approved" : "candidate"} theme${exportable.length === 1 ? "" : "s"}`,
+      filenameBase: "win_themes",
+      sections,
+    };
+  };
 
   const run = async () => {
     try {
@@ -29,10 +56,13 @@ export default function SolicitationWinThemes({ solicitationId, currentPhase }: 
             <CardTitle className="text-base">Win themes</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">{themes.length} themes · {themes.filter((t) => t.status === "approved").length} approved</p>
           </div>
-          <Button onClick={run} disabled={gen.isPending}>
-            {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-            Generate suggestions
-          </Button>
+          <div className="flex gap-2">
+            <ExportMenu build={buildExport} disabled={themes.length === 0} label="Export themes" />
+            <Button onClick={run} disabled={gen.isPending}>
+              {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Generate suggestions
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
