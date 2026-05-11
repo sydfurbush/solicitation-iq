@@ -529,37 +529,69 @@ Deno.serve(async (req) => {
         try {
           let crossPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
           for (const d of documents) {
-            const ds = sectionsByDoc.get(d.id) ?? [];
+            const ds = rawSectionsByDoc.get(d.id) ?? [];
             const toc = ds
               .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
-              .slice(0, 80)
+              .slice(0, 50)
               .join("\n");
             crossPrompt += `\n--- ${d.file_name} ---\n${toc}\n`;
           }
-          const { data: entities } = await supabase
-            .from("extracted_entities")
-            .select("document_id, entity_type, entity_value, page_number, context_snippet")
-            .in("document_id", docIds)
-            .limit(800);
-          if (entities && entities.length) {
-            const docName = new Map<string, string>();
-            documents.forEach((d) => docName.set(d.id, d.file_name));
-            crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS ---\n`;
-            for (const e of entities) {
-              crossPrompt += `[${docName.get(e.document_id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 160)}` : ""}\n`;
+          // Per-doc entity cap so a single chatty doc can't crowd out others.
+          const PER_DOC_ENTITY_CAP = 80;
+          const entitiesByDoc = new Map<string, Array<Record<string, unknown>>>();
+          for (const id of docIds) entitiesByDoc.set(id, []);
+          {
+            const { data: entities } = await supabase
+              .from("extracted_entities")
+              .select("document_id, entity_type, entity_value, page_number, context_snippet")
+              .in("document_id", docIds)
+              .limit(2000);
+            for (const e of entities ?? []) {
+              const list = entitiesByDoc.get(e.document_id as string);
+              if (list && list.length < PER_DOC_ENTITY_CAP) list.push(e as Record<string, unknown>);
             }
+          }
+          const docName = new Map<string, string>();
+          documents.forEach((d) => docName.set(d.id, d.file_name));
+          let entityCount = 0;
+          let entitiesBlock = "";
+          for (const [id, list] of entitiesByDoc) {
+            for (const e of list) {
+              const snip = e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 100)}` : "";
+              entitiesBlock += `[${docName.get(id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${snip}\n`;
+              entityCount++;
+            }
+          }
+          if (entityCount > 0) {
+            crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS (${entityCount} facts, capped at ${PER_DOC_ENTITY_CAP}/doc) ---\n${entitiesBlock}`;
           }
           crossPrompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
 
-          if (crossPrompt.length > 120_000) crossPrompt = crossPrompt.slice(0, 120_000) + "\n…[truncated]…";
+          if (crossPrompt.length > 100_000) crossPrompt = crossPrompt.slice(0, 100_000) + "\n…[truncated]…";
 
-          console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length}`);
-          const parsed = (await callAiTool({
-            functionName: "generate-questions",
-            system: CROSS_DOC_SYSTEM_PROMPT,
-            user: crossPrompt,
-            tool: SCHEMA,
-          })) as Record<string, any>;
+          console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length} entities=${entityCount}`);
+
+          // One soft retry on transient failure before marking the pass failed.
+          let parsed: Record<string, any> | null = null;
+          let lastErr: unknown = null;
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+              parsed = (await callAiTool({
+                functionName: "generate-questions",
+                system: CROSS_DOC_SYSTEM_PROMPT,
+                user: crossPrompt,
+                tool: SCHEMA,
+              })) as Record<string, any>;
+              lastErr = null;
+              break;
+            } catch (err) {
+              lastErr = err;
+              console.warn(`[generate-questions] cross-doc attempt ${attempt} failed`, err);
+              if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
+            }
+          }
+          if (lastErr || !parsed) throw lastErr ?? new Error("cross-doc pass returned no result");
+
           const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
           const rows = mapRows(questions, solicitationId, docByName);
           console.log(`[generate-questions] cross-doc got ${rows.length} questions`);
