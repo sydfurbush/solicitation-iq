@@ -151,8 +151,12 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       toast({ title: "Comparison updated" });
     } catch (e) {
       const cancelled = e instanceof ImportCancelledError || controller.signal.aborted;
+      const isNotFound = e instanceof SamNoticeNotFoundError;
       if (cancelled) {
         setProgress({ stage: "error", message: "Cancelled by user." });
+      } else if (isNotFound) {
+        setProgress(null);
+        setNotFound(e.details);
       } else {
         setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
         toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
