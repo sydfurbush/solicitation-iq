@@ -43,6 +43,28 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
   const importFromSam = useImportPriorFromSam(solicitationId);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [notFound, setNotFound] = useState<SamNotFoundDetails | null>(null);
+
+  const linkAsExternalReference = async () => {
+    const v = externalForm.getValues();
+    const ref = v.external_reference?.trim();
+    const url = v.external_url?.trim();
+    try {
+      const linked = await link.mutateAsync({
+        externalReference: ref || null,
+        externalUrl: url || null,
+      });
+      toast({
+        title: "Linked as external reference",
+        description: "Comparison will be limited until documents are added.",
+      });
+      onLinked?.();
+      compare.mutate({ priorSolicitationId: null, priorRecordId: linked?.id ?? null });
+      setOpen(false);
+    } catch (e) {
+      toast({ title: "Failed to link", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
 
   const busy = link.isPending || importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
   const importing = importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
