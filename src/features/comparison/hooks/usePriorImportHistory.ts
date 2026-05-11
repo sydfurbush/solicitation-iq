@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { FailedAttachment } from "./useImportPriorFromSam";
+import type { FailedAttachment, LookupParams, SamErrorResponse } from "./useImportPriorFromSam";
 
 export type PriorImportHistoryRow = {
   id: string;
