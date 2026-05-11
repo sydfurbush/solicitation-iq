@@ -167,12 +167,17 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
               {runs.map((run) => {
                 const failedNames = run.failed_doc_ids
                   .map((id) => docMap.get(id) ?? "Unknown document");
+                const stalled = isStalled(run);
                 const hasFailure =
                   run.failed_doc_ids.length > 0 || run.cross_doc_failed || run.failed_batches > 0;
-                const canRetry = (run.status === "partial" || run.status === "failed") && hasFailure;
+                const canRetry =
+                  ((run.status === "partial" || run.status === "failed") && hasFailure) || stalled;
                 const unknownScope =
                   canRetry && run.failed_doc_ids.length === 0 && !run.cross_doc_failed;
                 const parent = run.parent_run_id ? runById.get(run.parent_run_id) : null;
+                const stalledMins = stalled
+                  ? Math.round((Date.now() - new Date(run.updated_at).getTime()) / 60000)
+                  : 0;
                 return (
                   <div
                     key={run.id}
@@ -181,11 +186,17 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                     <div className="flex items-start justify-between gap-3 flex-wrap">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className={cn("capitalize", STATUS_STYLES[run.status])}>
-                            {run.status === "running" && (
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "capitalize",
+                              stalled ? STALLED_STYLE : STATUS_STYLES[run.status],
+                            )}
+                          >
+                            {run.status === "running" && !stalled && (
                               <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                             )}
-                            {run.status}
+                            {stalled ? "Stalled" : run.status}
                           </Badge>
                           <span
                             className="text-sm text-muted-foreground"
@@ -201,6 +212,11 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                           <p className="text-xs text-muted-foreground">
                             ↳ retry of run from{" "}
                             {formatDistanceToNow(new Date(parent.started_at), { addSuffix: true })}
+                          </p>
+                        )}
+                        {stalled && (
+                          <p className="text-xs text-amber-700 dark:text-amber-500">
+                            No progress for {stalledMins}m. The next Retry will recover it.
                           </p>
                         )}
                       </div>
