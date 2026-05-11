@@ -574,6 +574,33 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
           </div>
         )}
       </CardContent>
+
+      <AlertDialog open={!!pendingTemplate} onOpenChange={(o) => !o && setPendingTemplate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply "{pendingTemplate?.name}" template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This profile already has content. Choose how to apply the template:
+              <span className="block mt-2"><strong>Merge</strong> appends new text and adds new chips without removing what's there.</span>
+              <span className="block mt-1"><strong>Replace</strong> overwrites every field with the template's values.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => pendingTemplate && applyTemplate(pendingTemplate, "merge")}
+            >
+              Merge
+            </Button>
+            <AlertDialogAction
+              onClick={() => pendingTemplate && applyTemplate(pendingTemplate, "replace")}
+            >
+              Replace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
