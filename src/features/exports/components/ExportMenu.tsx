@@ -90,6 +90,8 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
       await exportDocument({ ...doc, sections }, format, {
         pageSize,
         filenameBase: filename || doc.filenameBase,
+        version,
+        noCover: !includeCover,
       });
       toast({ title: "Export ready", description: `${format.toUpperCase()} downloaded.` });
       setOpen(false);
