@@ -75,6 +75,11 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         onProgress: setProgress,
       });
       if (controller.signal.aborted) throw new ImportCancelledError();
+      setLastImport({
+        priorSolicitationId: result.priorSolicitationId,
+        priorRecordId: result.priorRecordId,
+        failedAttachments: result.failedAttachments,
+      });
       // Drop the legacy external-only link so the new fully-linked record is canonical
       try { await unlink.mutateAsync(priorRecord.id); } catch { /* ignore */ }
 
