@@ -1,30 +1,49 @@
-# Fix: Citations missing in PDF and Word
+# Fix: All 127 strategic questions missing from questions_brief report
 
 ## Root cause
-Both renderers (`pdfGenerator.ts`, `wordGenerator.ts`) already render a **Source Citations** section — but only when `report.citations.length > 0`. The current edge function (`supabase/functions/generate-report/index.ts`) never instructs the AI to populate the top-level `citations` array, and it ignores the user's `options.includeCitations` toggle. The model only emits inline `[Doc §Section p.X]` strings inside prose, so `citations` comes back empty and the section is skipped.
 
-Toggling "Include source citations" and "Include recommendations" in the dialog has no effect today — the flags are passed in the payload but never read by the prompt.
+`supabase/functions/generate-report/index.ts`:
 
-## Changes (edge function only — renderers already correct)
+1. `gatherContext()` calls `.limit(40)` on `strategic_questions`, so the AI only ever receives 40 of the 127 questions.
+2. Even if all 127 were passed in, the AI is asked to author Q&A prose for `questions_brief`. Output-token limits and model summarization mean items get dropped — the report should not depend on the model to faithfully echo 127 rows.
 
-**File: `supabase/functions/generate-report/index.ts`**
+## Changes (edge function only)
 
-1. **Honor `options.includeCitations`** — inject explicit instruction into the system prompt at request time:
-   - When `true` (default): require `citations[]` to contain every source referenced inline, with stable IDs `C1, C2, …` and matching `[C1]` markers in section text. Minimum 3 citations when supporting documents exist.
-   - When `false`: instruct the model to omit inline citation markers and return `citations: []`.
+### 1. Lift the questions cap, conditionally
 
-2. **Honor `options.includeRecommendations`** — when `false`, drop the "Recommendation" and "Next Steps" sections from the executive summary contract; when `true` (default), keep current behavior.
+In `gatherContext`, accept a `reportType` and:
+- For `questions_brief`: fetch **all** questions for the solicitation (no `.limit`), with the columns needed to render each row (`category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, is_submitted, agency_response`).
+- For other report types: keep the existing `.limit(40)` (those reports only need a representative sample).
 
-3. **Tighten the citation contract in `PROMPTS.executive_summary`** — change "Cite inline as [Doc §Section p.X]" to require `[C#]` markers tied to entries in `citations[]`, populated from the DOCUMENTS / RISKS / OPPORTUNITIES / QUESTIONS context already gathered (each row carries `source_citation` / `source_quote`).
+### 2. Deterministically build the `questions_brief` report from the DB
 
-4. **Defensive backfill** — after AI returns, if `options.includeCitations !== false` and `parsed.citations` is empty but `ctx.risks/opportunities/questions` have `source_citation` values, synthesize citation entries from those rows so the section is never blank.
+For `reportType === "questions_brief"`, **skip the AI authoring of question content** and build `sections[]` directly in the edge function:
 
-## Out of scope
-- No renderer changes (PDF/Word citation blocks already work — verified in `pdfGenerator.ts:drawCitations` and `wordGenerator.ts` lines 293-305).
-- No UI changes to the options dialog.
-- Existing reports won't update — user clicks **Generate report** again to refresh.
+- Group all questions by `recommendation`:
+  - `ask` → "Submitted Questions"
+  - `hold` → "Strategic Hold Questions"
+  - `monitor` / `internal` / other → "Internal Discussion Items"
+- Within each group, sort by `priority` desc, then `category`.
+- Render each section as a single `bullets` block where each item is a one-line string:
+  `Q{n}. [{category}] {question_text}` and, when present, append `\n   Rationale: {question_rationale}` and `\n   Source: {source_citation}`.
+  - Bullets renderer in `pdfGenerator.ts` / `wordGenerator.ts` already supports plain strings.
+- Add a small intro `paragraph` block per section with the count (e.g., "84 questions recommended for submission.").
+- Title/subtitle: keep the existing default title behavior (`Strategic Questions Brief – {sol.title}`, subtitle = solicitation number).
+
+The AI call is **not used** for this report type. This guarantees all 127 questions appear, in stable order, with no truncation.
+
+### 3. Citations
+
+- If `options.includeCitations !== false`, build `citations[]` from each question's `source_citation` (deduped, capped at 20 entries, IDs `C1..Cn`). Same shape as today's backfill path.
+- If false, `citations = []`.
+
+### 4. Out of scope
+
+- No changes to `pdfGenerator.ts`, `wordGenerator.ts`, `ReportViewer.tsx`, or any UI.
+- No schema/RLS changes.
+- Other report types (`executive_summary`, `full_analysis`, etc.) are untouched.
 
 ## Verification
-1. Generate a new Executive Summary with both toggles ON → confirm "SOURCE CITATIONS" section appears at end of PDF and DOCX with `[C1] Document §X p.Y` entries.
-2. Generate again with "Include source citations" OFF → confirm section is absent and inline `[C#]` markers don't appear.
-3. Generate with "Include recommendations" OFF → confirm Recommendation + Next Steps sections are omitted.
+
+- Re-generate the questions brief on the current solicitation (`0d2c19f3-…`) and confirm all 127 questions appear in the PDF, Word, and in-app viewer, grouped by recommendation.
+- Confirm executive_summary still renders correctly (40-question sample preserved for that path).
