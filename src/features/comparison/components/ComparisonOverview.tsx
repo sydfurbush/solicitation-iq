@@ -390,6 +390,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
 
   const importing =
     importFromSam.isPending ||
+    uploadPrior.isPending ||
     compare.isPending ||
     retrying ||
     (!!progress && progress.stage !== "done" && progress.stage !== "error");
