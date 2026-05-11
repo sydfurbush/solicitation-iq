@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Download, LayoutGrid, List, Plus, Sparkles } from "lucide-react";
+import { Download, History, LayoutGrid, List, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
