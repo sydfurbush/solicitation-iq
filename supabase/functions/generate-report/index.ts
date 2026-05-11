@@ -18,8 +18,24 @@ type ReportType =
   | "comparison_report"
   | "proposal_outline";
 
+const BLOCKS_GUIDE = `
+
+OUTPUT STRUCTURE — IMPORTANT:
+Each section MAY return either a markdown 'body' (prose) OR an array of structured 'blocks' (preferred for branded layout).
+Block kinds available:
+- { "kind":"paragraph", "text":"..." }
+- { "kind":"bullets", "items":["...","..."] }
+- { "kind":"kv", "rows":[["Label","Value"], ...] }                       // key/value snapshot table
+- { "kind":"category", "tone":"opportunity"|"risk"|"neutral", "title":"TOP OPPORTUNITIES", "rows":[["Title","Description"], ...] }
+- { "kind":"recommendation", "verdict":"GO"|"NO-GO"|"CONDITIONAL GO", "rationale":"..." }
+- { "kind":"steps", "items":[{"title":"Submit Questions","detail":"..."}, ...] }
+
+Use blocks for: Opportunity Snapshot (kv), Strategic Assessment (category opportunity + category risk), Recommendation (recommendation), Next Steps (steps).
+Use paragraphs/bullets for narrative sections.
+`;
+
 const PROMPTS: Record<ReportType, string> = {
-  executive_summary: `Generate a professional executive summary report. Sections: Executive Overview (1 paragraph), Opportunity Snapshot (bullets: agency, solicitation #, contract type, value range, key dates, incumbent), Strategic Assessment (top 3 opportunities, top 3 risks, competitive positioning), Recommendation (go/no-go, rationale, key success factors, next steps). Crisp executive language. Use markdown. Cite as [Doc §Section p.X].`,
+  executive_summary: `Generate a professional executive summary report. Sections in order: Executive Overview (1-2 paragraph blocks), Opportunity Snapshot (kv block with rows: Agency, Solicitation #, Contract Type, Set-Aside, Incumbent, Release Date, Q&A / Proposal Due, Award Date), Strategic Assessment (one category block tone='opportunity' titled 'TOP OPPORTUNITIES' with 3 rows, one category block tone='risk' titled 'TOP RISKS' with 3 rows), Competitive Positioning (paragraph + bullets), Recommendation (recommendation block with verdict GO / NO-GO / CONDITIONAL GO + rationale), Key Success Factors (bullets), Next Steps (steps block, 3-5 items). Crisp executive language. Cite inline as [Doc §Section p.X].${BLOCKS_GUIDE}`,
   full_analysis: `Generate a comprehensive solicitation analysis report. Sections: Executive Summary, Solicitation Overview, Requirements Analysis, Evaluation Criteria Analysis, Risk Assessment, Opportunities Analysis, Competitive Landscape, Strategic Questions, Comparison to Prior Solicitation (skip if no data), Proposal Strategy Recommendations, Appendices. Every claim cites [Doc §Section p.X]. Use markdown.`,
   questions_brief: `Generate a Strategic Questions brief. Sections: Submitted Questions (recommendation 'ask', numbered Q&A with rationale), Strategic Hold Questions (recommendation 'hold', explain advantage), Internal Discussion Items (monitor/internal). Citations required.`,
   risk_assessment: `Generate a Risk Assessment. Sections: Risk Overview (summary + count by severity), Critical Risks (each high/critical risk with description, citation, mitigation), Mitigation Plan (prioritized actions).`,
