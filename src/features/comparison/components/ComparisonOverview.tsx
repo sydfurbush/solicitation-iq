@@ -111,6 +111,26 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {isExternalOnly && (
+          <Alert variant="default" className="border-amber-500/40 bg-amber-500/5">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTitle>Comparison is limited</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>
+                The prior solicitation is only referenced ({priorRecord.external_reference}) — its documents
+                were never imported, so the AI has nothing concrete to diff against. Import attachments from
+                SAM.gov to get a full requirement-level comparison.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={handleImportFromSam} disabled={importing}>
+                  <DownloadCloud className={cn("mr-2 h-4 w-4", importing && "animate-pulse")} />
+                  {importing ? (importStage ?? "Importing…") : "Import from SAM.gov"}
+                </Button>
+                {importStage && <span className="text-xs text-muted-foreground">{importStage}</span>}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="grid md:grid-cols-2 gap-4">
           <SolicitationHeader label="Prior" sol={prior ?? null} fallback={priorRecord.external_reference} fallbackUrl={priorRecord.external_url} />
           <SolicitationHeader label="Current" sol={current ?? null} />
