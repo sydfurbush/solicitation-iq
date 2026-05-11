@@ -214,8 +214,6 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
           lookupParams,
         );
       }
-        });
-      }
 
       const attachments = prefill.attachments ?? [];
       report({
