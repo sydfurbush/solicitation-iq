@@ -862,6 +862,60 @@ export type Database = {
         }
         Relationships: []
       }
+      prior_import_history: {
+        Row: {
+          action: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          failed_attachments: Json
+          failed_count: number
+          found_count: number
+          id: string
+          imported_count: number
+          performed_by: string | null
+          prior_link_id: string
+          prior_solicitation_id: string | null
+          source: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          action?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          failed_attachments?: Json
+          failed_count?: number
+          found_count?: number
+          id?: string
+          imported_count?: number
+          performed_by?: string | null
+          prior_link_id: string
+          prior_solicitation_id?: string | null
+          source?: string
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          action?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          failed_attachments?: Json
+          failed_count?: number
+          found_count?: number
+          id?: string
+          imported_count?: number
+          performed_by?: string | null
+          prior_link_id?: string
+          prior_solicitation_id?: string | null
+          source?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       prior_solicitations: {
         Row: {
           changes_identified: Json | null
