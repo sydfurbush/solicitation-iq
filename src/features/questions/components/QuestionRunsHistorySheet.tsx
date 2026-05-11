@@ -20,6 +20,7 @@ import {
   useQuestionGenerationRuns,
   type QuestionRun,
 } from "../hooks/useQuestionGenerationRuns";
+import { downloadRunReport } from "../utils/runReport";
 
 interface Props {
   solicitationId: string;
