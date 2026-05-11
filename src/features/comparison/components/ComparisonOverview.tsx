@@ -381,6 +381,11 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
           </div>
         )}
       </CardContent>
+      {history && history.length > 0 && (
+        <CardContent className="pt-0">
+          <ImportHistoryList priorLinkId={priorRecord.id} />
+        </CardContent>
+      )}
     </Card>
   );
 }
