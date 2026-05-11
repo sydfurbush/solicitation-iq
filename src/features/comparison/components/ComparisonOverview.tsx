@@ -10,6 +10,8 @@ import { usePriorSolicitation, useUnlinkPriorSolicitation, type PriorSolicitatio
 import { useRunComparison } from "../hooks/useRunComparison";
 import { useImportPriorFromSam, waitForDocumentsParsed, retryAttachmentImport, ImportCancelledError, type ImportProgress, type FailedAttachment } from "../hooks/useImportPriorFromSam";
 import { ImportProgressPanel } from "./ImportProgressPanel";
+import { logPriorImport, usePriorImportHistory, useInvalidatePriorImportHistory } from "../hooks/usePriorImportHistory";
+import { ImportHistoryList } from "./ImportHistoryList";
 import { fmtCurrency, fmtDate, pctDelta } from "../utils/diffHelpers";
 import { toast } from "@/hooks/use-toast";
 
