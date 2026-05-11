@@ -12,6 +12,8 @@ import { useSectionAnalyses, useAnalyzeSections } from "@/features/deepdive/hook
 import { useCapabilityGaps, useAnalyzeGaps, useUpdateGap } from "@/features/deepdive/hooks/useCapabilityGaps";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { RTMTable } from "@/features/deepdive/components/RTMTable";
+import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
 const SEV_COLOR: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive border-destructive/30",
