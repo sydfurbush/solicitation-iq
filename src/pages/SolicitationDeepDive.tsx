@@ -194,16 +194,23 @@ function SectionAccordion({ solicitationId }: { solicitationId: string }) {
 
 function GapsList({
   solicitationId,
+  clientId,
   hasRequirements,
   externalAnalyze,
 }: {
   solicitationId: string;
+  clientId?: string | null;
   hasRequirements: boolean;
   externalAnalyze: ReturnType<typeof useAnalyzeGaps>;
 }) {
   const { data: gaps = [], isLoading } = useCapabilityGaps(solicitationId);
   const update = useUpdateGap(solicitationId);
   const critical = gaps.filter((g) => g.severity === "critical" && !g.is_resolved);
+  const lastGapsAt = gaps.reduce<string | null>((acc, g) => {
+    const t = g.updated_at ?? g.created_at ?? null;
+    if (!acc) return t;
+    return t && t > acc ? t : acc;
+  }, null);
   const run = async () => {
     try {
       const r = await externalAnalyze.mutateAsync();
