@@ -261,7 +261,14 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
           </TabsContent>
         </Tabs>
 
-        {progress && <ImportProgressPanel progress={progress} />}
+        {progress && !notFound && <ImportProgressPanel progress={progress} />}
+        {notFound && (
+          <SamNotFoundAlert
+            {...notFound}
+            onDismiss={() => setNotFound(null)}
+            onLinkAsExternal={linkAsExternalReference}
+          />
+        )}
 
         <DialogFooter>
           {importing ? (
