@@ -76,6 +76,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     abortRef.current = controller;
     const startedAt = new Date().toISOString();
     const linkIdAtStart = priorRecord.id;
+    setNotFound(null);
     try {
       const result = await importFromSam.mutateAsync({
         url: priorRecord.external_url,
