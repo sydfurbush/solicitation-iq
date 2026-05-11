@@ -90,6 +90,28 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
         </DialogHeader>
 
         <div className="space-y-4">
+          {retryable && (
+            <Alert>
+              <AlertDescription className="text-sm space-y-2">
+                <div className="font-medium">
+                  Last run finished with {retryable.count} failed batch{retryable.count === 1 ? "" : "es"}.
+                </div>
+                {retryable.failedNames.length > 0 && (
+                  <div className="text-muted-foreground">
+                    Failed: {retryable.failedNames.join(", ")}
+                    {retryable.crossDoc ? " · cross-document pass" : ""}
+                  </div>
+                )}
+                {retryable.failedNames.length === 0 && retryable.crossDoc && (
+                  <div className="text-muted-foreground">Failed: cross-document pass</div>
+                )}
+                <Button size="sm" variant="outline" onClick={handleRetry} disabled={generate.isPending}>
+                  <RotateCcw className="h-4 w-4 mr-2" /> Retry failed batches
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {hasExistingAi && (
             <Alert>
               <AlertDescription className="text-sm">
