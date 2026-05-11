@@ -12,7 +12,7 @@ import { GenerateQuestionsDialog } from "@/features/questions/components/Generat
 import { QuestionRunsHistorySheet } from "@/features/questions/components/QuestionRunsHistorySheet";
 import { QuestionDetailPanel } from "@/features/questions/components/QuestionDetailPanel";
 import { QuestionExport } from "@/features/questions/components/QuestionExport";
-import { QuestionsFilters } from "@/features/questions/components/QuestionsFilters";
+import { QuestionsFilters, type FilterCounts } from "@/features/questions/components/QuestionsFilters";
 import { QuestionsList } from "@/features/questions/components/QuestionsList";
 import { QuestionsMatrix } from "@/features/questions/components/QuestionsMatrix";
 import { SubmittedQuestionsTracker } from "@/features/questions/components/SubmittedQuestionsTracker";
@@ -24,6 +24,7 @@ import {
 } from "@/features/questions/hooks/useStrategicQuestions";
 import {
   filterQuestions,
+  getPriorityLevel,
   type QuestionFilters,
   type QuestionRow,
 } from "@/features/questions/utils/questionHelpers";
@@ -64,6 +65,27 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
   const remove = useDeleteQuestion(solicitationId);
 
   const hasExistingAi = useMemo(() => allQuestions.some((q) => q.is_ai_generated), [allQuestions]);
+  const filterCounts = useMemo<FilterCounts>(() => {
+    const c: FilterCounts = {
+      total: allQuestions.length,
+      categories: {},
+      recommendations: {},
+      priorities: {},
+      submitted: 0,
+      notSubmitted: 0,
+      ai: 0,
+      manual: 0,
+    };
+    for (const q of allQuestions) {
+      c.categories[q.category] = (c.categories[q.category] ?? 0) + 1;
+      if (q.recommendation) c.recommendations[q.recommendation] = (c.recommendations[q.recommendation] ?? 0) + 1;
+      const p = getPriorityLevel(q.priority);
+      c.priorities[p] = (c.priorities[p] ?? 0) + 1;
+      if (q.is_submitted) c.submitted++; else c.notSubmitted++;
+      if (q.is_ai_generated) c.ai++; else c.manual++;
+    }
+    return c;
+  }, [allQuestions]);
   const empty = !isLoading && allQuestions.length === 0;
 
   const handleUpdate = async (id: string, updates: Partial<QuestionRow>) => {
@@ -133,7 +155,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
         </Card>
       ) : (
         <>
-          {view !== "submitted" && <QuestionsFilters filters={filters} onChange={setFilters} />}
+          {view !== "submitted" && <QuestionsFilters filters={filters} onChange={setFilters} counts={filterCounts} />}
 
           {isLoading ? (
             <div className="space-y-3">
