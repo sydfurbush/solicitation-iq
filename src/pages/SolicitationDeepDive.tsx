@@ -5,15 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
-import { useRequirementItems, useExtractRequirements, useUpdateRequirement } from "@/features/deepdive/hooks/useRequirementItems";
+import { useRequirementItems } from "@/features/deepdive/hooks/useRequirementItems";
 import { useSectionAnalyses, useAnalyzeSections } from "@/features/deepdive/hooks/useSectionAnalyses";
 import { useCapabilityGaps, useAnalyzeGaps, useUpdateGap } from "@/features/deepdive/hooks/useCapabilityGaps";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
+import { RTMTable } from "@/features/deepdive/components/RTMTable";
 
 const SEV_COLOR: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive border-destructive/30",
