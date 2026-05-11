@@ -920,11 +920,14 @@ export type Database = {
         Row: {
           completed_at: string | null
           completed_batches: number
+          cross_doc_failed: boolean
           current_step: string | null
           error_message: string | null
           failed_batches: number
+          failed_doc_ids: string[]
           id: string
           inserted_count: number
+          parent_run_id: string | null
           solicitation_id: string
           started_at: string
           status: string
@@ -934,11 +937,14 @@ export type Database = {
         Insert: {
           completed_at?: string | null
           completed_batches?: number
+          cross_doc_failed?: boolean
           current_step?: string | null
           error_message?: string | null
           failed_batches?: number
+          failed_doc_ids?: string[]
           id?: string
           inserted_count?: number
+          parent_run_id?: string | null
           solicitation_id: string
           started_at?: string
           status?: string
@@ -948,18 +954,29 @@ export type Database = {
         Update: {
           completed_at?: string | null
           completed_batches?: number
+          cross_doc_failed?: boolean
           current_step?: string | null
           error_message?: string | null
           failed_batches?: number
+          failed_doc_ids?: string[]
           id?: string
           inserted_count?: number
+          parent_run_id?: string | null
           solicitation_id?: string
           started_at?: string
           status?: string
           total_batches?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "question_generation_runs_parent_run_id_fkey"
+            columns: ["parent_run_id"]
+            isOneToOne: false
+            referencedRelation: "question_generation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       risks: {
         Row: {
