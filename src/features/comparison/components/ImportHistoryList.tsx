@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, XCircle, Ban, History } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+
 import { cn } from "@/lib/utils";
 import { usePriorImportHistory, type PriorImportHistoryRow } from "../hooks/usePriorImportHistory";
 
