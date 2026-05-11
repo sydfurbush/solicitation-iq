@@ -56,7 +56,15 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
       focusDocumentIds?: string[];
       regenerate?: boolean;
       retryRunId?: string;
-      onProgress?: (p: { completed: number; total: number; inserted: number; step: string | null }) => void;
+      onProgress?: (p: {
+        runId: string;
+        status: string;
+        completed: number;
+        total: number;
+        failed: number;
+        inserted: number;
+        step: string | null;
+      }) => void;
     }) => {
       if (!solicitationId) throw new Error("Missing solicitationId");
 
