@@ -100,48 +100,155 @@ function ChipsInput({
   );
 }
 
+function buildCleaned(draft: Capabilities): Capabilities {
+  const cleaned: Capabilities = {};
+  if (draft.core_capabilities?.trim()) cleaned.core_capabilities = draft.core_capabilities.trim();
+  if (draft.naics_codes?.length) cleaned.naics_codes = draft.naics_codes;
+  if (draft.certifications?.length) cleaned.certifications = draft.certifications;
+  if (draft.differentiators?.trim()) cleaned.differentiators = draft.differentiators.trim();
+  if (draft.past_performance?.trim()) cleaned.past_performance = draft.past_performance.trim();
+  if (draft.key_personnel?.trim()) cleaned.key_personnel = draft.key_personnel.trim();
+  if (draft.teaming_partners?.trim()) cleaned.teaming_partners = draft.teaming_partners.trim();
+  if (draft.notes?.trim()) cleaned.notes = draft.notes.trim();
+  return cleaned;
+}
+
+type SaveStatus = "idle" | "unsaved" | "saving" | "saved" | "error";
+
+function relTime(d: Date | null): string {
+  if (!d) return "";
+  const s = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (s < 5) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min${m === 1 ? "" : "s"} ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return d.toLocaleString();
+}
+
+function SaveIndicator({ status, savedAt, error }: { status: SaveStatus; savedAt: Date | null; error?: string | null }) {
+  // Refresh the relative timestamp every 30s
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (!savedAt) return;
+    const i = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(i);
+  }, [savedAt]);
+
+  if (status === "saving") {
+    return (
+      <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+        <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <span className="text-xs text-destructive inline-flex items-center gap-1.5" title={error ?? undefined}>
+        <CloudOff className="h-3 w-3" /> Save failed — retrying on next change
+      </span>
+    );
+  }
+  if (status === "unsaved") {
+    return <span className="text-xs text-amber-600 inline-flex items-center gap-1.5">● Unsaved changes</span>;
+  }
+  if (savedAt) {
+    return (
+      <span className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+        <Check className="h-3 w-3 text-emerald-600" /> Saved {relTime(savedAt)}
+      </span>
+    );
+  }
+  return null;
+}
+
 export function CapabilitiesEditor({ client }: { client: ClientRow }) {
   const initial = useMemo(() => parseCapabilities(client.metadata), [client.metadata]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Capabilities>(initial);
   const updateMut = useUpdateClient();
 
+  const [status, setStatus] = useState<SaveStatus>("idle");
+  const [savedAt, setSavedAt] = useState<Date | null>(client.updated_at ? new Date(client.updated_at) : null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const lastSavedJsonRef = useRef<string>(JSON.stringify(buildCleaned(initial)));
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     setDraft(initial);
+    lastSavedJsonRef.current = JSON.stringify(buildCleaned(initial));
   }, [initial]);
 
   const set = <K extends keyof Capabilities>(k: K, v: Capabilities[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
 
-  const handleSave = async () => {
-    const cleaned: Capabilities = {};
-    if (draft.core_capabilities?.trim()) cleaned.core_capabilities = draft.core_capabilities.trim();
-    if (draft.naics_codes?.length) cleaned.naics_codes = draft.naics_codes;
-    if (draft.certifications?.length) cleaned.certifications = draft.certifications;
-    if (draft.differentiators?.trim()) cleaned.differentiators = draft.differentiators.trim();
-    if (draft.past_performance?.trim()) cleaned.past_performance = draft.past_performance.trim();
-    if (draft.key_personnel?.trim()) cleaned.key_personnel = draft.key_personnel.trim();
-    if (draft.teaming_partners?.trim()) cleaned.teaming_partners = draft.teaming_partners.trim();
-    if (draft.notes?.trim()) cleaned.notes = draft.notes.trim();
-
+  const persist = async (cleaned: Capabilities) => {
     const existingMeta = (client.metadata as Record<string, unknown> | null) ?? {};
     const nextMeta = { ...existingMeta, capabilities: cleaned };
-
+    setStatus("saving");
     try {
       await updateMut.mutateAsync({
         id: client.id,
-        // metadata is allowed via Partial update through the client hook
         input: { metadata: nextMeta } as never,
       });
-      toast({ title: "Capabilities saved" });
-      setEditing(false);
+      lastSavedJsonRef.current = JSON.stringify(cleaned);
+      setSavedAt(new Date());
+      setErrorMsg(null);
+      setStatus("saved");
     } catch (e) {
-      toast({
-        title: "Failed to save",
-        description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
-      });
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+      setStatus("error");
+      throw e;
     }
+  };
+
+  // Debounced autosave while editing
+  useEffect(() => {
+    if (!editing) return;
+    const cleaned = buildCleaned(draft);
+    const json = JSON.stringify(cleaned);
+    if (json === lastSavedJsonRef.current) return;
+    setStatus("unsaved");
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      persist(cleaned).catch(() => {});
+    }, 1200);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft, editing]);
+
+  // Flush pending save when leaving edit mode
+  const handleDone = async () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    const cleaned = buildCleaned(draft);
+    if (JSON.stringify(cleaned) !== lastSavedJsonRef.current) {
+      try {
+        await persist(cleaned);
+        toast({ title: "Capabilities saved" });
+      } catch {
+        toast({ title: "Failed to save", description: errorMsg ?? "Try again", variant: "destructive" });
+        return;
+      }
+    }
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    setDraft(initial);
+    lastSavedJsonRef.current = JSON.stringify(buildCleaned(initial));
+    setStatus("idle");
+    setEditing(false);
   };
 
   const isEmpty =
@@ -163,27 +270,23 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
             Used by Deep Dive gap analysis to compare requirements against what this client can deliver.
           </p>
         </div>
-        {!editing ? (
-          <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
-            <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-          </Button>
-        ) : (
-          <div className="flex gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setDraft(initial);
-                setEditing(false);
-              }}
-            >
-              <X className="h-3.5 w-3.5" />
+        <div className="flex items-center gap-3">
+          {editing && <SaveIndicator status={status} savedAt={savedAt} error={errorMsg} />}
+          {!editing ? (
+            <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
             </Button>
-            <Button size="sm" onClick={handleSave} disabled={updateMut.isPending}>
-              <Save className="h-3.5 w-3.5 mr-1" /> Save
-            </Button>
-          </div>
-        )}
+          ) : (
+            <div className="flex gap-1">
+              <Button size="sm" variant="ghost" onClick={handleCancel} disabled={status === "saving"}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="sm" onClick={handleDone} disabled={status === "saving"}>
+                <Save className="h-3.5 w-3.5 mr-1" /> Done
+              </Button>
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         {editing ? (
