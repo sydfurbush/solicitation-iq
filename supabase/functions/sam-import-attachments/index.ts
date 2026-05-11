@@ -99,9 +99,9 @@ Deno.serve(async (req) => {
     });
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Resolve caller and load their personal SAM.gov key
+    // Resolve caller and load their personal SAM.gov key (use admin to validate token)
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const { data: userData } = await userClient.auth.getUser();
+    const { data: userData } = await admin.auth.getUser(token);
     const userId = userData?.user?.id;
     if (!userId) {
       return new Response(
@@ -122,7 +122,6 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    void token;
 
     const body = await req.json().catch(() => null) as
       | { solicitationId?: string; attachments?: { href: string; fileName?: string }[] }
