@@ -129,30 +129,54 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Rec
 async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Record<string, unknown>> {
   if (!LOVABLE_KEY) throw new AiHttpError(500, "LOVABLE_API_KEY not configured");
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: choice.model,
-      max_tokens: choice.maxTokens ?? 4096,
-      messages: [
-        { role: "system", content: args.system },
-        { role: "user", content: args.user },
-      ],
-      tools: [{ type: "function", function: args.tool }],
-      tool_choice: { type: "function", function: { name: args.tool.name } },
-    }),
+  const body = JSON.stringify({
+    model: choice.model,
+    max_tokens: choice.maxTokens ?? 4096,
+    messages: [
+      { role: "system", content: args.system },
+      { role: "user", content: args.user },
+    ],
+    tools: [{ type: "function", function: args.tool }],
+    tool_choice: { type: "function", function: { name: args.tool.name } },
   });
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("[aiClient] lovable error", res.status, text);
-    if (res.status === 429) throw new AiHttpError(429, "Rate limit exceeded. Try again later.");
-    if (res.status === 402) throw new AiHttpError(402, "AI credits exhausted. Add credits in Lovable settings.");
-    throw new AiHttpError(res.status, `AI request failed: ${text}`);
+  // Retry on transient upstream issues (503/504) and connection resets.
+  const MAX_ATTEMPTS = 3;
+  let res: Response | null = null;
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
+        body,
+      });
+      if (res.ok) break;
+      if (res.status === 429) throw new AiHttpError(429, "Rate limit exceeded. Try again later.");
+      if (res.status === 402) throw new AiHttpError(402, "AI credits exhausted. Add credits in Lovable settings.");
+      if ((res.status === 503 || res.status === 504 || res.status === 502) && attempt < MAX_ATTEMPTS) {
+        const wait = attempt * 2500;
+        console.warn(`[aiClient] lovable ${res.status}, retrying in ${wait}ms (attempt ${attempt}/${MAX_ATTEMPTS - 1})`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      const text = await res.text();
+      console.error("[aiClient] lovable error", res.status, text);
+      throw new AiHttpError(res.status, `AI request failed: ${text}`);
+    } catch (e) {
+      if (e instanceof AiHttpError) throw e;
+      lastErr = e;
+      if (attempt < MAX_ATTEMPTS) {
+        const wait = attempt * 2500;
+        console.warn(`[aiClient] lovable fetch error, retrying in ${wait}ms:`, e);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      throw e;
+    }
+  }
+  if (!res || !res.ok) {
+    throw lastErr ?? new AiHttpError(503, "AI request failed after retries");
   }
 
   const json = await res.json();
