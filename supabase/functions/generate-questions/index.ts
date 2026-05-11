@@ -275,6 +275,37 @@ Deno.serve(async (req) => {
     }
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Reap any orphaned "running" rows for this solicitation (worker died mid-run, no terminal status was written).
+    // Threshold: 8 minutes without an updated_at bump.
+    try {
+      const cutoff = new Date(Date.now() - 8 * 60 * 1000).toISOString();
+      const { data: stale } = await supabase
+        .from("question_generation_runs")
+        .select("id, current_step")
+        .eq("solicitation_id", solicitationId)
+        .eq("status", "running")
+        .lt("updated_at", cutoff);
+      for (const row of stale ?? []) {
+        const wasCrossDoc = (row.current_step ?? "").toLowerCase().includes("cross-document");
+        await supabase
+          .from("question_generation_runs")
+          .update({
+            status: "failed",
+            cross_doc_failed: wasCrossDoc ? true : undefined,
+            failed_batches: 1,
+            error_message: "Run timed out (worker terminated). Retry to resume.",
+            current_step: null,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.id)
+          .eq("status", "running");
+        console.warn(`[generate-questions] reaped stalled run=${row.id} (cross_doc=${wasCrossDoc})`);
+      }
+    } catch (e) {
+      console.warn("[generate-questions] reaper failed (non-fatal)", e);
+    }
+
     // Retry mode: load prior run and restrict scope to its failed batches.
     let retryDocIds: string[] | null = null;
     let retryCrossDoc = false;
