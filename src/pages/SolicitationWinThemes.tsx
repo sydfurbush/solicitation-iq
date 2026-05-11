@@ -56,10 +56,13 @@ export default function SolicitationWinThemes({ solicitationId, currentPhase }: 
             <CardTitle className="text-base">Win themes</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">{themes.length} themes · {themes.filter((t) => t.status === "approved").length} approved</p>
           </div>
-          <Button onClick={run} disabled={gen.isPending}>
-            {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-            Generate suggestions
-          </Button>
+          <div className="flex gap-2">
+            <ExportMenu build={buildExport} disabled={themes.length === 0} label="Export themes" />
+            <Button onClick={run} disabled={gen.isPending}>
+              {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Generate suggestions
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
