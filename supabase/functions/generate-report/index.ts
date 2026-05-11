@@ -136,7 +136,7 @@ const SCHEMA = {
   },
 };
 
-async function gatherContext(supabase: ReturnType<typeof createClient>, solicitationId: string) {
+async function gatherContext(supabase: ReturnType<typeof createClient>, solicitationId: string, reportType: ReportType) {
   const { data: sol } = await supabase
     .from("solicitations")
     .select("*, client:clients(name, organization_id)")
@@ -149,12 +149,14 @@ async function gatherContext(supabase: ReturnType<typeof createClient>, solicita
     .eq("solicitation_id", solicitationId)
     .is("deleted_at", null);
 
-  const { data: questions } = await supabase
+  const isQBrief = reportType === "questions_brief";
+  let qQuery = supabase
     .from("strategic_questions")
-    .select("category, recommendation, priority, question_text, question_rationale, source_citation, source_quote")
+    .select("category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, is_submitted, agency_response")
     .eq("solicitation_id", solicitationId)
-    .order("priority", { ascending: false })
-    .limit(40);
+    .order("priority", { ascending: false });
+  if (!isQBrief) qQuery = qQuery.limit(40);
+  const { data: questions } = await qQuery;
 
   const { data: risks } = await supabase
     .from("risks")
