@@ -41,6 +41,8 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   } | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [notFound, setNotFound] = useState<SamNotFoundDetails | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const uploadPrior = useUploadPriorDocuments(solicitationId);
   const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const handleCancelImport = () => {
