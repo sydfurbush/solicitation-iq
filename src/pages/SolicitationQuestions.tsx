@@ -12,7 +12,7 @@ import { GenerateQuestionsDialog } from "@/features/questions/components/Generat
 import { QuestionRunsHistorySheet } from "@/features/questions/components/QuestionRunsHistorySheet";
 import { QuestionDetailPanel } from "@/features/questions/components/QuestionDetailPanel";
 import { QuestionExport } from "@/features/questions/components/QuestionExport";
-import { QuestionsFilters } from "@/features/questions/components/QuestionsFilters";
+import { QuestionsFilters, type FilterCounts } from "@/features/questions/components/QuestionsFilters";
 import { QuestionsList } from "@/features/questions/components/QuestionsList";
 import { QuestionsMatrix } from "@/features/questions/components/QuestionsMatrix";
 import { SubmittedQuestionsTracker } from "@/features/questions/components/SubmittedQuestionsTracker";
