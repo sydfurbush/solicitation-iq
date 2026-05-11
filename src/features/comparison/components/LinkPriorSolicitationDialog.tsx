@@ -41,8 +41,16 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
   const compare = useRunComparison(solicitationId);
   const importFromSam = useImportPriorFromSam(solicitationId);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const busy = link.isPending || importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
+  const importing = importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
+
+  const handleCancelImport = () => {
+    abortRef.current?.abort();
+    setProgress({ stage: "error", message: "Cancelled by user." });
+    toast({ title: "Import cancelled" });
+  };
 
   const handleLink = async () => {
     try {
