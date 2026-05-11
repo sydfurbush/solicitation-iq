@@ -59,6 +59,8 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   };
 
   const handleImportFromSam = async () => {
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const result = await importFromSam.mutateAsync({
         url: priorRecord.external_url,
@@ -66,6 +68,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         externalReference: priorRecord.external_reference,
         onProgress: setProgress,
       });
+      if (controller.signal.aborted) throw new ImportCancelledError();
       // Drop the legacy external-only link so the new fully-linked record is canonical
       try { await unlink.mutateAsync(priorRecord.id); } catch { /* ignore */ }
 
@@ -80,6 +83,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
           totalDocs: result.imported,
         });
         await waitForDocumentsParsed(result.priorSolicitationId, {
+          signal: controller.signal,
           onProgress: ({ parsed, total }) =>
             setProgress((p) => p && {
               ...p,
@@ -91,6 +95,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         });
       }
 
+      if (controller.signal.aborted) throw new ImportCancelledError();
       setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
       await new Promise<void>((resolve, reject) =>
         compare.mutate(
@@ -109,8 +114,14 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       });
       toast({ title: "Comparison updated" });
     } catch (e) {
-      setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
-      toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      if (e instanceof ImportCancelledError || controller.signal.aborted) {
+        setProgress({ stage: "error", message: "Cancelled by user." });
+      } else {
+        setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
+        toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      }
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
   const importing =
