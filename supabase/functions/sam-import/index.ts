@@ -14,11 +14,8 @@ async function getCallerSamKey(req: Request): Promise<{ key?: string; error?: Re
   }
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-  const { data: userData } = await userClient.auth.getUser();
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const { data: userData } = await admin.auth.getUser(token);
   const userId = userData?.user?.id;
   if (!userId) {
     return {
