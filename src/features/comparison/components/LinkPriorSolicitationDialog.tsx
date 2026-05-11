@@ -289,9 +289,10 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
           <DialogDescription>Compare this solicitation to a previous version.</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "external")}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "upload" | "external")}>
           <TabsList>
             <TabsTrigger value="existing">From this client</TabsTrigger>
+            <TabsTrigger value="upload">Upload documents</TabsTrigger>
             <TabsTrigger value="external">External reference</TabsTrigger>
           </TabsList>
 
