@@ -98,6 +98,82 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
         return;
       }
 
+      if (tab === "upload") {
+        const v = uploadForm.getValues();
+        const title = v.title?.trim();
+        if (!title) {
+          toast({ title: "Enter a title for the prior solicitation", variant: "destructive" });
+          return;
+        }
+        if (uploadFiles.length === 0) {
+          toast({ title: "Add at least one document", variant: "destructive" });
+          return;
+        }
+        const controller = new AbortController();
+        abortRef.current = controller;
+        try {
+          const result = await uploadPrior.mutateAsync({
+            title,
+            externalReference: v.external_reference || null,
+            notes: v.notes || null,
+            files: uploadFiles,
+            onProgress: setProgress,
+          });
+          if (controller.signal.aborted) throw new ImportCancelledError();
+          onLinked?.();
+
+          if (result.uploaded > 0) {
+            setProgress({
+              stage: "parsing",
+              message: `Parsing ${result.uploaded} document(s)…`,
+              found: result.uploaded,
+              imported: result.uploaded,
+              failed: result.failed,
+              parsed: 0,
+              totalDocs: result.uploaded,
+            });
+            await waitForDocumentsParsed(result.priorSolicitationId, {
+              signal: controller.signal,
+              onProgress: ({ parsed, total }) =>
+                setProgress((p) => p && {
+                  ...p,
+                  stage: "parsing",
+                  message: `Parsing documents (${parsed}/${total})…`,
+                  parsed,
+                  totalDocs: total,
+                }),
+            });
+          }
+
+          if (controller.signal.aborted) throw new ImportCancelledError();
+          setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
+          await new Promise<void>((resolve, reject) =>
+            compare.mutate(
+              { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+              { onSuccess: () => resolve(), onError: (e) => reject(e) },
+            ),
+          );
+          setProgress((p) => p && {
+            ...p,
+            stage: "done",
+            message: `Done — ${result.uploaded} document(s) uploaded, comparison updated.`,
+          });
+          toast({ title: "Comparison updated" });
+          setUploadFiles([]);
+          uploadForm.reset();
+          setTimeout(() => setOpen(false), 1200);
+        } catch (e) {
+          if (e instanceof ImportCancelledError || controller.signal.aborted) {
+            setProgress({ stage: "error", message: "Cancelled by user." });
+            return;
+          }
+          throw e;
+        } finally {
+          if (abortRef.current === controller) abortRef.current = null;
+        }
+        return;
+      }
+
       // External tab — try to import from SAM so comparison has real content
       const v = externalForm.getValues();
       const ref = v.external_reference?.trim();
