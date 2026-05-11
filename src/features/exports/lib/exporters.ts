@@ -21,6 +21,16 @@ export interface ExportOptions {
   pageSize?: ExportPageSize;
   /** Override the filename base (without extension) */
   filenameBase?: string;
+  /** User-supplied version string (rendered on the cover page) */
+  version?: string;
+  /** Suppress the cover page (defaults to false). */
+  noCover?: boolean;
+}
+
+export interface ExportCover {
+  clientName?: string;
+  solicitationTitle?: string;
+  phase?: string;
 }
 
 export interface ExportSection {
@@ -40,12 +50,37 @@ export interface ExportDocument {
   subtitle?: string;
   sections: ExportSection[];
   filenameBase: string;
+  /** Optional metadata used for the cover page */
+  cover?: ExportCover;
 }
 
 const sanitize = (s: string) => s.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 80);
 
 function fmtDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function fmtDateTime() {
+  return new Date().toLocaleString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+const PHASE_LABELS: Record<string, string> = {
+  phase_1_initial: "Phase 1 — Initial",
+  phase_2_outline: "Phase 2 — Outline",
+  phase_3_deep_dive: "Phase 3 — Deep Dive",
+  phase_4_win_themes: "Phase 4 — Win Themes",
+  phase_5_complete: "Phase 5 — Complete",
+};
+
+function phaseLabel(p?: string) {
+  if (!p) return undefined;
+  return PHASE_LABELS[p] ?? p.replace(/_/g, " ");
 }
 
 /* -------------------- PDF -------------------- */
