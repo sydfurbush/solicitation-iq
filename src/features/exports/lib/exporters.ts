@@ -12,6 +12,7 @@ import {
   TableCell,
   WidthType,
   AlignmentType,
+  PageBreak,
 } from "docx";
 
 export type ExportFormat = "pdf" | "docx";
