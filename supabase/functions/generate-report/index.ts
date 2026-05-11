@@ -294,6 +294,40 @@ ${JSON.stringify(options ?? {})}`;
       return blocks ? { ...s, blocks } : s;
     });
 
+    // Backfill citations from context if AI returned none
+    let citations = Array.isArray(parsed.citations) ? parsed.citations : [];
+    if (includeCitations && citations.length === 0) {
+      const sourced: Array<{ source_citation?: string | null; source_quote?: string | null }> = [
+        ...(ctx.risks ?? []),
+        ...(ctx.opportunities ?? []),
+        ...(ctx.questions ?? []),
+      ];
+      const seen = new Set<string>();
+      const synth: any[] = [];
+      for (const row of sourced) {
+        const cite = (row.source_citation ?? "").trim();
+        if (!cite || seen.has(cite)) continue;
+        seen.add(cite);
+        const pageMatch = cite.match(/p(?:age|\.)?\s*(\d+)/i);
+        const sectionMatch = cite.match(/§\s*([\w.\-]+)|section\s+([\w.\-]+)/i);
+        synth.push({
+          id: `C${synth.length + 1}`,
+          document: cite.split(/[§,;]/)[0].trim() || cite,
+          section: sectionMatch ? (sectionMatch[1] || sectionMatch[2]) : undefined,
+          page: pageMatch ? Number(pageMatch[1]) : undefined,
+          quote: row.source_quote ?? undefined,
+        });
+        if (synth.length >= 8) break;
+      }
+      if (synth.length === 0 && (ctx.documents ?? []).length) {
+        for (const d of (ctx.documents ?? []).slice(0, 5)) {
+          synth.push({ id: `C${synth.length + 1}`, document: d.file_name });
+        }
+      }
+      citations = synth;
+    }
+    if (!includeCitations) citations = [];
+
     const content = {
       title: parsed.title ?? `${reportType.replace(/_/g, " ")} – ${sol.title}`,
       subtitle: parsed.subtitle ?? sol.solicitation_number ?? null,
@@ -305,7 +339,7 @@ ${JSON.stringify(options ?? {})}`;
         contract_type: sol.contract_type,
       },
       sections: normalizeSections(parsed.sections),
-      citations: parsed.citations ?? [],
+      citations,
       options: options ?? {},
       branding: options?.branding ?? null,
     };
