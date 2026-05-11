@@ -113,6 +113,20 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
             <Checkbox checked={regenerate} onCheckedChange={(c) => setRegenerate(c === true)} />
             Replace existing AI-generated questions
           </label>
+
+          {generate.isPending && progress && (
+            <Alert>
+              <AlertDescription className="text-sm space-y-1">
+                <div className="font-medium">
+                  {progress.total > 0
+                    ? `Batch ${progress.completed} of ${progress.total} complete`
+                    : "Starting…"}
+                  {progress.inserted > 0 ? ` · ${progress.inserted} questions added` : ""}
+                </div>
+                {progress.step && <div className="text-muted-foreground">{progress.step}</div>}
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <DialogFooter>
