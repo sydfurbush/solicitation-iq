@@ -127,5 +127,3 @@ function Stat({ label, value, positive, negative }: { label: string; value: numb
     </div>
   );
 }
-// Button is intentionally unused-imported above; remove next line if linter complains.
-void Button;
