@@ -382,7 +382,10 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
                 label="NAICS codes"
                 values={draft.naics_codes ?? []}
                 onChange={(v) => set("naics_codes", v)}
-                placeholder="541512"
+                placeholder="541512, 541511 541519"
+                transform={transformNaics}
+                validate={validateNaics}
+                helperText="6-digit codes. Separate with comma, space, or Enter; paste a list and we'll split it."
               />
               <ChipsInput
                 label="Certifications & set-asides"
