@@ -33,6 +33,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     failedAttachments: FailedAttachment[];
   } | null>(null);
   const [retrying, setRetrying] = useState(false);
+  const [notFound, setNotFound] = useState<SamNotFoundDetails | null>(null);
   const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const handleCancelImport = () => {
