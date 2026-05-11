@@ -868,11 +868,13 @@ export type Database = {
           completed_at: string | null
           created_at: string
           error_message: string | null
+          error_response: Json | null
           failed_attachments: Json
           failed_count: number
           found_count: number
           id: string
           imported_count: number
+          lookup_params: Json
           performed_by: string | null
           prior_link_id: string
           prior_solicitation_id: string | null
@@ -885,11 +887,13 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
+          error_response?: Json | null
           failed_attachments?: Json
           failed_count?: number
           found_count?: number
           id?: string
           imported_count?: number
+          lookup_params?: Json
           performed_by?: string | null
           prior_link_id: string
           prior_solicitation_id?: string | null
@@ -902,11 +906,13 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
+          error_response?: Json | null
           failed_attachments?: Json
           failed_count?: number
           found_count?: number
           id?: string
           imported_count?: number
+          lookup_params?: Json
           performed_by?: string | null
           prior_link_id?: string
           prior_solicitation_id?: string | null
