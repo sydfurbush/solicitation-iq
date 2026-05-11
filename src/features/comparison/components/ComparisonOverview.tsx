@@ -331,7 +331,13 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
                     </Button>
                   )}
                 </div>
-                {progress && <ImportProgressPanel progress={progress} />}
+                {progress && !notFound && <ImportProgressPanel progress={progress} />}
+                {notFound && (
+                  <SamNotFoundAlert
+                    {...notFound}
+                    onDismiss={() => setNotFound(null)}
+                  />
+                )}
               </div>
             </AlertDescription>
           </Alert>
