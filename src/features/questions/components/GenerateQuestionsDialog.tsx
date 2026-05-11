@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,7 +13,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
-import { useGenerateQuestions } from "../hooks/useStrategicQuestions";
+import { useGenerateQuestions, useLatestQuestionRun } from "../hooks/useStrategicQuestions";
 
 const FOCUS_OPTIONS = ["Technical", "Management", "Pricing", "Compliance", "Staffing"];
 
