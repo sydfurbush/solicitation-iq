@@ -99,41 +99,51 @@ Deno.serve(async (req) => {
       );
     }
 
-    // SAM.gov caps postedFrom/postedTo to a 1-year window. Use ~364 days.
-    const today = new Date();
-    const past = new Date(today.getTime() - 364 * 24 * 60 * 60 * 1000);
+    // SAM.gov caps postedFrom/postedTo to a 1-year window.
+    // Notices for prior solicitations are often older, so sweep back year-by-year.
     const fmt = (d: Date) =>
       `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
 
-    const apiUrl = new URL("https://api.sam.gov/opportunities/v2/search");
-    apiUrl.searchParams.set("api_key", apiKey);
-    if (noticeId) {
-      apiUrl.searchParams.set("noticeid", noticeId);
-    } else if (solicitationNumber) {
-      apiUrl.searchParams.set("solnum", solicitationNumber);
+    const MAX_YEARS_BACK = 6;
+    const WINDOW_DAYS = 364;
+    let notice: SamNotice | undefined;
+    let lastErrorText = "";
+    let lastStatus = 0;
+
+    for (let i = 0; i < MAX_YEARS_BACK; i++) {
+      const to = new Date(Date.now() - i * WINDOW_DAYS * 24 * 60 * 60 * 1000);
+      const from = new Date(to.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+      const apiUrl = new URL("https://api.sam.gov/opportunities/v2/search");
+      apiUrl.searchParams.set("api_key", apiKey);
+      if (noticeId) apiUrl.searchParams.set("noticeid", noticeId);
+      else if (solicitationNumber) apiUrl.searchParams.set("solnum", solicitationNumber);
+      apiUrl.searchParams.set("postedFrom", fmt(from));
+      apiUrl.searchParams.set("postedTo", fmt(to));
+      apiUrl.searchParams.set("limit", "1");
+
+      const res = await fetch(apiUrl.toString(), { headers: { Accept: "application/json" } });
+      if (!res.ok) {
+        lastStatus = res.status;
+        lastErrorText = await res.text();
+        console.error("SAM.gov API error", res.status, lastErrorText.slice(0, 300));
+        // Don't keep hammering on auth/quota errors
+        if (res.status === 401 || res.status === 403 || res.status === 429) break;
+        continue;
+      }
+      const json = (await res.json()) as { opportunitiesData?: SamNotice[] };
+      if (json.opportunitiesData && json.opportunitiesData.length > 0) {
+        notice = json.opportunitiesData[0];
+        break;
+      }
     }
-    apiUrl.searchParams.set("postedFrom", fmt(past));
-    apiUrl.searchParams.set("postedTo", fmt(today));
-    apiUrl.searchParams.set("limit", "1");
 
-    const res = await fetch(apiUrl.toString(), {
-      headers: { Accept: "application/json" },
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("SAM.gov API error", res.status, text);
+    if (!notice && lastStatus && (lastStatus === 401 || lastStatus === 403 || lastStatus === 429)) {
       return new Response(
-        JSON.stringify({
-          error: `SAM.gov API returned ${res.status}`,
-          detail: text.slice(0, 500),
-        }),
+        JSON.stringify({ error: `SAM.gov API returned ${lastStatus}`, detail: lastErrorText.slice(0, 500) }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-
-    const json = (await res.json()) as { opportunitiesData?: SamNotice[]; totalRecords?: number };
-    const notice = json.opportunitiesData?.[0];
 
     if (!notice) {
       return new Response(
