@@ -1,49 +1,64 @@
-# Fix: All 127 strategic questions missing from questions_brief report
 
-## Root cause
+# Phases 2-4 build plan
 
-`supabase/functions/generate-report/index.ts`:
+Today the 4-step indicator (Initial → Deep Dive → Outline → Win Themes) is just a label. `solicitations.current_phase` and the `solicitation_phases` table exist, but no UI or AI is wired to phases 2-4. This plan adds them.
 
-1. `gatherContext()` calls `.limit(40)` on `strategic_questions`, so the AI only ever receives 40 of the 127 questions.
-2. Even if all 127 were passed in, the AI is asked to author Q&A prose for `questions_brief`. Output-token limits and model summarization mean items get dropped — the report should not depend on the model to faithfully echo 127 rows.
+## Phase 1 — Initial (already built, no change)
+Documents, AI summary, requirements, evaluation factors, questions, risks/opportunities.
 
-## Changes (edge function only)
+## Phase 2 — Deep Dive (new)
+Three sub-tabs on a new `/solicitations/:id?tab=deep-dive` page.
 
-### 1. Lift the questions cap, conditionally
+**a. Requirements Traceability Matrix (RTM)**
+- New table `requirement_items`: `id, solicitation_id, req_number, shall_text, source_section (L/M/C/PWS), source_document_id, page_number, source_quote, compliance_owner, proposal_volume, proposal_section, status (open/in_review/covered/waived), notes, is_ai_generated, created_at, updated_at`.
+- New edge function `extract-requirements`: pulls every "shall/must/will" statement from `document_sections`, numbers them, returns structured rows with citations. Uses Lovable AI Gateway (`google/gemini-2.5-pro`).
+- UI: sortable/filterable table, inline edit of owner + proposal mapping, CSV export.
 
-In `gatherContext`, accept a `reportType` and:
-- For `questions_brief`: fetch **all** questions for the solicitation (no `.limit`), with the columns needed to render each row (`category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, is_submitted, agency_response`).
-- For other report types: keep the existing `.limit(40)` (those reports only need a representative sample).
+**b. Section-by-section analysis**
+- New table `section_analyses`: `id, solicitation_id, section_code (L/M/C/etc.), summary, requirements_count, scoring_weight, risk_flags jsonb, source_citations jsonb, updated_at`.
+- New edge function `analyze-sections`: walks Section L (instructions), Section M (evaluation factors + weights), Section C/PWS (scope), produces structured breakdown.
+- UI: accordion per section with summary, weights, flagged risks linking to the existing risks list.
 
-### 2. Deterministically build the `questions_brief` report from the DB
+**c. Gap & capability analysis**
+- New table `capability_gaps`: `id, solicitation_id, requirement_id (→requirement_items), gap_type (capability/past_performance/certification/teaming), severity, description, recommendation (build/buy/team/no_bid), client_note, updated_at`.
+- New edge function `analyze-gaps`: cross-references RTM against `clients.metadata.capabilities` (new field), flags gaps, suggests teaming.
+- UI: list grouped by gap_type with severity badges and a "no-bid trigger" banner if any critical gap is unresolved.
 
-For `reportType === "questions_brief"`, **skip the AI authoring of question content** and build `sections[]` directly in the edge function:
+## Phase 3 — Outline (new)
+- New table `proposal_outlines`: `id, solicitation_id, version, title, generated_at, generated_by, metadata jsonb`.
+- New table `outline_nodes`: `id, outline_id, parent_id, sort_order, volume, section_number, title, page_allocation, assigned_to (uuid), source_l_reference, linked_requirement_ids uuid[], notes`.
+- New edge function `generate-outline`: takes Section L instructions + RTM, produces Volume → Section → Subsection tree with page allocations. Uses Lovable AI.
+- UI: `/solicitations/:id?tab=outline` with collapsible tree, drag-reorder (dnd-kit), inline edit, "Regenerate" and "Export to Word" buttons (reuses `wordGenerator.ts`).
 
-- Group all questions by `recommendation`:
-  - `ask` → "Submitted Questions"
-  - `hold` → "Strategic Hold Questions"
-  - `monitor` / `internal` / other → "Internal Discussion Items"
-- Within each group, sort by `priority` desc, then `category`.
-- Render each section as a single `bullets` block where each item is a one-line string:
-  `Q{n}. [{category}] {question_text}` and, when present, append `\n   Rationale: {question_rationale}` and `\n   Source: {source_citation}`.
-  - Bullets renderer in `pdfGenerator.ts` / `wordGenerator.ts` already supports plain strings.
-- Add a small intro `paragraph` block per section with the count (e.g., "84 questions recommended for submission.").
-- Title/subtitle: keep the existing default title behavior (`Strategic Questions Brief – {sol.title}`, subtitle = solicitation number).
+## Phase 4 — Win Themes (new)
+- New table `win_themes`: `id, solicitation_id, title, theme_statement, discriminators text[], ghosting_points text[], proof_points text[], linked_outline_node_ids uuid[], linked_requirement_ids uuid[], status (draft/approved/rejected), is_ai_generated, created_by, updated_at`.
+- New edge function `generate-win-themes`: input = RTM + Section M evaluation factors + client capabilities + incumbent intel; output = 5-8 candidate themes with discriminators, ghosting points, proof points, citations.
+- UI: `/solicitations/:id?tab=win-themes` — card grid, "Generate suggestions" button (AI), inline edit, link-to-outline-section picker, approve/reject toggle.
 
-The AI call is **not used** for this report type. This guarantees all 127 questions appear, in stable order, with no truncation.
+## Phase progression (manual)
+- Repurpose the existing `solicitation_phases` table to track per-phase state.
+- Each phase page shows a footer with **"Mark phase complete & advance to [next]"** button → updates `solicitations.current_phase` and inserts/updates the `solicitation_phases` row (sets `completed_at`, `completed_by`).
+- `PhaseIndicator` is already click-aware — wire `onPhaseClick` to navigate between tab routes; future phases stay clickable but show an "Advance previous phase first" empty state.
 
-### 3. Citations
+## UI changes
+- `SolicitationDetail.tsx`: add 3 tabs (Deep Dive, Outline, Win Themes) alongside existing tabs; each tab renders a new page component.
+- `PhaseIndicator`: pass `onPhaseClick` so users can jump between phase tabs.
+- New components: `DeepDiveTab`, `RTMTable`, `SectionAnalysisAccordion`, `GapsList`, `OutlineTree`, `WinThemesGrid`, `AdvancePhaseButton`.
 
-- If `options.includeCitations !== false`, build `citations[]` from each question's `source_citation` (deduped, capped at 20 entries, IDs `C1..Cn`). Same shape as today's backfill path.
-- If false, `citations = []`.
+## Reports
+Extend `generate-report` with three new report types: `deep_dive_brief`, `proposal_outline`, `win_themes_brief` — deterministic builders (same pattern we used for `questions_brief`) so nothing gets dropped.
 
-### 4. Out of scope
+## Out of scope
+- Real proposal authoring (writing volumes inline) — outline only.
+- Color team reviews (pink/red/gold) — can be a Phase 5 later.
+- Pricing models, BOE, staffing plans.
 
-- No changes to `pdfGenerator.ts`, `wordGenerator.ts`, `ReportViewer.tsx`, or any UI.
-- No schema/RLS changes.
-- Other report types (`executive_summary`, `full_analysis`, etc.) are untouched.
+## Build order (suggested)
+1. Migration: new tables + indexes + RLS (mirrors existing `staff manage / view` policy pattern).
+2. Phase progression plumbing + clickable PhaseIndicator + AdvancePhaseButton.
+3. Deep Dive: RTM (table + edge fn + UI), then sections, then gaps.
+4. Outline: table + edge fn + tree UI + Word export.
+5. Win Themes: table + edge fn + grid UI.
+6. Report types for each.
 
-## Verification
-
-- Re-generate the questions brief on the current solicitation (`0d2c19f3-…`) and confirm all 127 questions appear in the PDF, Word, and in-app viewer, grouped by recommendation.
-- Confirm executive_summary still renders correctly (40-question sample preserved for that path).
+Let me know which phase to start with — I recommend shipping phase progression + Deep Dive RTM first since everything else depends on requirements being numbered.

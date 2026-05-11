@@ -182,6 +182,60 @@ export type Database = {
           },
         ]
       }
+      capability_gaps: {
+        Row: {
+          client_note: string | null
+          created_at: string
+          description: string | null
+          gap_type: Database["public"]["Enums"]["gap_type"]
+          id: string
+          is_ai_generated: boolean
+          is_resolved: boolean
+          recommendation:
+            | Database["public"]["Enums"]["gap_recommendation"]
+            | null
+          requirement_id: string | null
+          severity: Database["public"]["Enums"]["gap_severity"]
+          solicitation_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_note?: string | null
+          created_at?: string
+          description?: string | null
+          gap_type?: Database["public"]["Enums"]["gap_type"]
+          id?: string
+          is_ai_generated?: boolean
+          is_resolved?: boolean
+          recommendation?:
+            | Database["public"]["Enums"]["gap_recommendation"]
+            | null
+          requirement_id?: string | null
+          severity?: Database["public"]["Enums"]["gap_severity"]
+          solicitation_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_note?: string | null
+          created_at?: string
+          description?: string | null
+          gap_type?: Database["public"]["Enums"]["gap_type"]
+          id?: string
+          is_ai_generated?: boolean
+          is_resolved?: boolean
+          recommendation?:
+            | Database["public"]["Enums"]["gap_recommendation"]
+            | null
+          requirement_id?: string | null
+          severity?: Database["public"]["Enums"]["gap_severity"]
+          solicitation_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client_notifications: {
         Row: {
           client_user_id: string
@@ -862,6 +916,72 @@ export type Database = {
         }
         Relationships: []
       }
+      outline_nodes: {
+        Row: {
+          assigned_to: string | null
+          created_at: string
+          id: string
+          linked_requirement_ids: string[]
+          notes: string | null
+          outline_id: string
+          page_allocation: number | null
+          parent_id: string | null
+          section_number: string | null
+          sort_order: number
+          source_l_reference: string | null
+          title: string
+          updated_at: string
+          volume: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string
+          id?: string
+          linked_requirement_ids?: string[]
+          notes?: string | null
+          outline_id: string
+          page_allocation?: number | null
+          parent_id?: string | null
+          section_number?: string | null
+          sort_order?: number
+          source_l_reference?: string | null
+          title: string
+          updated_at?: string
+          volume?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string
+          id?: string
+          linked_requirement_ids?: string[]
+          notes?: string | null
+          outline_id?: string
+          page_allocation?: number | null
+          parent_id?: string | null
+          section_number?: string | null
+          sort_order?: number
+          source_l_reference?: string | null
+          title?: string
+          updated_at?: string
+          volume?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outline_nodes_outline_id_fkey"
+            columns: ["outline_id"]
+            isOneToOne: false
+            referencedRelation: "proposal_outlines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outline_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "outline_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prior_import_history: {
         Row: {
           action: string
@@ -976,6 +1096,45 @@ export type Database = {
           },
         ]
       }
+      proposal_outlines: {
+        Row: {
+          created_at: string
+          generated_at: string | null
+          generated_by: string | null
+          id: string
+          is_active: boolean
+          metadata: Json
+          solicitation_id: string
+          title: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          solicitation_id: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          generated_at?: string | null
+          generated_by?: string | null
+          id?: string
+          is_active?: boolean
+          metadata?: Json
+          solicitation_id?: string
+          title?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       question_generation_runs: {
         Row: {
           completed_at: string | null
@@ -1037,6 +1196,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      requirement_items: {
+        Row: {
+          compliance_owner: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_ai_generated: boolean
+          notes: string | null
+          page_number: number | null
+          proposal_section: string | null
+          proposal_volume: string | null
+          req_number: string
+          shall_text: string
+          solicitation_id: string
+          source_citation: string | null
+          source_document_id: string | null
+          source_quote: string | null
+          source_section: string | null
+          status: Database["public"]["Enums"]["requirement_status"]
+          updated_at: string
+        }
+        Insert: {
+          compliance_owner?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_ai_generated?: boolean
+          notes?: string | null
+          page_number?: number | null
+          proposal_section?: string | null
+          proposal_volume?: string | null
+          req_number: string
+          shall_text: string
+          solicitation_id: string
+          source_citation?: string | null
+          source_document_id?: string | null
+          source_quote?: string | null
+          source_section?: string | null
+          status?: Database["public"]["Enums"]["requirement_status"]
+          updated_at?: string
+        }
+        Update: {
+          compliance_owner?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_ai_generated?: boolean
+          notes?: string | null
+          page_number?: number | null
+          proposal_section?: string | null
+          proposal_volume?: string | null
+          req_number?: string
+          shall_text?: string
+          solicitation_id?: string
+          source_citation?: string | null
+          source_document_id?: string | null
+          source_quote?: string | null
+          source_section?: string | null
+          status?: Database["public"]["Enums"]["requirement_status"]
+          updated_at?: string
+        }
+        Relationships: []
       }
       risks: {
         Row: {
@@ -1110,6 +1332,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      section_analyses: {
+        Row: {
+          created_at: string
+          id: string
+          is_ai_generated: boolean
+          requirements_count: number | null
+          risk_flags: Json
+          scoring_weight: number | null
+          section_code: string
+          section_title: string | null
+          solicitation_id: string
+          source_citations: Json
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_ai_generated?: boolean
+          requirements_count?: number | null
+          risk_flags?: Json
+          scoring_weight?: number | null
+          section_code: string
+          section_title?: string | null
+          solicitation_id: string
+          source_citations?: Json
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_ai_generated?: boolean
+          requirements_count?: number | null
+          risk_flags?: Json
+          scoring_weight?: number | null
+          section_code?: string
+          section_title?: string | null
+          solicitation_id?: string
+          source_citations?: Json
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       solicitation_access: {
         Row: {
@@ -1535,6 +1802,60 @@ export type Database = {
           },
         ]
       }
+      win_themes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          discriminators: string[]
+          ghosting_points: string[]
+          id: string
+          is_ai_generated: boolean
+          linked_outline_node_ids: string[]
+          linked_requirement_ids: string[]
+          proof_points: string[]
+          solicitation_id: string
+          source_citations: Json
+          status: Database["public"]["Enums"]["win_theme_status"]
+          theme_statement: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          discriminators?: string[]
+          ghosting_points?: string[]
+          id?: string
+          is_ai_generated?: boolean
+          linked_outline_node_ids?: string[]
+          linked_requirement_ids?: string[]
+          proof_points?: string[]
+          solicitation_id: string
+          source_citations?: Json
+          status?: Database["public"]["Enums"]["win_theme_status"]
+          theme_statement?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          discriminators?: string[]
+          ghosting_points?: string[]
+          id?: string
+          is_ai_generated?: boolean
+          linked_outline_node_ids?: string[]
+          linked_requirement_ids?: string[]
+          proof_points?: string[]
+          solicitation_id?: string
+          source_citations?: Json
+          status?: Database["public"]["Enums"]["win_theme_status"]
+          theme_statement?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1608,6 +1929,14 @@ export type Database = {
         | "prior_solicitation"
         | "attachment"
         | "other"
+      gap_recommendation: "build" | "buy" | "team" | "no_bid" | "accept"
+      gap_severity: "low" | "medium" | "high" | "critical"
+      gap_type:
+        | "capability"
+        | "past_performance"
+        | "certification"
+        | "teaming"
+        | "other"
       opportunity_type:
         | "innovation"
         | "cost_reduction"
@@ -1632,6 +1961,7 @@ export type Database = {
         | "contradiction"
         | "quantitative_gap"
       question_recommendation: "ask" | "hold" | "monitor" | "internal_only"
+      requirement_status: "open" | "in_review" | "covered" | "waived"
       risk_severity: "critical" | "high" | "medium" | "low" | "informational"
       solicitation_status:
         | "intake"
@@ -1642,6 +1972,7 @@ export type Database = {
         | "phase_4_active"
         | "complete"
         | "archived"
+      win_theme_status: "draft" | "approved" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1803,6 +2134,15 @@ export const Constants = {
         "attachment",
         "other",
       ],
+      gap_recommendation: ["build", "buy", "team", "no_bid", "accept"],
+      gap_severity: ["low", "medium", "high", "critical"],
+      gap_type: [
+        "capability",
+        "past_performance",
+        "certification",
+        "teaming",
+        "other",
+      ],
       opportunity_type: [
         "innovation",
         "cost_reduction",
@@ -1830,6 +2170,7 @@ export const Constants = {
         "quantitative_gap",
       ],
       question_recommendation: ["ask", "hold", "monitor", "internal_only"],
+      requirement_status: ["open", "in_review", "covered", "waived"],
       risk_severity: ["critical", "high", "medium", "low", "informational"],
       solicitation_status: [
         "intake",
@@ -1841,6 +2182,7 @@ export const Constants = {
         "complete",
         "archived",
       ],
+      win_theme_status: ["draft", "approved", "rejected"],
     },
   },
 } as const
