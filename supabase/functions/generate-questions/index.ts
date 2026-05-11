@@ -225,10 +225,11 @@ Deno.serve(async (req) => {
     let retryDocIds: string[] | null = null;
     let retryCrossDoc = false;
     let parentRunId: string | null = null;
+    let retryUnknownScope = false;
     if (retryRunId) {
       const { data: prior, error: priorErr } = await supabase
         .from("question_generation_runs")
-        .select("id, solicitation_id, status, failed_doc_ids, cross_doc_failed")
+        .select("id, solicitation_id, status, failed_doc_ids, cross_doc_failed, failed_batches")
         .eq("id", retryRunId)
         .maybeSingle();
       if (priorErr || !prior) {
@@ -244,10 +245,21 @@ Deno.serve(async (req) => {
       retryDocIds = (prior.failed_doc_ids ?? []) as string[];
       retryCrossDoc = !!prior.cross_doc_failed;
       parentRunId = prior.id;
+      const priorFailedBatches = (prior.failed_batches ?? 0) as number;
       if (retryDocIds.length === 0 && !retryCrossDoc) {
-        return new Response(JSON.stringify({ error: "Prior run has no failed batches to retry" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        if (priorFailedBatches > 0) {
+          // Failure scope wasn't recorded — re-run everything in append-only mode.
+          retryUnknownScope = true;
+          retryDocIds = null; // process all eligible docs
+          retryCrossDoc = true;
+          console.log(
+            `[generate-questions] retry unknown scope for run=${retryRunId} (failed_batches=${priorFailedBatches}) — falling back to full re-run`,
+          );
+        } else {
+          return new Response(JSON.stringify({ error: "Prior run has no failed batches to retry" }), {
+            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
     }
 
