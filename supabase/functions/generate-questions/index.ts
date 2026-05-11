@@ -107,9 +107,42 @@ type Section = {
   sort_order: number | null;
 };
 
-const PER_BATCH_BUDGET = 70_000; // chars of doc body per AI call
+const PER_BATCH_BUDGET = 50_000; // chars of doc body per AI call (lowered from 70K for headroom)
 const PER_SECTION_HEAD = 2400;
 const PER_SECTION_TAIL = 1200;
+const SECTION_SPLIT_THRESHOLD = 8_000; // sections larger than this are split into sub-chunks
+const SUB_CHUNK_SIZE = 6_000;
+const SUB_CHUNK_OVERLAP = 500;
+
+// Split oversized sections into overlapping sub-chunks so the model sees the
+// full verbatim middle of giant sections (e.g., 89K-char Site Management Manual sections)
+// instead of a head+tail truncation that drops 80K chars in the middle.
+function expandSections(sections: Section[]): Section[] {
+  const out: Section[] = [];
+  for (const s of sections) {
+    const content = (s.content ?? "").trim();
+    if (content.length <= SECTION_SPLIT_THRESHOLD) {
+      out.push(s);
+      continue;
+    }
+    let start = 0;
+    let part = 1;
+    const totalParts = Math.ceil((content.length - SUB_CHUNK_OVERLAP) / (SUB_CHUNK_SIZE - SUB_CHUNK_OVERLAP));
+    while (start < content.length) {
+      const end = Math.min(start + SUB_CHUNK_SIZE, content.length);
+      const chunk = content.slice(start, end);
+      out.push({
+        ...s,
+        content: chunk,
+        section_title: `${s.section_title ?? ""} [part ${part}/${totalParts}]`.trim(),
+      });
+      if (end >= content.length) break;
+      start += SUB_CHUNK_SIZE - SUB_CHUNK_OVERLAP;
+      part++;
+    }
+  }
+  return out;
+}
 
 function buildDocBlock(doc: Doc, sections: Section[], budget: number): { text: string; used: number } {
   const toc = sections
@@ -136,6 +169,7 @@ function buildDocBlock(doc: Doc, sections: Section[], budget: number): { text: s
 }
 
 // Pack documents into batches: ≤3 docs per batch, ≤PER_BATCH_BUDGET projected chars.
+// Oversized docs may also be split across multiple batches via packDocSlices below.
 function packBatches(docs: Doc[], sectionsByDoc: Map<string, Section[]>): Doc[][] {
   // Estimate cost per doc by total content length (capped per section).
   const cost = new Map<string, number>();
@@ -176,6 +210,26 @@ function packBatches(docs: Doc[], sectionsByDoc: Map<string, Section[]>): Doc[][
     }
   }
   return batches;
+}
+
+// For an oversized single doc, slice its (already-expanded) sections into
+// multiple batches so each AI call stays under the per-batch budget.
+function sliceOversizedDoc(doc: Doc, sections: Section[]): Section[][] {
+  const slices: Section[][] = [];
+  let current: Section[] = [];
+  let used = 0;
+  for (const s of sections) {
+    const cost = Math.min((s.content ?? "").length, PER_SECTION_HEAD + PER_SECTION_TAIL + 40) + 100;
+    if (used + cost > PER_BATCH_BUDGET && current.length > 0) {
+      slices.push(current);
+      current = [];
+      used = 0;
+    }
+    current.push(s);
+    used += cost;
+  }
+  if (current.length > 0) slices.push(current);
+  return slices.length > 0 ? slices : [sections];
 }
 
 function mapRows(
