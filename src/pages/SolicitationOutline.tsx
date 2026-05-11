@@ -55,10 +55,13 @@ export default function SolicitationOutline({ solicitationId, currentPhase }: { 
             <CardTitle className="text-base">{outline?.title ?? "Proposal outline"}</CardTitle>
             {outline && <p className="text-xs text-muted-foreground mt-1">v{outline.version} · {nodes.length} nodes</p>}
           </div>
-          <Button onClick={run} disabled={gen.isPending}>
-            {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-            {outline ? "Regenerate" : "Generate outline"}
-          </Button>
+          <div className="flex gap-2">
+            <ExportMenu build={buildExport} disabled={!outline || nodes.length === 0} label="Export outline" />
+            <Button onClick={run} disabled={gen.isPending}>
+              {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              {outline ? "Regenerate" : "Generate outline"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
