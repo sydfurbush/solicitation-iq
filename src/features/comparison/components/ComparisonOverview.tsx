@@ -521,7 +521,146 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
           <ImportHistoryList priorLinkId={priorRecord.id} />
         </CardContent>
       )}
+      <UploadPriorDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        defaultTitle={priorRecord.external_reference ?? ""}
+        onSubmit={handleUploadPrior}
+      />
     </Card>
+  );
+}
+
+function UploadPriorDialog({
+  open,
+  onOpenChange,
+  defaultTitle,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  defaultTitle: string;
+  onSubmit: (input: { title: string; notes: string | null; files: File[] }) => void;
+}) {
+  const [title, setTitle] = useState(defaultTitle);
+  const [notes, setNotes] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+
+  const onDrop = useCallback((accepted: File[]) => {
+    setFiles((prev) => {
+      const merged = [...prev];
+      for (const f of accepted) {
+        if (!merged.some((m) => m.name === f.name && m.size === f.size)) merged.push(f);
+      }
+      return merged;
+    });
+  }, []);
+  const { getRootProps, getInputProps, isDragActive, open: openPicker } = useDropzone({
+    onDrop,
+    accept: ALLOWED_MIME_TYPES,
+    maxSize: MAX_FILE_SIZE,
+    noClick: true,
+    noKeyboard: true,
+    multiple: true,
+  });
+
+  const handleSubmit = () => {
+    if (!title.trim()) {
+      toast({ title: "Enter a title", variant: "destructive" });
+      return;
+    }
+    if (files.length === 0) {
+      toast({ title: "Add at least one document", variant: "destructive" });
+      return;
+    }
+    onSubmit({ title: title.trim(), notes: notes.trim() || null, files });
+    setFiles([]);
+    setNotes("");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Upload prior solicitation documents</DialogTitle>
+          <DialogDescription>
+            Upload the prior solicitation files (e.g. the PDF you downloaded from SAM.gov) so the AI can run a full comparison.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="upload-prior-title">Title</Label>
+            <Input
+              id="upload-prior-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. FY24 RFP – W912DY-19-R-0001"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="upload-prior-notes">Notes (optional)</Label>
+            <Textarea
+              id="upload-prior-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+            />
+          </div>
+          <div
+            {...getRootProps()}
+            className={cn(
+              "relative border-2 border-dashed rounded-lg p-5 transition-colors",
+              isDragActive ? "border-primary bg-primary/5" : "border-border bg-muted/30",
+            )}
+          >
+            <input {...getInputProps()} />
+            <div className="flex flex-col items-center justify-center text-center gap-2">
+              <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <UploadCloud className="h-5 w-5" />
+              </div>
+              <p className="text-sm font-medium">
+                {isDragActive ? "Drop files here" : "Drag prior solicitation documents here"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                up to 50MB · {ALLOWED_EXTENSIONS.join(", ")}
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={openPicker}>
+                Browse files
+              </Button>
+            </div>
+          </div>
+          {files.length > 0 && (
+            <ul className="space-y-1.5 max-h-40 overflow-auto">
+              {files.map((f, i) => (
+                <li
+                  key={`${f.name}-${i}`}
+                  className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm"
+                >
+                  <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="flex-1 truncate">{f.name}</span>
+                  <span className="text-xs text-muted-foreground">{formatFileSize(f.size)}</span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                    title="Remove"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSubmit}>
+            <UploadCloud className="mr-2 h-4 w-4" /> Upload &amp; compare
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
