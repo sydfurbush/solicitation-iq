@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { usePriorSolicitation, useUnlinkPriorSolicitation, type PriorSolicitationRow, type ComparisonChanges } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
-import { useImportPriorFromSam, waitForDocumentsParsed } from "../hooks/useImportPriorFromSam";
+import { useImportPriorFromSam, waitForDocumentsParsed, type ImportProgress } from "../hooks/useImportPriorFromSam";
+import { ImportProgressPanel } from "./ImportProgressPanel";
 import { fmtCurrency, fmtDate, pctDelta } from "../utils/diffHelpers";
 import { toast } from "@/hooks/use-toast";
 
@@ -21,7 +22,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   const unlink = useUnlinkPriorSolicitation(solicitationId);
   const compare = useRunComparison(solicitationId);
   const importFromSam = useImportPriorFromSam(solicitationId);
-  const [importStage, setImportStage] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
   const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const valueDelta = pctDelta(prior?.estimated_value_high ?? null, current?.estimated_value_high ?? null);
@@ -52,37 +53,63 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
 
   const handleImportFromSam = async () => {
     try {
-      setImportStage("Looking up SAM.gov…");
       const result = await importFromSam.mutateAsync({
         url: priorRecord.external_url,
         solicitationNumber: priorRecord.external_reference,
         externalReference: priorRecord.external_reference,
+        onProgress: setProgress,
       });
       // Drop the legacy external-only link so the new fully-linked record is canonical
       try { await unlink.mutateAsync(priorRecord.id); } catch { /* ignore */ }
-      toast({
-        title: "Prior imported",
-        description: `${result.imported} of ${result.found} attachment(s) imported${result.failed ? `, ${result.failed} failed` : ""}.`,
-      });
+
       if (result.imported > 0) {
-        setImportStage("Parsing prior documents…");
-        await waitForDocumentsParsed(result.priorSolicitationId);
+        setProgress({
+          stage: "parsing",
+          message: `Parsing ${result.imported} document(s)…`,
+          found: result.found,
+          imported: result.imported,
+          failed: result.failed,
+          parsed: 0,
+          totalDocs: result.imported,
+        });
+        await waitForDocumentsParsed(result.priorSolicitationId, {
+          onProgress: ({ parsed, total }) =>
+            setProgress((p) => p && {
+              ...p,
+              stage: "parsing",
+              message: `Parsing documents (${parsed}/${total})…`,
+              parsed,
+              totalDocs: total,
+            }),
+        });
       }
-      setImportStage("Re-running comparison…");
-      compare.mutate(
-        { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
-        {
-          onSuccess: () => { toast({ title: "Comparison updated" }); refetchLink(); },
-          onError: (e) => toast({ title: "Comparison failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
-        },
+
+      setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
+      await new Promise<void>((resolve, reject) =>
+        compare.mutate(
+          { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+          {
+            onSuccess: () => { refetchLink(); resolve(); },
+            onError: (e) => reject(e),
+          },
+        ),
       );
+
+      setProgress((p) => p && {
+        ...p,
+        stage: "done",
+        message: `Done — ${result.imported}/${result.found} attachment(s) imported, comparison updated.`,
+      });
+      toast({ title: "Comparison updated" });
     } catch (e) {
+      setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
       toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-    } finally {
-      setImportStage(null);
     }
   };
-  const importing = importFromSam.isPending || !!importStage;
+  const importing =
+    importFromSam.isPending ||
+    compare.isPending ||
+    (!!progress && progress.stage !== "done" && progress.stage !== "error");
 
   const totalChanges =
     (changes?.requirements?.length ?? 0) +
@@ -121,12 +148,12 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
                 were never imported, so the AI has nothing concrete to diff against. Import attachments from
                 SAM.gov to get a full requirement-level comparison.
               </p>
-              <div className="flex items-center gap-2">
+              <div className="space-y-2">
                 <Button size="sm" onClick={handleImportFromSam} disabled={importing}>
                   <DownloadCloud className={cn("mr-2 h-4 w-4", importing && "animate-pulse")} />
-                  {importing ? (importStage ?? "Importing…") : "Import from SAM.gov"}
+                  {importing ? (progress?.message ?? "Importing…") : "Import from SAM.gov"}
                 </Button>
-                {importStage && <span className="text-xs text-muted-foreground">{importStage}</span>}
+                {progress && <ImportProgressPanel progress={progress} />}
               </div>
             </AlertDescription>
           </Alert>

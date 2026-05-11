@@ -14,6 +14,26 @@ type SamPrefill = {
   attachments?: { href: string; fileName?: string }[];
 };
 
+export type ImportStage =
+  | "idle"
+  | "lookup"
+  | "creating"
+  | "downloading"
+  | "parsing"
+  | "comparing"
+  | "done"
+  | "error";
+
+export type ImportProgress = {
+  stage: ImportStage;
+  message: string;
+  found?: number;       // attachments found on SAM
+  imported?: number;    // attachments successfully downloaded
+  failed?: number;      // attachments that failed download
+  parsed?: number;      // documents finished processing
+  totalDocs?: number;   // total documents being parsed
+};
+
 export type ImportPriorInput = {
   /** SAM.gov notice URL (preferred) */
   url?: string | null;
@@ -23,6 +43,8 @@ export type ImportPriorInput = {
   externalReference?: string | null;
   /** Optional notes to attach to the new shadow solicitation */
   notes?: string | null;
+  /** Optional progress callback */
+  onProgress?: (p: ImportProgress) => void;
 };
 
 export type ImportPriorResult = {
@@ -47,8 +69,10 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
       if (!input.url && !input.solicitationNumber) {
         throw new Error("Provide a SAM.gov URL or a solicitation number");
       }
+      const report = (p: ImportProgress) => input.onProgress?.(p);
 
       // 1. Get current solicitation's client_id
+      report({ stage: "lookup", message: "Looking up SAM.gov notice…" });
       const { data: current, error: curErr } = await supabase
         .from("solicitations")
         .select("client_id")
@@ -71,6 +95,13 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
       if (samData?.error) throw new Error(samData.error);
       const prefill = samData?.prefill;
       if (!prefill) throw new Error("SAM.gov returned no notice for that reference");
+
+      const attachments = prefill.attachments ?? [];
+      report({
+        stage: "creating",
+        message: `Found notice — ${attachments.length} attachment(s). Creating prior record…`,
+        found: attachments.length,
+      });
 
       // 3. Create shadow prior solicitation
       const insertPayload = {
@@ -115,10 +146,14 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
       if (linkErr) throw linkErr;
 
       // 5. Pull attachments into the shadow solicitation
-      const attachments = prefill.attachments ?? [];
       let imported = 0;
       let failed = 0;
       if (attachments.length > 0) {
+        report({
+          stage: "downloading",
+          message: `Downloading ${attachments.length} attachment(s) from SAM.gov…`,
+          found: attachments.length,
+        });
         const { data: importData, error: importErr } = await supabase.functions.invoke<{
           imported?: number;
           failed?: unknown[];
@@ -131,6 +166,13 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
         if (importData?.error) throw new Error(importData.error);
         imported = importData?.imported ?? 0;
         failed = (importData?.failed ?? []).length;
+        report({
+          stage: "downloading",
+          message: `Downloaded ${imported} of ${attachments.length} attachment(s)${failed ? ` (${failed} failed)` : ""}.`,
+          found: attachments.length,
+          imported,
+          failed,
+        });
       }
 
       return {
@@ -156,7 +198,11 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
  */
 export async function waitForDocumentsParsed(
   solicitationId: string,
-  opts: { timeoutMs?: number; intervalMs?: number } = {},
+  opts: {
+    timeoutMs?: number;
+    intervalMs?: number;
+    onProgress?: (p: { parsed: number; total: number }) => void;
+  } = {},
 ) {
   const timeoutMs = opts.timeoutMs ?? 4 * 60 * 1000;
   const intervalMs = opts.intervalMs ?? 4000;
@@ -170,9 +216,12 @@ export async function waitForDocumentsParsed(
       .is("deleted_at", null);
     if (error) throw error;
     const rows = data ?? [];
-    if (rows.length === 0) return { ready: true, total: 0 };
+    const total = rows.length;
+    if (total === 0) return { ready: true, total: 0 };
     const pending = rows.filter((r) => r.status === "uploading" || r.status === "processing").length;
-    if (pending === 0) return { ready: true, total: rows.length };
+    const parsed = total - pending;
+    opts.onProgress?.({ parsed, total });
+    if (pending === 0) return { ready: true, total };
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
   return { ready: false, total: -1 };
