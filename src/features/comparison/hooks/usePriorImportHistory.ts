@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { FailedAttachment } from "./useImportPriorFromSam";
+import type { FailedAttachment, LookupParams, SamErrorResponse } from "./useImportPriorFromSam";
 
 export type PriorImportHistoryRow = {
   id: string;
@@ -14,6 +14,8 @@ export type PriorImportHistoryRow = {
   failed_count: number;
   failed_attachments: FailedAttachment[];
   error_message: string | null;
+  lookup_params: LookupParams;
+  error_response: SamErrorResponse | null;
   started_at: string;
   completed_at: string | null;
   performed_by: string | null;
@@ -46,6 +48,8 @@ export type LogImportInput = {
   failedCount: number;
   failedAttachments?: FailedAttachment[];
   errorMessage?: string | null;
+  lookupParams?: LookupParams | null;
+  errorResponse?: SamErrorResponse | null;
   startedAt: string;
 };
 
@@ -62,6 +66,8 @@ export async function logPriorImport(input: LogImportInput) {
     failed_count: input.failedCount,
     failed_attachments: input.failedAttachments ?? [],
     error_message: input.errorMessage ?? null,
+    lookup_params: (input.lookupParams ?? {}) as never,
+    error_response: (input.errorResponse ?? null) as never,
     started_at: input.startedAt,
     completed_at: new Date().toISOString(),
     performed_by: userRes.user?.id ?? null,

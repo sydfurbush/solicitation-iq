@@ -101,6 +101,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         importedCount: result.imported,
         failedCount: result.failed,
         failedAttachments: result.failedAttachments,
+        lookupParams: result.lookupParams,
         startedAt,
       });
       invalidateHistory(result.priorRecordId);
@@ -161,7 +162,16 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
         toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
       }
-      // Log failure against the original external link so the user sees an attempt was made
+      // Log failure against the original external link so the user sees an attempt was made.
+      // Capture lookup params + raw error response when the hook attached them.
+      const errAny = e as { lookupParams?: import("../hooks/useImportPriorFromSam").LookupParams; errorResponse?: import("../hooks/useImportPriorFromSam").SamErrorResponse };
+      const lookupParams =
+        e instanceof SamNoticeNotFoundError ? e.lookupParams :
+        errAny?.lookupParams ??
+        { url: priorRecord.external_url ?? null, solicitationNumber: priorRecord.external_reference ?? null };
+      const errorResponse =
+        e instanceof SamNoticeNotFoundError ? e.errorResponse :
+        errAny?.errorResponse ?? null;
       await logPriorImport({
         priorLinkId: linkIdAtStart,
         action: "initial",
@@ -170,6 +180,8 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         importedCount: 0,
         failedCount: 0,
         errorMessage: e instanceof Error ? e.message : String(e),
+        lookupParams,
+        errorResponse,
         startedAt,
       });
       invalidateHistory(linkIdAtStart);
