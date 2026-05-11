@@ -12,6 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import { useSolicitations, useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useLinkPriorSolicitation } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
+import { useImportPriorFromSam, waitForDocumentsParsed } from "../hooks/useImportPriorFromSam";
 
 type Props = {
   solicitationId: string;
