@@ -40,9 +40,9 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
   const link = useLinkPriorSolicitation(solicitationId);
   const compare = useRunComparison(solicitationId);
   const importFromSam = useImportPriorFromSam(solicitationId);
-  const [stage, setStage] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
 
-  const busy = link.isPending || importFromSam.isPending || !!stage;
+  const busy = link.isPending || importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
 
   const handleLink = async () => {
     try {
@@ -69,48 +69,75 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
       }
 
       try {
-        setStage("Looking up SAM.gov…");
         const result = await importFromSam.mutateAsync({
           url: url || null,
           solicitationNumber: ref || null,
           externalReference: ref || null,
           notes: v.notes || null,
-        });
-        toast({
-          title: "Prior imported from SAM.gov",
-          description: `${result.imported} of ${result.found} attachment(s) imported${result.failed ? `, ${result.failed} failed` : ""}.`,
+          onProgress: setProgress,
         });
         onLinked?.();
-        setOpen(false);
 
         if (result.imported > 0) {
-          setStage("Parsing prior documents…");
-          await waitForDocumentsParsed(result.priorSolicitationId);
+          setProgress({
+            stage: "parsing",
+            message: `Parsing ${result.imported} document(s)…`,
+            found: result.found,
+            imported: result.imported,
+            failed: result.failed,
+            parsed: 0,
+            totalDocs: result.imported,
+          });
+          await waitForDocumentsParsed(result.priorSolicitationId, {
+            onProgress: ({ parsed, total }) =>
+              setProgress((p) => p && {
+                ...p,
+                stage: "parsing",
+                message: `Parsing documents (${parsed}/${total})…`,
+                parsed,
+                totalDocs: total,
+              }),
+          });
         }
-        compare.mutate({
-          priorSolicitationId: result.priorSolicitationId,
-          priorRecordId: result.priorRecordId,
+
+        setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
+        await new Promise<void>((resolve, reject) =>
+          compare.mutate(
+            { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+            { onSuccess: () => resolve(), onError: (e) => reject(e) },
+          ),
+        );
+
+        setProgress((p) => p && {
+          ...p,
+          stage: "done",
+          message: `Done — ${result.imported}/${result.found} attachment(s) imported, comparison updated.`,
         });
+        toast({ title: "Comparison updated" });
+        setTimeout(() => setOpen(false), 1200);
       } catch (samErr) {
         // Fall back to a plain external-reference link so the user isn't blocked
         console.warn("SAM import failed, falling back to external-reference link", samErr);
+        setProgress({
+          stage: "error",
+          message: `SAM import failed: ${samErr instanceof Error ? samErr.message : String(samErr)}`,
+        });
         const linked = await link.mutateAsync({
           externalReference: ref || null,
           externalUrl: url || null,
         });
         toast({
           title: "Linked as external reference",
-          description: `Couldn't auto-import from SAM: ${samErr instanceof Error ? samErr.message : String(samErr)}. Comparison will be limited.`,
+          description: `Couldn't auto-import from SAM. Comparison will be limited.`,
           variant: "destructive",
         });
         onLinked?.();
         compare.mutate({ priorSolicitationId: null, priorRecordId: linked?.id ?? null });
-        setOpen(false);
+        setTimeout(() => setOpen(false), 1500);
       }
     } catch (e) {
       toast({ title: "Failed to link", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-    } finally {
-      setStage(null);
+      setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
     }
   };
 
