@@ -153,12 +153,12 @@ Deno.serve(async (req) => {
       set_aside: setAside,
       release_date: toDateOnly(notice.postedDate),
       proposal_due_date: toIsoDate(notice.responseDeadLine),
-      sam_url: notice.uiLink || url,
+      sam_url: notice.uiLink || url || (notice.noticeId ? `https://sam.gov/opp/${notice.noticeId}/view` : undefined),
       notes: notice.description ? notice.description.slice(0, 4000) : undefined,
       attachments: (notice.resourceLinks ?? []).map((href) => ({ href })),
     };
 
-    return new Response(JSON.stringify({ prefill, noticeId }), {
+    return new Response(JSON.stringify({ prefill, noticeId: noticeId ?? notice.noticeId ?? null }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
