@@ -89,6 +89,7 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
       subtitle: "Requirements, section breakdown, and capability gaps",
       filenameBase: "deep_dive",
       sections: out,
+      cover: { clientName, solicitationTitle, phase: currentPhase },
     };
   };
 
