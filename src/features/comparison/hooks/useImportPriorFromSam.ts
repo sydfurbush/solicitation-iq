@@ -309,6 +309,7 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
         failed,
         found: attachments.length,
         failedAttachments,
+        lookupParams,
       };
     },
     onSuccess: () => {
