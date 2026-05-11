@@ -78,14 +78,16 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
   const toggle = (arr: string[], v: string) => arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
 
   const runGenerate = async (overrides?: { retryRunId?: string }) => {
-    setProgress({ completed: 0, total: 0, inserted: 0, step: "Starting…" });
+    setStepLog([]);
+    lastStepRef.current = null;
+    setProgress({ runId: "", status: "running", completed: 0, total: 0, failed: 0, inserted: 0, step: "Starting…" });
     try {
       const result = await generate.mutateAsync({
         focusAreas: overrides?.retryRunId ? undefined : (focusAreas.length ? focusAreas : undefined),
         focusDocumentIds: overrides?.retryRunId ? undefined : (docIds.length ? docIds : undefined),
         regenerate: overrides?.retryRunId ? false : regenerate,
         retryRunId: overrides?.retryRunId,
-        onProgress: setProgress,
+        onProgress: handleProgress,
       });
       const verb = overrides?.retryRunId ? "Retried" : "Generated";
       if (result.status === "completed") {
