@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Copy, Loader2, RotateCcw } from "lucide-react";
+import { Copy, Download, Loader2, RotateCcw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   useQuestionGenerationRuns,
   type QuestionRun,
 } from "../hooks/useQuestionGenerationRuns";
+import { downloadRunReport } from "../utils/runReport";
 
 interface Props {
   solicitationId: string;
@@ -51,6 +52,7 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
   const generate = useGenerateQuestions(solicitationId);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ completed: number; total: number; inserted: number; step: string | null } | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const docMap = useMemo(() => new Map(documents.map((d) => [d.id, d.file_name])), [documents]);
   const runById = useMemo(() => new Map(runs.map((r) => [r.id, r])), [runs]);
@@ -87,6 +89,33 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
       toast({ title: "Error copied" });
     } catch {
       toast({ title: "Could not copy", variant: "destructive" });
+    }
+  };
+
+  const handleDownload = async (run: QuestionRun) => {
+    setDownloadingId(run.id);
+    try {
+      const count = await downloadRunReport({
+        runId: run.id,
+        solicitationId: solicitationId,
+        status: run.status,
+        startedAt: run.started_at,
+        completedAt: run.completed_at,
+        totalBatches: run.total_batches,
+        completedBatches: run.completed_batches,
+        failedBatches: run.failed_batches,
+        insertedCount: run.inserted_count,
+        currentStep: run.current_step,
+        errorMessage: run.error_message,
+        failedDocNames: run.failed_doc_ids.map((id) => docMap.get(id) ?? "Unknown document"),
+        crossDocFailed: run.cross_doc_failed,
+        parentRunId: run.parent_run_id,
+      });
+      toast({ title: "Report downloaded", description: `${count} question${count === 1 ? "" : "s"} included.` });
+    } catch (e) {
+      toast({ title: "Download failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -164,6 +193,21 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {run.status !== "running" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDownload(run)}
+                            disabled={downloadingId === run.id}
+                          >
+                            {downloadingId === run.id ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <Download className="h-3 w-3 mr-1" />
+                            )}
+                            Report
+                          </Button>
+                        )}
                         {run.error_message && (
                           <Button
                             size="sm"
