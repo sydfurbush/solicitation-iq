@@ -148,12 +148,12 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
                 were never imported, so the AI has nothing concrete to diff against. Import attachments from
                 SAM.gov to get a full requirement-level comparison.
               </p>
-              <div className="flex items-center gap-2">
+              <div className="space-y-2">
                 <Button size="sm" onClick={handleImportFromSam} disabled={importing}>
                   <DownloadCloud className={cn("mr-2 h-4 w-4", importing && "animate-pulse")} />
-                  {importing ? (importStage ?? "Importing…") : "Import from SAM.gov"}
+                  {importing ? (progress?.message ?? "Importing…") : "Import from SAM.gov"}
                 </Button>
-                {importStage && <span className="text-xs text-muted-foreground">{importStage}</span>}
+                {progress && <ImportProgressPanel progress={progress} />}
               </div>
             </AlertDescription>
           </Alert>
