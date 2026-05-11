@@ -44,26 +44,66 @@ const PROMPTS: Record<ReportType, string> = {
   proposal_outline: `Generate a Proposal Outline. Sections: Volume Structure (recommended volumes with page-limit suggestions), Section Outline (mapped to evaluation factors), Compliance Matrix (markdown table: Requirement | Source | Volume/Section | Notes), Win Themes (3-5 with proof points), Discriminators (3-5), Key Personnel Requirements, Past Performance Suggestions.`,
 };
 
+const BLOCK_SCHEMA = {
+  type: "object",
+  description: "Structured content block. Choose 'kind' to determine which other fields are populated.",
+  properties: {
+    kind: { type: "string", description: "One of: paragraph, bullets, kv, category, recommendation, steps." },
+    text: { type: "string", description: "Used when kind=paragraph." },
+    items: {
+      type: "array",
+      description: "Used when kind=bullets (array of {text}) or kind=steps (array of {title, detail}).",
+      items: {
+        type: "object",
+        description: "For bullets, only 'text' is used. For steps, 'title' and 'detail' are used.",
+        properties: {
+          text: { type: "string", description: "Bullet text (used when parent block kind=bullets)." },
+          title: { type: "string", description: "Step title (used when parent block kind=steps)." },
+          detail: { type: "string", description: "Step detail (used when parent block kind=steps)." },
+        },
+      },
+    },
+    rows: {
+      type: "array",
+      description: "Used when kind=kv or kind=category. Array of two-element [label, value] string arrays.",
+      items: {
+        type: "array",
+        description: "Two-element [label, value] pair.",
+        items: { type: "string", description: "Cell text." },
+      },
+    },
+    tone: { type: "string", description: "Used when kind=category. One of: opportunity, risk, neutral." },
+    title: { type: "string", description: "Used when kind=category. Header bar title (e.g., TOP OPPORTUNITIES)." },
+    verdict: { type: "string", description: "Used when kind=recommendation. e.g., GO, NO-GO, CONDITIONAL GO." },
+    rationale: { type: "string", description: "Used when kind=recommendation. Italic supporting text." },
+  },
+};
+
 const SCHEMA = {
   name: "generate_report",
   description: "Structured executive report content",
   parameters: {
     type: "object",
     properties: {
-      title: { type: "string" },
-      subtitle: { type: "string" },
+      title: { type: "string", description: "Report title." },
+      subtitle: { type: "string", description: "Report subtitle (e.g., solicitation number)." },
       sections: {
         type: "array",
         description: "Ordered report sections.",
         items: {
           type: "object",
+          description: "A report section. Use 'blocks' for branded layout, or 'body' for plain markdown.",
           properties: {
             id: { type: "string", description: "Stable section identifier." },
             heading: { type: "string", description: "Section heading text." },
             level: { type: "integer", description: "Heading level 1-3." },
-            body: { type: "string", description: "Markdown body for this section." },
+            body: { type: "string", description: "Optional markdown body — used only when 'blocks' is not provided." },
+            blocks: {
+              type: "array",
+              description: "Preferred: structured content blocks for branded rendering.",
+              items: BLOCK_SCHEMA,
+            },
           },
-          required: ["heading", "body"],
         },
       },
       citations: {
@@ -71,14 +111,14 @@ const SCHEMA = {
         description: "Inline source citations referenced in section bodies.",
         items: {
           type: "object",
+          description: "A single source citation.",
           properties: {
-            id: { type: "string", description: "Citation identifier." },
+            id: { type: "string", description: "Citation identifier (e.g., C1)." },
             document: { type: "string", description: "Source document name." },
             section: { type: "string", description: "Source section." },
             page: { type: "integer", description: "Source page number." },
             quote: { type: "string", description: "Optional quoted text." },
           },
-          required: ["id", "document"],
         },
       },
     },
