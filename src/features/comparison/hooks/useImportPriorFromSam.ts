@@ -49,6 +49,21 @@ export type ImportPriorInput = {
 
 export type FailedAttachment = { href: string; fileName?: string; error?: string };
 
+export type LookupParams = {
+  url?: string | null;
+  solicitationNumber?: string | null;
+  noticeId?: string | null;
+  triedStrategies?: string[];
+};
+
+export type SamErrorResponse = {
+  status?: number;
+  error?: string;
+  detail?: string;
+  attempts?: unknown;
+  raw?: unknown;
+};
+
 export type ImportPriorResult = {
   priorSolicitationId: string;
   priorRecordId: string;
@@ -56,6 +71,7 @@ export type ImportPriorResult = {
   failed: number;
   found: number;
   failedAttachments: FailedAttachment[];
+  lookupParams: LookupParams;
 };
 
 export type SamNotFoundDetails = {
