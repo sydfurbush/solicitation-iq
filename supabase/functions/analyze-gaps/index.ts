@@ -87,11 +87,9 @@ Deno.serve(async (req) => {
     ).join("\n");
 
     const capabilities = (client?.metadata as Record<string, unknown> | null)?.capabilities ?? null;
-    const capText = capabilities
-      ? typeof capabilities === "string" ? capabilities : JSON.stringify(capabilities, null, 2)
-      : "(no capabilities profile on file)";
+    const capText = formatCapabilities(capabilities);
     const clientText = client
-      ? `CLIENT: ${client.name}\nINDUSTRY: ${client.industry ?? "n/a"}\nNOTES: ${client.notes ?? "n/a"}\nCAPABILITIES:\n${capText}`
+      ? `CLIENT: ${client.name}\nINDUSTRY: ${client.industry ?? "n/a"}\nNOTES: ${client.notes ?? "n/a"}\n\nCAPABILITIES PROFILE:\n${capText}`
       : "(no client profile)";
 
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${clientText}\n\nREQUIREMENTS:\n${reqText}\n\nIdentify gaps.`;
