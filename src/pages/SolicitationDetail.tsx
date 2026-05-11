@@ -57,6 +57,11 @@ import SolicitationRisksOpportunities from "./SolicitationRisksOpportunities";
 import SolicitationActivity from "./SolicitationActivity";
 import SolicitationComparison from "./SolicitationComparison";
 import SolicitationReports from "./SolicitationReports";
+import SolicitationDeepDive from "./SolicitationDeepDive";
+import SolicitationOutline from "./SolicitationOutline";
+import SolicitationWinThemes from "./SolicitationWinThemes";
+import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
+import type { PhaseType } from "@/lib/validators/solicitation";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
 import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
 
@@ -237,7 +242,11 @@ export default function SolicitationDetail() {
         <CardContent className="p-5 flex flex-col lg:flex-row gap-6 lg:items-center">
           <div className="flex-1">
             <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wide">Phase</p>
-            <PhaseIndicator current={s.current_phase} status={s.status} />
+            <PhaseIndicator
+              current={s.current_phase}
+              status={s.status}
+              onPhaseClick={(p: PhaseType) => setSearchParams({ tab: PHASE_TAB[p] })}
+            />
           </div>
           <div className="lg:border-l lg:pl-6">
             <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">Proposal due</p>
@@ -285,42 +294,31 @@ export default function SolicitationDetail() {
           <TabsTrigger value="analysis">Analysis</TabsTrigger>
           <TabsTrigger value="questions">Questions</TabsTrigger>
           <TabsTrigger value="risks">Risks &amp; Opportunities</TabsTrigger>
+          <TabsTrigger value="deep-dive">Deep Dive</TabsTrigger>
+          <TabsTrigger value="outline">Outline</TabsTrigger>
+          <TabsTrigger value="win-themes">Win Themes</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="comparison">Comparison</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-6">
-          <SolicitationOverview solicitation={s} />
+        <TabsContent value="overview" className="mt-6"><SolicitationOverview solicitation={s} /></TabsContent>
+        <TabsContent value="documents" className="mt-6"><SolicitationDocuments solicitationId={s.id} /></TabsContent>
+        <TabsContent value="analysis" className="mt-6"><SolicitationAnalysis solicitationId={s.id} /></TabsContent>
+        <TabsContent value="questions" className="mt-6"><SolicitationQuestions solicitationId={s.id} /></TabsContent>
+        <TabsContent value="risks" className="mt-6"><SolicitationRisksOpportunities solicitationId={s.id} /></TabsContent>
+        <TabsContent value="deep-dive" className="mt-6">
+          <SolicitationDeepDive solicitationId={s.id} currentPhase={s.current_phase ?? "phase_1_initial"} />
         </TabsContent>
-
-        <TabsContent value="documents" className="mt-6">
-          <SolicitationDocuments solicitationId={s.id} />
+        <TabsContent value="outline" className="mt-6">
+          <SolicitationOutline solicitationId={s.id} currentPhase={s.current_phase ?? "phase_1_initial"} />
         </TabsContent>
-
-        <TabsContent value="analysis" className="mt-6">
-          <SolicitationAnalysis solicitationId={s.id} />
+        <TabsContent value="win-themes" className="mt-6">
+          <SolicitationWinThemes solicitationId={s.id} currentPhase={s.current_phase ?? "phase_1_initial"} />
         </TabsContent>
-
-        <TabsContent value="questions" className="mt-6">
-          <SolicitationQuestions solicitationId={s.id} />
-        </TabsContent>
-
-        <TabsContent value="risks" className="mt-6">
-          <SolicitationRisksOpportunities solicitationId={s.id} />
-        </TabsContent>
-
-        <TabsContent value="activity" className="mt-6">
-          <SolicitationActivity solicitationId={s.id} />
-        </TabsContent>
-
-        <TabsContent value="comparison" className="mt-6">
-          <SolicitationComparison solicitationId={s.id} />
-        </TabsContent>
-
-        <TabsContent value="reports" className="mt-6">
-          <SolicitationReports solicitationId={s.id} />
-        </TabsContent>
+        <TabsContent value="activity" className="mt-6"><SolicitationActivity solicitationId={s.id} /></TabsContent>
+        <TabsContent value="comparison" className="mt-6"><SolicitationComparison solicitationId={s.id} /></TabsContent>
+        <TabsContent value="reports" className="mt-6"><SolicitationReports solicitationId={s.id} /></TabsContent>
       </Tabs>
 
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
