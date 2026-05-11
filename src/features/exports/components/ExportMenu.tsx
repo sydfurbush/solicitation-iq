@@ -166,8 +166,8 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-2">
-            {/* Format */}
+          <fieldset disabled={busy} className="space-y-5 py-2 disabled:opacity-60">
+            {/* fieldset disables nested form controls (radios, checkboxes, inputs, buttons) while exporting */}
             <div className="space-y-2">
               <Label>Format</Label>
               <RadioGroup
