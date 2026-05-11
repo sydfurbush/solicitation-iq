@@ -91,8 +91,8 @@ export function ReportViewer({ report, open, onOpenChange }: { report: ReportRow
             {content.subtitle && <p className="text-muted-foreground italic mb-4">{content.subtitle}</p>}
             {sections.map((s, i) => (
               <section key={i} id={`sec-${i}`} className="mb-6">
-                <h2 className="font-bold text-xl border-b pb-1 mb-3">{s.heading}</h2>
-                <MarkdownLite source={s.body} />
+                <h2 className="font-bold text-xl uppercase text-[#1E3A5F] border-b-2 border-[#C9A227] pb-1 mb-3">{s.heading}</h2>
+                <BlocksRenderer blocks={sectionBlocks(s)} fallbackBody={s.body} />
               </section>
             ))}
             {content.citations?.length ? (
