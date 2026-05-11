@@ -621,6 +621,10 @@ Deno.serve(async (req) => {
           subsets.push({ docs: documents as Doc[], label: "cross-doc pass" });
         }
 
+        // Bump total_batches if we split, so UI math (X/Y) stays correct.
+        if (subsets.length > 1) {
+          await updateRun({ total_batches: totalBatches + (subsets.length - 1) });
+        }
         let anySubsetFailed = false;
         for (let si = 0; si < subsets.length; si++) {
           const sub = subsets[si];
