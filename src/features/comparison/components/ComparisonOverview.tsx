@@ -435,16 +435,20 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
               <p>
                 The prior solicitation is only referenced ({priorRecord.external_reference}) — its documents
                 were never imported, so the AI has nothing concrete to diff against. Import attachments from
-                SAM.gov to get a full requirement-level comparison.
+                SAM.gov, or upload the prior solicitation documents directly to get a full requirement-level comparison.
               </p>
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" onClick={handleImportFromSam} disabled={importing}>
                     <DownloadCloud className={cn("mr-2 h-4 w-4", importing && "animate-pulse")} />
-                    {importing ? (progress?.message ?? "Importing…") : "Import from SAM.gov"}
+                    {importing ? (progress?.message ?? "Working…") : "Import from SAM.gov"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setUploadOpen(true)} disabled={importing}>
+                    <UploadCloud className="mr-2 h-4 w-4" />
+                    Upload documents
                   </Button>
                   {importing && (
-                    <Button size="sm" variant="outline" onClick={handleCancelImport}>
+                    <Button size="sm" variant="ghost" onClick={handleCancelImport}>
                       <X className="mr-2 h-4 w-4" /> Cancel
                     </Button>
                   )}
