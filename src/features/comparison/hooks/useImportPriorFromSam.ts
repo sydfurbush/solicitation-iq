@@ -14,6 +14,26 @@ type SamPrefill = {
   attachments?: { href: string; fileName?: string }[];
 };
 
+export type ImportStage =
+  | "idle"
+  | "lookup"
+  | "creating"
+  | "downloading"
+  | "parsing"
+  | "comparing"
+  | "done"
+  | "error";
+
+export type ImportProgress = {
+  stage: ImportStage;
+  message: string;
+  found?: number;       // attachments found on SAM
+  imported?: number;    // attachments successfully downloaded
+  failed?: number;      // attachments that failed download
+  parsed?: number;      // documents finished processing
+  totalDocs?: number;   // total documents being parsed
+};
+
 export type ImportPriorInput = {
   /** SAM.gov notice URL (preferred) */
   url?: string | null;
@@ -23,6 +43,8 @@ export type ImportPriorInput = {
   externalReference?: string | null;
   /** Optional notes to attach to the new shadow solicitation */
   notes?: string | null;
+  /** Optional progress callback */
+  onProgress?: (p: ImportProgress) => void;
 };
 
 export type ImportPriorResult = {
