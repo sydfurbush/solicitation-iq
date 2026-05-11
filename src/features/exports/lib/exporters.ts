@@ -15,6 +15,13 @@ import {
 } from "docx";
 
 export type ExportFormat = "pdf" | "docx";
+export type ExportPageSize = "letter" | "a4";
+
+export interface ExportOptions {
+  pageSize?: ExportPageSize;
+  /** Override the filename base (without extension) */
+  filenameBase?: string;
+}
 
 export interface ExportSection {
   heading: string;
