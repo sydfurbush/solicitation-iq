@@ -357,15 +357,55 @@ Deno.serve(async (req) => {
       .in("document_id", docIds)
       .order("sort_order", { ascending: true });
 
+    const rawSectionsByDoc = new Map<string, Section[]>();
+    for (const d of documents) rawSectionsByDoc.set(d.id, []);
+    for (const s of (sections ?? []) as Section[]) rawSectionsByDoc.get(s.document_id)?.push(s);
+    // Expand giant sections into overlapping sub-chunks so we don't lose middle content.
     const sectionsByDoc = new Map<string, Section[]>();
-    for (const d of documents) sectionsByDoc.set(d.id, []);
-    for (const s of (sections ?? []) as Section[]) sectionsByDoc.get(s.document_id)?.push(s);
+    for (const [docId, secs] of rawSectionsByDoc) sectionsByDoc.set(docId, expandSections(secs));
 
     const isRetry = retryRunId !== undefined && retryRunId !== null;
     const isCrossDocOnlyRetry = isRetry && !retryUnknownScope && retryDocIds !== null && retryDocIds.length === 0;
     const runCrossDoc = !isRetry || retryCrossDoc;
 
-    const batches = isCrossDocOnlyRetry ? [] : packBatches(documents as Doc[], sectionsByDoc);
+    // Build "work units" — each is one AI call. A normal batch contains 1-3 docs.
+    // An oversized doc is split into multiple slices, each its own work unit so
+    // its body is not truncated and a single chunk failure is recoverable.
+    type WorkUnit = { docs: Doc[]; sectionsByDoc: Map<string, Section[]>; label: string };
+    const workUnits: WorkUnit[] = [];
+    if (!isCrossDocOnlyRetry) {
+      const baseBatches = packBatches(documents as Doc[], sectionsByDoc);
+      for (const batch of baseBatches) {
+        // If single oversized doc, slice it.
+        if (batch.length === 1) {
+          const d = batch[0];
+          const ds = sectionsByDoc.get(d.id) ?? [];
+          const totalCost = ds.reduce(
+            (sum, s) => sum + Math.min((s.content ?? "").length, PER_SECTION_HEAD + PER_SECTION_TAIL + 40) + 100,
+            200,
+          );
+          if (totalCost > PER_BATCH_BUDGET) {
+            const slices = sliceOversizedDoc(d, ds);
+            slices.forEach((slice, idx) => {
+              const m = new Map<string, Section[]>();
+              m.set(d.id, slice);
+              workUnits.push({
+                docs: [d],
+                sectionsByDoc: m,
+                label: `${d.file_name} (part ${idx + 1}/${slices.length})`,
+              });
+            });
+            continue;
+          }
+        }
+        workUnits.push({
+          docs: batch,
+          sectionsByDoc,
+          label: batch.map((d) => d.file_name).join(", "),
+        });
+      }
+    }
+    const batches = workUnits;
     const totalBatches = batches.length + (runCrossDoc ? 1 : 0);
 
     // Create the run record
