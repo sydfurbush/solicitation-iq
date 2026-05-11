@@ -23,7 +23,7 @@ const SEV_COLOR: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
-export default function DeepDiveTab({ solicitationId, clientId, currentPhase }: { solicitationId: string; clientId?: string | null; currentPhase: string }) {
+export default function DeepDiveTab({ solicitationId, clientId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; clientId?: string | null; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
   const [tab, setTab] = useState("rtm");
   const { data: items = [] } = useRequirementItems(solicitationId);
   const { data: sections = [] } = useSectionAnalyses(solicitationId);
