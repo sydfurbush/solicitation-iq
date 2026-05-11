@@ -1,73 +1,55 @@
-## Goal
+## Problem
 
-Give users visibility into past question-generation runs for a solicitation: status, batch counts, inserted question counts, error message, timing, and which docs failed — so they can audit failures, track retry chains, and decide whether to re-run.
+The history sheet shows a partial run with `1 batch(es) failed`, but no **Retry failed** button appears.
 
-## Where it lives
+I checked the actual run record in the database:
 
-Runs are scoped to a single solicitation, so the history belongs **inside the Questions tab** rather than a top-level page. We'll add a "History" button next to "Generate" on `SolicitationQuestions` that opens a side **Sheet** with the run list. This avoids a route change and keeps the user in context.
-
-```text
-[ Generate ]  [ Add question ]  [ Export ]  [ History ]
-                                              ^ new
+```
+status: partial
+failed_batches: 1
+failed_doc_ids: []         ← empty
+cross_doc_failed: false    ← false
 ```
 
-Clicking "History" → right-side `Sheet` titled "Question generation runs".
+The Retry button is gated on `failed_doc_ids.length > 0 || cross_doc_failed` in both `QuestionRunsHistorySheet.tsx` and `GenerateQuestionsDialog.tsx`. When a batch fails but neither marker was recorded (older edge-function version, or an unusual failure path), retry becomes impossible even though work is clearly missing.
 
-## What each row shows
+The edge function also rejects retries with HTTP 400 when both markers are empty, so even forcing the button to show wouldn't currently work.
 
-For every row in `question_generation_runs` for this solicitation (newest first):
+## Fix
 
-- Status badge: `running` (blue/pulse), `completed` (green), `partial` (amber), `failed` (red).
-- Started — relative time (e.g. "3 hours ago"), full timestamp on hover.
-- Duration — `completed_at − started_at`, or "running…" if no completion time.
-- Counts — `completed_batches / total_batches` · `failed_batches` failed · `inserted_count` questions added.
-- Error message — shown inline (muted, italic) when present.
-- Failed docs — chip list of file names resolved from `failed_doc_ids` (looked up against the solicitation's `documents`); "+ cross-doc" chip when `cross_doc_failed = true`.
-- Retry lineage — small "↳ retry of <relative time>" tag when `parent_run_id` is set.
-- Per-row action buttons (right side):
-  - **Retry failed batches** — only visible when status is `partial`/`failed` AND there's something to retry. Reuses the existing `useGenerateQuestions({ retryRunId })` flow. Disabled while another run is in-flight.
-  - **Copy error** — when `error_message` is present, copies it to the clipboard for support escalation.
+Treat `failed_batches > 0` as the source of truth for "needs retry" and have the retry path gracefully handle the "we don't know which docs failed" case by re-running everything in append-only mode.
 
-## Components & files
+### 1. UI — show Retry whenever the run failed
 
-### New
-- `src/features/questions/hooks/useQuestionGenerationRuns.ts`
-  - `useQuestionGenerationRuns(solicitationId)` — TanStack query selecting all columns from `question_generation_runs` for this solicitation, ordered by `started_at desc`. Auto-refetches every 5 s while any row is `running`.
-- `src/features/questions/components/QuestionRunsHistorySheet.tsx`
-  - Accepts `{ solicitationId, documents, open, onOpenChange }`.
-  - Renders the rows described above. Uses `Sheet` from `src/components/ui/sheet.tsx`.
-  - Reuses `useGenerateQuestions(solicitationId)` to power the per-row "Retry failed batches" button (with the same toast/progress pattern used in `GenerateQuestionsDialog`).
-  - Shows a small inline progress strip at the top while a retry initiated from this sheet is in flight ("Batch X of Y · Z added").
+In `QuestionRunsHistorySheet.tsx` and `GenerateQuestionsDialog.tsx`, change the gate from:
 
-### Updated
-- `src/pages/SolicitationQuestions.tsx`
-  - Add `historyOpen` state and a new toolbar button: `<Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}><History className="mr-1 h-4 w-4" /> History</Button>` (lucide `History` icon).
-  - Mount `<QuestionRunsHistorySheet ... />` alongside the other dialogs.
+```ts
+(status === "partial" || status === "failed") && (failed_doc_ids.length > 0 || cross_doc_failed)
+```
 
-### Not changed
-- No DB migration — the `question_generation_runs` table already has every field needed (`status`, `total_batches`, `completed_batches`, `failed_batches`, `inserted_count`, `current_step`, `error_message`, `failed_doc_ids`, `cross_doc_failed`, `parent_run_id`, `started_at`, `completed_at`).
-- No edge function changes.
-- No new RLS — existing `staff view qgen runs` policy already covers reads for org staff.
+to:
 
-## Empty / loading states
+```ts
+(status === "partial" || status === "failed") &&
+(failed_batches > 0 || failed_doc_ids.length > 0 || cross_doc_failed)
+```
 
-- Loading: 3 row skeletons inside the sheet.
-- Empty: centered message "No generation runs yet. Click Generate to create the first one."
-- Long lists: cap at the 50 most recent runs; if there are more, show a small "Showing latest 50" footer note.
+When `failed_doc_ids` is empty and `cross_doc_failed` is false, label the button **Retry run** (instead of "Retry failed batches") and show a small subtext: *"Original failure scope unknown — will re-run all documents and append new questions."* This sets expectations.
 
-## Edge cases
+### 2. Edge function — accept "unknown scope" retries
 
-- Stale `running` rows (function crashed before final write): show with status `running` but display "started X hours ago" so users can spot zombies; no special handling beyond surfacing it.
-- Documents that have been deleted since a run: `failed_doc_ids` IDs that don't resolve render as `Unknown document` chips rather than disappearing.
-- Retry from a row whose parent has already been resolved: still allowed; the function-side validation (already added previously) will reject if `failed_doc_ids` is empty AND `cross_doc_failed` is false.
+In `supabase/functions/generate-questions/index.ts`:
+
+- Also load `failed_batches` from the prior run.
+- Replace the "no failed batches to retry" 400 with: if `failed_doc_ids` is empty and `cross_doc_failed` is false **but** `failed_batches > 0`, fall back to a full retry — process all eligible documents and run the cross-doc pass, still in append-only mode (`didRegenDelete = true`, never deletes existing AI questions).
+- Keep the original 400 only when `failed_batches === 0` (truly nothing to retry).
+
+### 3. Plug the data gap going forward
+
+In the per-batch loop, ensure `failed_doc_ids` is always written when a batch fails — already correct in current code (`for (const d of batch) failedDocIds.push(d.id)` in both the insert-error branch and the catch). No code change here, but add one defensive log when `failed > 0` and `failedDocIds.length === 0 && !crossDocFailed` so future occurrences are diagnosable.
 
 ## Out of scope
 
-- No CSV/JSON export of run history.
-- No filter/search inside the sheet (50-row cap keeps it short).
-- No top-level "/runs" route or org-wide cross-solicitation view.
-- No realtime postgres subscription — 5 s polling while any row is `running` is sufficient.
-
-## Expected outcome
-
-Users can open a side panel from the Questions tab, see a chronologically ordered audit trail of every generation attempt with what failed and why, and one-click retry any partial/failed run without leaving the tab.
+- No DB migration.
+- No changes to batching logic, prompts, or question schema.
+- No backfill of the existing run's `failed_doc_ids` (impossible — the info wasn't recorded).

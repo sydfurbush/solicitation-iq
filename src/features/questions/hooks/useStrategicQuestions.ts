@@ -37,7 +37,7 @@ export function useLatestQuestionRun(solicitationId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("question_generation_runs")
-        .select("id, status, failed_batches, failed_doc_ids, cross_doc_failed, completed_at, inserted_count")
+        .select("id, status, failed_batches, failed_doc_ids, cross_doc_failed, completed_at, inserted_count, total_batches")
         .eq("solicitation_id", solicitationId!)
         .order("started_at", { ascending: false })
         .limit(1)
