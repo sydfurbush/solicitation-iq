@@ -1,11 +1,14 @@
-import { ArrowDownRight, ArrowUpRight, Minus, RefreshCw, Unlink } from "lucide-react";
+import { useState } from "react";
+import { ArrowDownRight, ArrowUpRight, AlertTriangle, DownloadCloud, Minus, RefreshCw, Unlink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from "@/lib/utils";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { usePriorSolicitation, useUnlinkPriorSolicitation, type PriorSolicitationRow, type ComparisonChanges } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
+import { useImportPriorFromSam, waitForDocumentsParsed } from "../hooks/useImportPriorFromSam";
 import { fmtCurrency, fmtDate, pctDelta } from "../utils/diffHelpers";
 import { toast } from "@/hooks/use-toast";
 
@@ -17,6 +20,9 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   const { refetch: refetchLink } = usePriorSolicitation(solicitationId);
   const unlink = useUnlinkPriorSolicitation(solicitationId);
   const compare = useRunComparison(solicitationId);
+  const importFromSam = useImportPriorFromSam(solicitationId);
+  const [importStage, setImportStage] = useState<string | null>(null);
+  const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const valueDelta = pctDelta(prior?.estimated_value_high ?? null, current?.estimated_value_high ?? null);
   const reqDelta = (current?.key_requirements as unknown[] | null)?.length ?? 0
@@ -43,6 +49,40 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
+
+  const handleImportFromSam = async () => {
+    try {
+      setImportStage("Looking up SAM.gov…");
+      const result = await importFromSam.mutateAsync({
+        url: priorRecord.external_url,
+        solicitationNumber: priorRecord.external_reference,
+        externalReference: priorRecord.external_reference,
+      });
+      // Drop the legacy external-only link so the new fully-linked record is canonical
+      try { await unlink.mutateAsync(priorRecord.id); } catch { /* ignore */ }
+      toast({
+        title: "Prior imported",
+        description: `${result.imported} of ${result.found} attachment(s) imported${result.failed ? `, ${result.failed} failed` : ""}.`,
+      });
+      if (result.imported > 0) {
+        setImportStage("Parsing prior documents…");
+        await waitForDocumentsParsed(result.priorSolicitationId);
+      }
+      setImportStage("Re-running comparison…");
+      compare.mutate(
+        { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+        {
+          onSuccess: () => { toast({ title: "Comparison updated" }); refetchLink(); },
+          onError: (e) => toast({ title: "Comparison failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
+        },
+      );
+    } catch (e) {
+      toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setImportStage(null);
+    }
+  };
+  const importing = importFromSam.isPending || !!importStage;
 
   const totalChanges =
     (changes?.requirements?.length ?? 0) +
@@ -71,6 +111,26 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {isExternalOnly && (
+          <Alert variant="default" className="border-amber-500/40 bg-amber-500/5">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTitle>Comparison is limited</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <p>
+                The prior solicitation is only referenced ({priorRecord.external_reference}) — its documents
+                were never imported, so the AI has nothing concrete to diff against. Import attachments from
+                SAM.gov to get a full requirement-level comparison.
+              </p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={handleImportFromSam} disabled={importing}>
+                  <DownloadCloud className={cn("mr-2 h-4 w-4", importing && "animate-pulse")} />
+                  {importing ? (importStage ?? "Importing…") : "Import from SAM.gov"}
+                </Button>
+                {importStage && <span className="text-xs text-muted-foreground">{importStage}</span>}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="grid md:grid-cols-2 gap-4">
           <SolicitationHeader label="Prior" sol={prior ?? null} fallback={priorRecord.external_reference} fallbackUrl={priorRecord.external_url} />
           <SolicitationHeader label="Current" sol={current ?? null} />
