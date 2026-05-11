@@ -415,69 +415,72 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Cross-document contradiction pass
-      await updateRun({ current_step: "Cross-document contradiction pass" });
-      try {
-        let crossPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
-        for (const d of documents) {
-          const ds = sectionsByDoc.get(d.id) ?? [];
-          const toc = ds
-            .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
-            .slice(0, 80)
-            .join("\n");
-          crossPrompt += `\n--- ${d.file_name} ---\n${toc}\n`;
-        }
-        // Append extracted entities (KPIs/numbers/dates/places)
-        const { data: entities } = await supabase
-          .from("extracted_entities")
-          .select("document_id, entity_type, entity_value, page_number, context_snippet")
-          .in("document_id", docIds)
-          .limit(800);
-        if (entities && entities.length) {
-          const docName = new Map<string, string>();
-          documents.forEach((d) => docName.set(d.id, d.file_name));
-          crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS ---\n`;
-          for (const e of entities) {
-            crossPrompt += `[${docName.get(e.document_id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 160)}` : ""}\n`;
+      // Cross-document contradiction pass (skipped in retries that don't need it)
+      if (runCrossDoc) {
+        await updateRun({ current_step: "Cross-document contradiction pass" });
+        try {
+          let crossPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
+          for (const d of documents) {
+            const ds = sectionsByDoc.get(d.id) ?? [];
+            const toc = ds
+              .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
+              .slice(0, 80)
+              .join("\n");
+            crossPrompt += `\n--- ${d.file_name} ---\n${toc}\n`;
           }
-        }
-        crossPrompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
-
-        if (crossPrompt.length > 120_000) crossPrompt = crossPrompt.slice(0, 120_000) + "\n…[truncated]…";
-
-        console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length}`);
-        const parsed = (await callAiTool({
-          functionName: "generate-questions",
-          system: CROSS_DOC_SYSTEM_PROMPT,
-          user: crossPrompt,
-          tool: SCHEMA,
-        })) as Record<string, any>;
-        const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
-        const rows = mapRows(questions, solicitationId, docByName);
-        console.log(`[generate-questions] cross-doc got ${rows.length} questions`);
-        if (rows.length > 0) {
-          if (regenerate && !didRegenDelete) {
-            await supabase
-              .from("strategic_questions")
-              .delete()
-              .eq("solicitation_id", solicitationId)
-              .eq("is_ai_generated", true);
-            didRegenDelete = true;
+          const { data: entities } = await supabase
+            .from("extracted_entities")
+            .select("document_id, entity_type, entity_value, page_number, context_snippet")
+            .in("document_id", docIds)
+            .limit(800);
+          if (entities && entities.length) {
+            const docName = new Map<string, string>();
+            documents.forEach((d) => docName.set(d.id, d.file_name));
+            crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS ---\n`;
+            for (const e of entities) {
+              crossPrompt += `[${docName.get(e.document_id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 160)}` : ""}\n`;
+            }
           }
-          const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
-          if (insErr) {
-            console.error("[generate-questions] cross-doc insert error", insErr);
-            failed++;
+          crossPrompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
+
+          if (crossPrompt.length > 120_000) crossPrompt = crossPrompt.slice(0, 120_000) + "\n…[truncated]…";
+
+          console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length}`);
+          const parsed = (await callAiTool({
+            functionName: "generate-questions",
+            system: CROSS_DOC_SYSTEM_PROMPT,
+            user: crossPrompt,
+            tool: SCHEMA,
+          })) as Record<string, any>;
+          const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
+          const rows = mapRows(questions, solicitationId, docByName);
+          console.log(`[generate-questions] cross-doc got ${rows.length} questions`);
+          if (rows.length > 0) {
+            if (regenerate && !didRegenDelete) {
+              await supabase
+                .from("strategic_questions")
+                .delete()
+                .eq("solicitation_id", solicitationId)
+                .eq("is_ai_generated", true);
+              didRegenDelete = true;
+            }
+            const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
+            if (insErr) {
+              console.error("[generate-questions] cross-doc insert error", insErr);
+              failed++;
+              crossDocFailed = true;
+            } else {
+              totalInserted += rows.length;
+              completed++;
+            }
           } else {
-            totalInserted += rows.length;
             completed++;
           }
-        } else {
-          completed++;
+        } catch (err) {
+          console.error("[generate-questions] cross-doc failed", err);
+          failed++;
+          crossDocFailed = true;
         }
-      } catch (err) {
-        console.error("[generate-questions] cross-doc failed", err);
-        failed++;
       }
 
       const finalStatus =
@@ -486,13 +489,30 @@ Deno.serve(async (req) => {
         completed_batches: completed,
         failed_batches: failed,
         inserted_count: totalInserted,
+        failed_doc_ids: failedDocIds,
+        cross_doc_failed: crossDocFailed,
         status: finalStatus,
         current_step: null,
         completed_at: new Date().toISOString(),
         error_message: failed > 0 ? `${failed} batch(es) failed` : null,
       });
+
+      // If retry succeeded fully, mark the parent run as completed and clear its failure markers.
+      if (isRetry && parentRunId && finalStatus === "completed") {
+        await supabase
+          .from("question_generation_runs")
+          .update({
+            status: "completed",
+            failed_doc_ids: [],
+            cross_doc_failed: false,
+            error_message: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", parentRunId);
+      }
+
       console.log(
-        `[generate-questions] DONE sol=${solicitationId} status=${finalStatus} inserted=${totalInserted} ok=${completed} failed=${failed}`,
+        `[generate-questions] DONE sol=${solicitationId} status=${finalStatus} inserted=${totalInserted} ok=${completed} failed=${failed} retry=${isRetry}`,
       );
     })();
 
