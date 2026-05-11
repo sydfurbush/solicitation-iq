@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Loader2, RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,9 +11,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { useGenerateQuestions, useLatestQuestionRun } from "../hooks/useStrategicQuestions";
+
+type ProgressState = {
+  runId: string;
+  status: string;
+  completed: number;
+  total: number;
+  failed: number;
+  inserted: number;
+  step: string | null;
+};
 
 const FOCUS_OPTIONS = ["Technical", "Management", "Pricing", "Compliance", "Staffing"];
 
