@@ -24,6 +24,12 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   const importFromSam = useImportPriorFromSam(solicitationId);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const [lastImport, setLastImport] = useState<{
+    priorSolicitationId: string;
+    priorRecordId: string;
+    failedAttachments: FailedAttachment[];
+  } | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const handleCancelImport = () => {
