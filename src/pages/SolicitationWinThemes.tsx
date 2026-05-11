@@ -8,7 +8,7 @@ import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseBut
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
-export default function SolicitationWinThemes({ solicitationId, currentPhase }: { solicitationId: string; currentPhase: string }) {
+export default function SolicitationWinThemes({ solicitationId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
   const { data: themes = [], isLoading } = useWinThemes(solicitationId);
   const gen = useGenerateWinThemes(solicitationId);
   const update = useUpdateWinTheme(solicitationId);
@@ -36,6 +36,7 @@ export default function SolicitationWinThemes({ solicitationId, currentPhase }: 
       subtitle: `${exportable.length} ${approved.length > 0 ? "approved" : "candidate"} theme${exportable.length === 1 ? "" : "s"}`,
       filenameBase: "win_themes",
       sections,
+      cover: { clientName, solicitationTitle, phase: currentPhase },
     };
   };
 
