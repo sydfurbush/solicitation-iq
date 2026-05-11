@@ -172,11 +172,11 @@ function ChipsInput({
     </div>
   );
 }
+}
 
 const NAICS_REGEX = /^\d{6}$/;
 const validateNaics = (v: string) => (NAICS_REGEX.test(v) ? null : "NAICS must be exactly 6 digits");
 const transformNaics = (v: string) => v.replace(/\D/g, "");
-}
 
 function buildCleaned(draft: Capabilities): Capabilities {
   const cleaned: Capabilities = {};
