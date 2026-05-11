@@ -72,6 +72,8 @@ export default function SolicitationDetail() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = searchParams.get("tab") ?? "overview";
   const { data: s, isLoading } = useSolicitation(solicitationId);
+  const { data: client } = useClient(s?.client_id ?? undefined);
+  const clientName = client?.name ?? undefined;
   const updateStatus = useUpdateSolicitationStatus();
   const deleteMut = useDeleteSolicitation();
   const [confirmDelete, setConfirmDelete] = useState(false);
