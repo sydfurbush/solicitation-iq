@@ -83,10 +83,19 @@ export type SamNotFoundDetails = {
 
 export class SamNoticeNotFoundError extends Error {
   details: SamNotFoundDetails;
-  constructor(message: string, details: SamNotFoundDetails = {}) {
+  errorResponse: SamErrorResponse;
+  lookupParams: LookupParams;
+  constructor(
+    message: string,
+    details: SamNotFoundDetails = {},
+    errorResponse: SamErrorResponse = {},
+    lookupParams: LookupParams = {},
+  ) {
     super(message);
     this.name = "SamNoticeNotFoundError";
     this.details = details;
+    this.errorResponse = errorResponse;
+    this.lookupParams = lookupParams;
   }
 }
 
