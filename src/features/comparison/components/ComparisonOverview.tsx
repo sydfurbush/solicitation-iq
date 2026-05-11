@@ -10,6 +10,8 @@ import { usePriorSolicitation, useUnlinkPriorSolicitation, type PriorSolicitatio
 import { useRunComparison } from "../hooks/useRunComparison";
 import { useImportPriorFromSam, waitForDocumentsParsed, retryAttachmentImport, ImportCancelledError, type ImportProgress, type FailedAttachment } from "../hooks/useImportPriorFromSam";
 import { ImportProgressPanel } from "./ImportProgressPanel";
+import { logPriorImport, usePriorImportHistory, useInvalidatePriorImportHistory } from "../hooks/usePriorImportHistory";
+import { ImportHistoryList } from "./ImportHistoryList";
 import { fmtCurrency, fmtDate, pctDelta } from "../utils/diffHelpers";
 import { toast } from "@/hooks/use-toast";
 
@@ -64,9 +66,14 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     }
   };
 
+  const invalidateHistory = useInvalidatePriorImportHistory();
+  const { data: history } = usePriorImportHistory(priorRecord.id);
+
   const handleImportFromSam = async () => {
     const controller = new AbortController();
     abortRef.current = controller;
+    const startedAt = new Date().toISOString();
+    const linkIdAtStart = priorRecord.id;
     try {
       const result = await importFromSam.mutateAsync({
         url: priorRecord.external_url,
@@ -80,8 +87,23 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
         priorRecordId: result.priorRecordId,
         failedAttachments: result.failedAttachments,
       });
+
+      // Log against the NEW link (which actually has the prior_solicitation_id)
+      await logPriorImport({
+        priorLinkId: result.priorRecordId,
+        priorSolicitationId: result.priorSolicitationId,
+        action: "initial",
+        status: result.failed === 0 ? "success" : result.imported === 0 ? "failed" : "partial",
+        foundCount: result.found,
+        importedCount: result.imported,
+        failedCount: result.failed,
+        failedAttachments: result.failedAttachments,
+        startedAt,
+      });
+      invalidateHistory(result.priorRecordId);
+
       // Drop the legacy external-only link so the new fully-linked record is canonical
-      try { await unlink.mutateAsync(priorRecord.id); } catch { /* ignore */ }
+      try { await unlink.mutateAsync(linkIdAtStart); } catch { /* ignore */ }
 
       if (result.imported > 0) {
         setProgress({
@@ -125,12 +147,25 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       });
       toast({ title: "Comparison updated" });
     } catch (e) {
-      if (e instanceof ImportCancelledError || controller.signal.aborted) {
+      const cancelled = e instanceof ImportCancelledError || controller.signal.aborted;
+      if (cancelled) {
         setProgress({ stage: "error", message: "Cancelled by user." });
       } else {
         setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
         toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
       }
+      // Log failure against the original external link so the user sees an attempt was made
+      await logPriorImport({
+        priorLinkId: linkIdAtStart,
+        action: "initial",
+        status: cancelled ? "cancelled" : "failed",
+        foundCount: 0,
+        importedCount: 0,
+        failedCount: 0,
+        errorMessage: e instanceof Error ? e.message : String(e),
+        startedAt,
+      });
+      invalidateHistory(linkIdAtStart);
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
     }
@@ -142,6 +177,8 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     abortRef.current = controller;
     setRetrying(true);
     const toRetry = lastImport.failedAttachments;
+    const startedAt = new Date().toISOString();
+    const targetLinkId = lastImport.priorRecordId;
     try {
       setProgress({
         stage: "downloading",
@@ -151,8 +188,20 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       const res = await retryAttachmentImport(lastImport.priorSolicitationId, toRetry);
       if (controller.signal.aborted) throw new ImportCancelledError();
 
-      // Update remembered failures so user can retry again if some still fail
       setLastImport((prev) => prev && { ...prev, failedAttachments: res.failed });
+
+      await logPriorImport({
+        priorLinkId: targetLinkId,
+        priorSolicitationId: lastImport.priorSolicitationId,
+        action: "retry",
+        status: res.failed.length === 0 ? "success" : res.imported === 0 ? "failed" : "partial",
+        foundCount: toRetry.length,
+        importedCount: res.imported,
+        failedCount: res.failed.length,
+        failedAttachments: res.failed,
+        startedAt,
+      });
+      invalidateHistory(targetLinkId);
 
       setProgress({
         stage: "downloading",
@@ -189,12 +238,26 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       });
       toast({ title: "Retry complete" });
     } catch (e) {
-      if (e instanceof ImportCancelledError || controller.signal.aborted) {
+      const cancelled = e instanceof ImportCancelledError || controller.signal.aborted;
+      if (cancelled) {
         setProgress({ stage: "error", message: "Cancelled by user." });
       } else {
         setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
         toast({ title: "Retry failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
       }
+      await logPriorImport({
+        priorLinkId: targetLinkId,
+        priorSolicitationId: lastImport.priorSolicitationId,
+        action: "retry",
+        status: cancelled ? "cancelled" : "failed",
+        foundCount: toRetry.length,
+        importedCount: 0,
+        failedCount: toRetry.length,
+        failedAttachments: toRetry,
+        errorMessage: e instanceof Error ? e.message : String(e),
+        startedAt,
+      });
+      invalidateHistory(targetLinkId);
     } finally {
       setRetrying(false);
       if (abortRef.current === controller) abortRef.current = null;
@@ -318,6 +381,11 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
           </div>
         )}
       </CardContent>
+      {history && history.length > 0 && (
+        <CardContent className="pt-0">
+          <ImportHistoryList priorLinkId={priorRecord.id} />
+        </CardContent>
+      )}
     </Card>
   );
 }
