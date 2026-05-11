@@ -45,6 +45,7 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
   const [selected, setSelected] = useState<Record<number, boolean>>({});
 
   const openDialog = () => {
+    if (busy) return;
     const built = build();
     if (!built) {
       toast({
@@ -57,12 +58,19 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
     setDoc(built);
     setFilename(built.filenameBase);
     setSelected(Object.fromEntries(built.sections.map((_, i) => [i, true])));
+    setProgress(0);
+    setStage("");
     setOpen(true);
   };
 
   // Reset transient state when closing
   useEffect(() => {
-    if (!open) setBusy(false);
+    if (!open) {
+      setBusy(false);
+      setProgress(0);
+      setStage("");
+      inflightRef.current = false;
+    }
   }, [open]);
 
   const allOn = useMemo(
