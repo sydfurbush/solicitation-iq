@@ -116,8 +116,8 @@ function buildDocBlock(
   const header = `\n\n=== DOCUMENT: ${doc.file_name} ===\n--- TABLE OF CONTENTS ---\n${toc}\n--- BODY ---\n`;
   let used = header.length;
   const parts: string[] = [header];
-  const PER_SECTION_HEAD = 900;
-  const PER_SECTION_TAIL = 400;
+  const PER_SECTION_HEAD = 2400;
+  const PER_SECTION_TAIL = 1200;
   for (const s of sections) {
     if (used >= budget) break;
     const content = (s.content ?? "").trim();
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
 
     // Distribute a generous total budget across documents proportionally
     // to their section count, so big PWS docs get more room than 1-page exhibits.
-    const TOTAL_BUDGET = 180_000;
+    const TOTAL_BUDGET = 240_000;
     const totalSections = (sections ?? []).length || 1;
     let docBlocks = "";
     let totalUsed = 0;
@@ -244,8 +244,15 @@ Deno.serve(async (req) => {
           console.warn(`[generate-questions] AI returned 0 questions for sol=${solicitationId}; preserving existing`);
           return;
         }
+        // Only delete prior AI rows AFTER we have a non-empty result, so a failed
+        // run never wipes the prior baseline.
         if (regenerate) {
-          await supabase.from("strategic_questions").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
+          const { error: delErr } = await supabase
+            .from("strategic_questions")
+            .delete()
+            .eq("solicitation_id", solicitationId)
+            .eq("is_ai_generated", true);
+          if (delErr) console.error("[generate-questions] delete error", delErr);
         }
         const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
         if (insErr) console.error("[generate-questions] insert error", insErr);
