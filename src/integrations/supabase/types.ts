@@ -1197,6 +1197,36 @@ export type Database = {
           },
         ]
       }
+      requirement_item_versions: {
+        Row: {
+          change_summary: string | null
+          changed_at: string
+          changed_by: string | null
+          id: string
+          requirement_id: string
+          snapshot: Json
+          solicitation_id: string
+        }
+        Insert: {
+          change_summary?: string | null
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          requirement_id: string
+          snapshot: Json
+          solicitation_id: string
+        }
+        Update: {
+          change_summary?: string | null
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          requirement_id?: string
+          snapshot?: Json
+          solicitation_id?: string
+        }
+        Relationships: []
+      }
       requirement_items: {
         Row: {
           compliance_owner: string | null
