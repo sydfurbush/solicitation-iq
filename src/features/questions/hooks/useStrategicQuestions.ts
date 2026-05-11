@@ -110,7 +110,7 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
             inserted: run.inserted_count ?? 0,
             step: run.current_step ?? null,
           });
-          qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+          invalidateQuestionCounts(qc, solicitationId);
           if (run.status === "completed" || run.status === "partial" || run.status === "failed") {
             return {
               status: run.status as "completed" | "partial" | "failed",
@@ -125,7 +125,7 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
     },
     onSuccess: () => {
       if (solicitationId) {
-        qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+        invalidateQuestionCounts(qc, solicitationId);
         qc.invalidateQueries({ queryKey: ["latest-question-run", solicitationId] });
       }
     },
