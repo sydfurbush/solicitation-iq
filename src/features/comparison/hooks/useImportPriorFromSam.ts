@@ -58,6 +58,22 @@ export type ImportPriorResult = {
   failedAttachments: FailedAttachment[];
 };
 
+export type SamNotFoundDetails = {
+  lookup?: { noticeId?: string | null; solicitationNumber?: string | null };
+  triedStrategies?: string[];
+  url?: string | null;
+  solicitationNumber?: string | null;
+};
+
+export class SamNoticeNotFoundError extends Error {
+  details: SamNotFoundDetails;
+  constructor(message: string, details: SamNotFoundDetails = {}) {
+    super(message);
+    this.name = "SamNoticeNotFoundError";
+    this.details = details;
+  }
+}
+
 /**
  * Orchestrates: SAM lookup → create shadow prior solicitation → import attachments → link.
  * Comparison is NOT auto-run here — caller decides when to invoke compare-solicitations
