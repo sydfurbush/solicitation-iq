@@ -275,6 +275,37 @@ Deno.serve(async (req) => {
     }
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Reap any orphaned "running" rows for this solicitation (worker died mid-run, no terminal status was written).
+    // Threshold: 8 minutes without an updated_at bump.
+    try {
+      const cutoff = new Date(Date.now() - 8 * 60 * 1000).toISOString();
+      const { data: stale } = await supabase
+        .from("question_generation_runs")
+        .select("id, current_step")
+        .eq("solicitation_id", solicitationId)
+        .eq("status", "running")
+        .lt("updated_at", cutoff);
+      for (const row of stale ?? []) {
+        const wasCrossDoc = (row.current_step ?? "").toLowerCase().includes("cross-document");
+        await supabase
+          .from("question_generation_runs")
+          .update({
+            status: "failed",
+            cross_doc_failed: wasCrossDoc ? true : undefined,
+            failed_batches: 1,
+            error_message: "Run timed out (worker terminated). Retry to resume.",
+            current_step: null,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.id)
+          .eq("status", "running");
+        console.warn(`[generate-questions] reaped stalled run=${row.id} (cross_doc=${wasCrossDoc})`);
+      }
+    } catch (e) {
+      console.warn("[generate-questions] reaper failed (non-fatal)", e);
+    }
+
     // Retry mode: load prior run and restrict scope to its failed batches.
     let retryDocIds: string[] | null = null;
     let retryCrossDoc = false;
@@ -523,104 +554,143 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Cross-document contradiction pass (skipped in retries that don't need it)
+      // Cross-document contradiction pass (skipped in retries that don't need it).
+      // Tightened caps + auto-split into halves when prompt is large + heartbeat updates.
       if (runCrossDoc) {
-        await updateRun({ current_step: "Cross-document contradiction pass" });
+        const PER_DOC_ENTITY_CAP = 40;
+        const TOC_CAP = 25;
+        const SNIPPET_CAP = 60;
+        const SPLIT_PROMPT_THRESHOLD = 60_000;
+        const HARD_PROMPT_CAP = 100_000;
+
+        // Pre-fetch all entities once.
+        const entitiesByDoc = new Map<string, Array<Record<string, unknown>>>();
+        for (const id of docIds) entitiesByDoc.set(id, []);
         try {
-          let crossPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
-          for (const d of documents) {
+          const { data: entities } = await supabase
+            .from("extracted_entities")
+            .select("document_id, entity_type, entity_value, page_number, context_snippet")
+            .in("document_id", docIds)
+            .limit(2000);
+          for (const e of entities ?? []) {
+            const list = entitiesByDoc.get(e.document_id as string);
+            if (list && list.length < PER_DOC_ENTITY_CAP) list.push(e as Record<string, unknown>);
+          }
+        } catch (e) {
+          console.warn("[generate-questions] cross-doc entity fetch failed (continuing)", e);
+        }
+        const docName = new Map<string, string>();
+        documents.forEach((d) => docName.set(d.id, d.file_name));
+
+        const buildCrossPrompt = (subset: Doc[]) => {
+          let prompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
+          for (const d of subset) {
             const ds = rawSectionsByDoc.get(d.id) ?? [];
             const toc = ds
               .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
-              .slice(0, 50)
+              .slice(0, TOC_CAP)
               .join("\n");
-            crossPrompt += `\n--- ${d.file_name} ---\n${toc}\n`;
+            prompt += `\n--- ${d.file_name} ---\n${toc}\n`;
           }
-          // Per-doc entity cap so a single chatty doc can't crowd out others.
-          const PER_DOC_ENTITY_CAP = 80;
-          const entitiesByDoc = new Map<string, Array<Record<string, unknown>>>();
-          for (const id of docIds) entitiesByDoc.set(id, []);
-          {
-            const { data: entities } = await supabase
-              .from("extracted_entities")
-              .select("document_id, entity_type, entity_value, page_number, context_snippet")
-              .in("document_id", docIds)
-              .limit(2000);
-            for (const e of entities ?? []) {
-              const list = entitiesByDoc.get(e.document_id as string);
-              if (list && list.length < PER_DOC_ENTITY_CAP) list.push(e as Record<string, unknown>);
-            }
-          }
-          const docName = new Map<string, string>();
-          documents.forEach((d) => docName.set(d.id, d.file_name));
           let entityCount = 0;
           let entitiesBlock = "";
-          for (const [id, list] of entitiesByDoc) {
+          for (const d of subset) {
+            const list = entitiesByDoc.get(d.id) ?? [];
             for (const e of list) {
-              const snip = e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 100)}` : "";
-              entitiesBlock += `[${docName.get(id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${snip}\n`;
+              const snip = e.context_snippet ? ` — ${String(e.context_snippet).slice(0, SNIPPET_CAP)}` : "";
+              entitiesBlock += `[${docName.get(d.id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${snip}\n`;
               entityCount++;
             }
           }
           if (entityCount > 0) {
-            crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS (${entityCount} facts, capped at ${PER_DOC_ENTITY_CAP}/doc) ---\n${entitiesBlock}`;
+            prompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS (${entityCount} facts, capped at ${PER_DOC_ENTITY_CAP}/doc) ---\n${entitiesBlock}`;
           }
-          crossPrompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
+          prompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
+          if (prompt.length > HARD_PROMPT_CAP) prompt = prompt.slice(0, HARD_PROMPT_CAP) + "\n…[truncated]…";
+          return { prompt, entityCount };
+        };
 
-          if (crossPrompt.length > 100_000) crossPrompt = crossPrompt.slice(0, 100_000) + "\n…[truncated]…";
+        // Decide whether to split into two halves of documents.
+        const fullProbe = buildCrossPrompt(documents as Doc[]);
+        const subsets: Array<{ docs: Doc[]; label: string }> = [];
+        if (fullProbe.prompt.length > SPLIT_PROMPT_THRESHOLD && documents.length >= 4) {
+          const mid = Math.ceil(documents.length / 2);
+          subsets.push({ docs: documents.slice(0, mid) as Doc[], label: "cross-doc pass A (docs 1–" + mid + ")" });
+          subsets.push({ docs: documents.slice(mid) as Doc[], label: `cross-doc pass B (docs ${mid + 1}–${documents.length})` });
+        } else {
+          subsets.push({ docs: documents as Doc[], label: "cross-doc pass" });
+        }
 
-          console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length} entities=${entityCount}`);
+        // Bump total_batches if we split, so UI math (X/Y) stays correct.
+        if (subsets.length > 1) {
+          await updateRun({ total_batches: totalBatches + (subsets.length - 1) });
+        }
+        let anySubsetFailed = false;
+        for (let si = 0; si < subsets.length; si++) {
+          const sub = subsets[si];
+          await updateRun({
+            current_step: `Cross-document contradiction pass${subsets.length > 1 ? ` (${si + 1}/${subsets.length})` : ""}`,
+          });
+          try {
+            const { prompt, entityCount } = buildCrossPrompt(sub.docs);
+            console.log(`[generate-questions] ${sub.label} promptChars=${prompt.length} entities=${entityCount}`);
 
-          // One soft retry on transient failure before marking the pass failed.
-          let parsed: Record<string, any> | null = null;
-          let lastErr: unknown = null;
-          for (let attempt = 1; attempt <= 2; attempt++) {
-            try {
-              parsed = (await callAiTool({
-                functionName: "generate-questions",
-                system: CROSS_DOC_SYSTEM_PROMPT,
-                user: crossPrompt,
-                tool: SCHEMA,
-              })) as Record<string, any>;
-              lastErr = null;
-              break;
-            } catch (err) {
-              lastErr = err;
-              console.warn(`[generate-questions] cross-doc attempt ${attempt} failed`, err);
-              if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
+            // Heartbeat between attempts so reaper doesn't kill a slow-but-alive run.
+            let parsed: Record<string, any> | null = null;
+            let lastErr: unknown = null;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                parsed = (await callAiTool({
+                  functionName: "generate-questions",
+                  system: CROSS_DOC_SYSTEM_PROMPT,
+                  user: prompt,
+                  tool: SCHEMA,
+                })) as Record<string, any>;
+                lastErr = null;
+                break;
+              } catch (err) {
+                lastErr = err;
+                console.warn(`[generate-questions] ${sub.label} attempt ${attempt} failed`, err);
+                if (attempt < 2) {
+                  await updateRun({}); // heartbeat
+                  await new Promise((r) => setTimeout(r, 1000));
+                }
+              }
             }
-          }
-          if (lastErr || !parsed) throw lastErr ?? new Error("cross-doc pass returned no result");
+            if (lastErr || !parsed) throw lastErr ?? new Error("cross-doc pass returned no result");
+            await updateRun({}); // heartbeat after AI call
 
-          const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
-          const rows = mapRows(questions, solicitationId, docByName);
-          console.log(`[generate-questions] cross-doc got ${rows.length} questions`);
-          if (rows.length > 0) {
-            if (regenerate && !didRegenDelete) {
-              await supabase
-                .from("strategic_questions")
-                .delete()
-                .eq("solicitation_id", solicitationId)
-                .eq("is_ai_generated", true);
-              didRegenDelete = true;
-            }
-            const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
-            if (insErr) {
-              console.error("[generate-questions] cross-doc insert error", insErr);
-              failed++;
-              crossDocFailed = true;
+            const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
+            const rows = mapRows(questions, solicitationId, docByName);
+            console.log(`[generate-questions] ${sub.label} got ${rows.length} questions`);
+            if (rows.length > 0) {
+              if (regenerate && !didRegenDelete) {
+                await supabase
+                  .from("strategic_questions")
+                  .delete()
+                  .eq("solicitation_id", solicitationId)
+                  .eq("is_ai_generated", true);
+                didRegenDelete = true;
+              }
+              const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
+              if (insErr) {
+                console.error(`[generate-questions] ${sub.label} insert error`, insErr);
+                failed++;
+                anySubsetFailed = true;
+              } else {
+                totalInserted += rows.length;
+                completed++;
+              }
             } else {
-              totalInserted += rows.length;
               completed++;
             }
-          } else {
-            completed++;
+          } catch (err) {
+            console.error(`[generate-questions] ${sub.label} failed`, err);
+            failed++;
+            anySubsetFailed = true;
           }
-        } catch (err) {
-          console.error("[generate-questions] cross-doc failed", err);
-          failed++;
-          crossDocFailed = true;
         }
+        if (anySubsetFailed) crossDocFailed = true;
       }
 
       const finalStatus =
