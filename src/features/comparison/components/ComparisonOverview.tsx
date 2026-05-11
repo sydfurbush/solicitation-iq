@@ -23,7 +23,14 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   const compare = useRunComparison(solicitationId);
   const importFromSam = useImportPriorFromSam(solicitationId);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
+
+  const handleCancelImport = () => {
+    abortRef.current?.abort();
+    setProgress({ stage: "error", message: "Cancelled by user." });
+    toast({ title: "Import cancelled" });
+  };
 
   const valueDelta = pctDelta(prior?.estimated_value_high ?? null, current?.estimated_value_high ?? null);
   const reqDelta = (current?.key_requirements as unknown[] | null)?.length ?? 0
