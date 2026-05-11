@@ -69,6 +69,7 @@ export default function DeepDiveTab({ solicitationId, currentPhase }: { solicita
   );
 }
 
+function SectionAccordion({ solicitationId }: { solicitationId: string }) {
   const { data: rows = [], isLoading } = useSectionAnalyses(solicitationId);
   const analyze = useAnalyzeSections(solicitationId);
   const run = async () => {
