@@ -1,6 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
-import { Link2, ExternalLink } from "lucide-react";
+import { useDropzone } from "react-dropzone";
+import { Link2, ExternalLink, UploadCloud, X, FileText } from "lucide-react";
+import { useUploadPriorDocuments } from "../hooks/useUploadPriorDocuments";
+import { ALLOWED_EXTENSIONS, ALLOWED_MIME_TYPES, MAX_FILE_SIZE, formatFileSize } from "@/features/documents/utils/fileHelpers";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -24,8 +27,13 @@ type Props = {
 
 export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked }: Props) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"existing" | "external">("existing");
+  const [tab, setTab] = useState<"existing" | "upload" | "external">("existing");
   const [selectedPriorId, setSelectedPriorId] = useState<string | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const uploadForm = useForm({
+    defaultValues: { title: "", external_reference: "", notes: "" },
+  });
+  const uploadPrior = useUploadPriorDocuments(solicitationId);
 
   const { data: current } = useSolicitation(solicitationId);
   const { data: all } = useSolicitations({});
@@ -66,8 +74,8 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
     }
   };
 
-  const busy = link.isPending || importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
-  const importing = importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
+  const busy = link.isPending || importFromSam.isPending || uploadPrior.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
+  const importing = importFromSam.isPending || uploadPrior.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
 
   const handleCancelImport = () => {
     abortRef.current?.abort();
@@ -87,6 +95,82 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
         onLinked?.();
         compare.mutate({ priorSolicitationId: selectedPriorId, priorRecordId: linked?.id ?? null });
         setOpen(false);
+        return;
+      }
+
+      if (tab === "upload") {
+        const v = uploadForm.getValues();
+        const title = v.title?.trim();
+        if (!title) {
+          toast({ title: "Enter a title for the prior solicitation", variant: "destructive" });
+          return;
+        }
+        if (uploadFiles.length === 0) {
+          toast({ title: "Add at least one document", variant: "destructive" });
+          return;
+        }
+        const controller = new AbortController();
+        abortRef.current = controller;
+        try {
+          const result = await uploadPrior.mutateAsync({
+            title,
+            externalReference: v.external_reference || null,
+            notes: v.notes || null,
+            files: uploadFiles,
+            onProgress: setProgress,
+          });
+          if (controller.signal.aborted) throw new ImportCancelledError();
+          onLinked?.();
+
+          if (result.uploaded > 0) {
+            setProgress({
+              stage: "parsing",
+              message: `Parsing ${result.uploaded} document(s)…`,
+              found: result.uploaded,
+              imported: result.uploaded,
+              failed: result.failed,
+              parsed: 0,
+              totalDocs: result.uploaded,
+            });
+            await waitForDocumentsParsed(result.priorSolicitationId, {
+              signal: controller.signal,
+              onProgress: ({ parsed, total }) =>
+                setProgress((p) => p && {
+                  ...p,
+                  stage: "parsing",
+                  message: `Parsing documents (${parsed}/${total})…`,
+                  parsed,
+                  totalDocs: total,
+                }),
+            });
+          }
+
+          if (controller.signal.aborted) throw new ImportCancelledError();
+          setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
+          await new Promise<void>((resolve, reject) =>
+            compare.mutate(
+              { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+              { onSuccess: () => resolve(), onError: (e) => reject(e) },
+            ),
+          );
+          setProgress((p) => p && {
+            ...p,
+            stage: "done",
+            message: `Done — ${result.uploaded} document(s) uploaded, comparison updated.`,
+          });
+          toast({ title: "Comparison updated" });
+          setUploadFiles([]);
+          uploadForm.reset();
+          setTimeout(() => setOpen(false), 1200);
+        } catch (e) {
+          if (e instanceof ImportCancelledError || controller.signal.aborted) {
+            setProgress({ stage: "error", message: "Cancelled by user." });
+            return;
+          }
+          throw e;
+        } finally {
+          if (abortRef.current === controller) abortRef.current = null;
+        }
         return;
       }
 
@@ -205,9 +289,10 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
           <DialogDescription>Compare this solicitation to a previous version.</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "external")}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "existing" | "upload" | "external")}>
           <TabsList>
             <TabsTrigger value="existing">From this client</TabsTrigger>
+            <TabsTrigger value="upload">Upload documents</TabsTrigger>
             <TabsTrigger value="external">External reference</TabsTrigger>
           </TabsList>
 
@@ -240,6 +325,15 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
                 )}
               </>
             )}
+          </TabsContent>
+
+          <TabsContent value="upload" className="space-y-3">
+            <UploadTabContent
+              form={uploadForm}
+              files={uploadFiles}
+              setFiles={setUploadFiles}
+              disabled={busy}
+            />
           </TabsContent>
 
           <TabsContent value="external" className="space-y-3">
@@ -284,3 +378,108 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
     </Dialog>
   );
 }
+
+type UploadTabProps = {
+  form: ReturnType<typeof useForm<{ title: string; external_reference: string; notes: string }>>;
+  files: File[];
+  setFiles: (f: File[]) => void;
+  disabled: boolean;
+};
+
+function UploadTabContent({ form, files, setFiles, disabled }: UploadTabProps) {
+  const onDrop = useCallback(
+    (accepted: File[]) => {
+      const merged = [...files];
+      for (const f of accepted) {
+        if (!merged.some((m) => m.name === f.name && m.size === f.size)) merged.push(f);
+      }
+      setFiles(merged);
+    },
+    [files, setFiles],
+  );
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop,
+    accept: ALLOWED_MIME_TYPES,
+    maxSize: MAX_FILE_SIZE,
+    noClick: true,
+    noKeyboard: true,
+    multiple: true,
+    disabled,
+  });
+  const removeFile = (idx: number) => setFiles(files.filter((_, i) => i !== idx));
+
+  return (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor="upload-title">Title</Label>
+        <Input
+          id="upload-title"
+          {...form.register("title")}
+          placeholder="e.g. FY24 RFP – W912DY-19-R-0001"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="upload-ref">Reference / solicitation # (optional)</Label>
+        <Input
+          id="upload-ref"
+          {...form.register("external_reference")}
+          placeholder="e.g. W912DY-19-R-0001"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="upload-notes">Notes (optional)</Label>
+        <Textarea id="upload-notes" {...form.register("notes")} rows={2} />
+      </div>
+      <div
+        {...getRootProps()}
+        className={`relative border-2 border-dashed rounded-lg p-5 transition-colors ${
+          isDragActive ? "border-primary bg-primary/5" : "border-border bg-muted/30"
+        }`}
+      >
+        <input {...getInputProps()} />
+        <div className="flex flex-col items-center justify-center text-center gap-2">
+          <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+            <UploadCloud className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium">
+            {isDragActive ? "Drop files here" : "Drag prior solicitation documents here"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            up to 50MB · {ALLOWED_EXTENSIONS.join(", ")}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={open} disabled={disabled}>
+            Browse files
+          </Button>
+        </div>
+      </div>
+      {files.length > 0 && (
+        <ul className="space-y-1.5">
+          {files.map((f, i) => (
+            <li
+              key={`${f.name}-${i}`}
+              className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm"
+            >
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="flex-1 truncate">{f.name}</span>
+              <span className="text-xs text-muted-foreground">{formatFileSize(f.size)}</span>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => removeFile(i)}
+                disabled={disabled}
+                title="Remove"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-muted-foreground">
+        We'll create a prior solicitation record, upload these documents, parse them, and run the AI comparison automatically.
+      </p>
+    </>
+  );
+}
+
