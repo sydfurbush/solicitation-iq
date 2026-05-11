@@ -231,7 +231,7 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                             ) : (
                               <RotateCcw className="h-3 w-3 mr-1" />
                             )}
-                            Retry failed
+                            {unknownScope ? "Retry run" : "Retry failed"}
                           </Button>
                         )}
                       </div>
