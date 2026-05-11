@@ -38,37 +38,78 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
 
   const link = useLinkPriorSolicitation(solicitationId);
   const compare = useRunComparison(solicitationId);
+  const importFromSam = useImportPriorFromSam(solicitationId);
+  const [stage, setStage] = useState<string | null>(null);
+
+  const busy = link.isPending || importFromSam.isPending || !!stage;
 
   const handleLink = async () => {
     try {
-      let linked;
       if (tab === "existing") {
         if (!selectedPriorId) {
           toast({ title: "Select a prior solicitation", variant: "destructive" });
           return;
         }
-        linked = await link.mutateAsync({ priorSolicitationId: selectedPriorId });
-      } else {
-        const v = externalForm.getValues();
-        if (!v.external_reference) {
-          toast({ title: "Enter a reference", variant: "destructive" });
-          return;
-        }
-        linked = await link.mutateAsync({
-          externalReference: v.external_reference,
-          externalUrl: v.external_url || null,
-        });
+        const linked = await link.mutateAsync({ priorSolicitationId: selectedPriorId });
+        toast({ title: "Prior solicitation linked" });
+        onLinked?.();
+        compare.mutate({ priorSolicitationId: selectedPriorId, priorRecordId: linked?.id ?? null });
+        setOpen(false);
+        return;
       }
-      toast({ title: "Prior solicitation linked" });
-      onLinked?.();
-      // Auto-run comparison
-      compare.mutate({
-        priorSolicitationId: tab === "existing" ? selectedPriorId : null,
-        priorRecordId: linked?.id ?? null,
-      });
-      setOpen(false);
+
+      // External tab — try to import from SAM so comparison has real content
+      const v = externalForm.getValues();
+      const ref = v.external_reference?.trim();
+      const url = v.external_url?.trim();
+      if (!ref && !url) {
+        toast({ title: "Enter a reference or SAM URL", variant: "destructive" });
+        return;
+      }
+
+      try {
+        setStage("Looking up SAM.gov…");
+        const result = await importFromSam.mutateAsync({
+          url: url || null,
+          solicitationNumber: ref || null,
+          externalReference: ref || null,
+          notes: v.notes || null,
+        });
+        toast({
+          title: "Prior imported from SAM.gov",
+          description: `${result.imported} of ${result.found} attachment(s) imported${result.failed ? `, ${result.failed} failed` : ""}.`,
+        });
+        onLinked?.();
+        setOpen(false);
+
+        if (result.imported > 0) {
+          setStage("Parsing prior documents…");
+          await waitForDocumentsParsed(result.priorSolicitationId);
+        }
+        compare.mutate({
+          priorSolicitationId: result.priorSolicitationId,
+          priorRecordId: result.priorRecordId,
+        });
+      } catch (samErr) {
+        // Fall back to a plain external-reference link so the user isn't blocked
+        console.warn("SAM import failed, falling back to external-reference link", samErr);
+        const linked = await link.mutateAsync({
+          externalReference: ref || null,
+          externalUrl: url || null,
+        });
+        toast({
+          title: "Linked as external reference",
+          description: `Couldn't auto-import from SAM: ${samErr instanceof Error ? samErr.message : String(samErr)}. Comparison will be limited.`,
+          variant: "destructive",
+        });
+        onLinked?.();
+        compare.mutate({ priorSolicitationId: null, priorRecordId: linked?.id ?? null });
+        setOpen(false);
+      }
     } catch (e) {
       toast({ title: "Failed to link", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setStage(null);
     }
   };
 
