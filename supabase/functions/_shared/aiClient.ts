@@ -13,7 +13,7 @@ export interface ModelChoice {
 export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "analyze-solicitation": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "identify-risks-opportunities": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
-  "generate-questions": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
+  "generate-questions": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 },
   "generate-report": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
   "compare-solicitations": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "extract-entities": { provider: "anthropic", model: "claude-haiku-4-5", maxTokens: 4096 },
@@ -137,6 +137,7 @@ async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Recor
     },
     body: JSON.stringify({
       model: choice.model,
+      max_tokens: choice.maxTokens ?? 4096,
       messages: [
         { role: "system", content: args.system },
         { role: "user", content: args.user },
@@ -155,9 +156,22 @@ async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Recor
   }
 
   const json = await res.json();
-  const toolCall = json.choices?.[0]?.message?.tool_calls?.[0];
+  const choice0 = json.choices?.[0];
+  const finish = choice0?.finish_reason;
+  const usage = json.usage;
+  const toolCall = choice0?.message?.tool_calls?.[0];
+  const argLen = toolCall?.function?.arguments?.length ?? 0;
+  console.log(`[aiClient] lovable model=${choice.model} finish=${finish} prompt_tokens=${usage?.prompt_tokens} completion_tokens=${usage?.completion_tokens} max_tokens=${choice.maxTokens} tool_arg_chars=${argLen}`);
   if (!toolCall) throw new Error("AI did not return structured tool call");
-  return JSON.parse(toolCall.function.arguments);
+  if (finish === "length" || finish === "max_tokens") {
+    console.warn(`[aiClient] WARNING: response truncated by token limit (finish=${finish}). Output array may be incomplete. Consider raising maxTokens.`);
+  }
+  try {
+    return JSON.parse(toolCall.function.arguments);
+  } catch (e) {
+    console.error(`[aiClient] failed to parse tool args (likely truncated). finish=${finish} chars=${argLen}`);
+    throw e;
+  }
 }
 
 export function aiErrorResponse(err: unknown, corsHeaders: Record<string, string>): Response {
