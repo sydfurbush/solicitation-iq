@@ -109,45 +109,85 @@ Deno.serve(async (req) => {
     let notice: SamNotice | undefined;
     let lastErrorText = "";
     let lastStatus = 0;
+    const attempts: Array<{
+      window: number;
+      postedFrom: string;
+      postedTo: string;
+      status: number;
+      totalRecords?: number;
+      found: boolean;
+      error?: string;
+    }> = [];
+
+    console.log("[sam-import] lookup start", {
+      noticeId,
+      solicitationNumber,
+      url,
+    });
 
     for (let i = 0; i < MAX_YEARS_BACK; i++) {
       const to = new Date(Date.now() - i * WINDOW_DAYS * 24 * 60 * 60 * 1000);
       const from = new Date(to.getTime() - WINDOW_DAYS * 24 * 60 * 60 * 1000);
+      const postedFrom = fmt(from);
+      const postedTo = fmt(to);
 
       const apiUrl = new URL("https://api.sam.gov/opportunities/v2/search");
       apiUrl.searchParams.set("api_key", apiKey);
       if (noticeId) apiUrl.searchParams.set("noticeid", noticeId);
       else if (solicitationNumber) apiUrl.searchParams.set("solnum", solicitationNumber);
-      apiUrl.searchParams.set("postedFrom", fmt(from));
-      apiUrl.searchParams.set("postedTo", fmt(to));
+      apiUrl.searchParams.set("postedFrom", postedFrom);
+      apiUrl.searchParams.set("postedTo", postedTo);
       apiUrl.searchParams.set("limit", "1");
+
+      console.log(`[sam-import] window ${i + 1}/${MAX_YEARS_BACK}`, { postedFrom, postedTo });
 
       const res = await fetch(apiUrl.toString(), { headers: { Accept: "application/json" } });
       if (!res.ok) {
         lastStatus = res.status;
         lastErrorText = await res.text();
-        console.error("SAM.gov API error", res.status, lastErrorText.slice(0, 300));
-        // Don't keep hammering on auth/quota errors
+        attempts.push({
+          window: i + 1,
+          postedFrom,
+          postedTo,
+          status: res.status,
+          found: false,
+          error: lastErrorText.slice(0, 200),
+        });
+        console.error(`[sam-import] window ${i + 1} HTTP ${res.status}`, lastErrorText.slice(0, 300));
         if (res.status === 401 || res.status === 403 || res.status === 429) break;
         continue;
       }
-      const json = (await res.json()) as { opportunitiesData?: SamNotice[] };
-      if (json.opportunitiesData && json.opportunitiesData.length > 0) {
-        notice = json.opportunitiesData[0];
+      const json = (await res.json()) as { opportunitiesData?: SamNotice[]; totalRecords?: number };
+      const totalRecords = json.totalRecords ?? json.opportunitiesData?.length ?? 0;
+      const found = (json.opportunitiesData?.length ?? 0) > 0;
+      attempts.push({ window: i + 1, postedFrom, postedTo, status: res.status, totalRecords, found });
+      console.log(`[sam-import] window ${i + 1} result`, { totalRecords, found });
+      if (found) {
+        notice = json.opportunitiesData![0];
         break;
       }
     }
 
+    console.log("[sam-import] lookup summary", { matched: !!notice, attempts });
+
     if (!notice && lastStatus && (lastStatus === 401 || lastStatus === 403 || lastStatus === 429)) {
       return new Response(
-        JSON.stringify({ error: `SAM.gov API returned ${lastStatus}`, detail: lastErrorText.slice(0, 500) }),
+        JSON.stringify({
+          error: `SAM.gov API returned ${lastStatus}`,
+          detail: lastErrorText.slice(0, 500),
+          attempts,
+        }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
     if (!notice) {
       return new Response(
-        JSON.stringify({ error: "No SAM.gov notice found for that URL" }),
+        JSON.stringify({
+          error: "No SAM.gov notice found for that URL",
+          lookup: { noticeId, solicitationNumber },
+          attempts,
+        }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
