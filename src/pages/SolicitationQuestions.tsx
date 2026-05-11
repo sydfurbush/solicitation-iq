@@ -155,7 +155,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
         </Card>
       ) : (
         <>
-          {view !== "submitted" && <QuestionsFilters filters={filters} onChange={setFilters} />}
+          {view !== "submitted" && <QuestionsFilters filters={filters} onChange={setFilters} counts={filterCounts} />}
 
           {isLoading ? (
             <div className="space-y-3">
