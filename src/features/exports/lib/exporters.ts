@@ -49,8 +49,8 @@ function fmtDate() {
 }
 
 /* -------------------- PDF -------------------- */
-function renderPdf(doc: ExportDocument): Blob {
-  const pdf = new jsPDF({ unit: "pt", format: "letter" });
+function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
+  const pdf = new jsPDF({ unit: "pt", format: opts.pageSize ?? "letter" });
   const margin = 48;
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
