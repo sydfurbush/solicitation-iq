@@ -37,34 +37,48 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
       focusAreas?: string[];
       focusDocumentIds?: string[];
       regenerate?: boolean;
+      onProgress?: (p: { completed: number; total: number; inserted: number; step: string | null }) => void;
     }) => {
       if (!solicitationId) throw new Error("Missing solicitationId");
 
-      // Snapshot current AI-generated count so we can detect when new ones arrive.
-      const { count: beforeCount } = await supabase
-        .from("strategic_questions")
-        .select("id", { count: "exact", head: true })
-        .eq("solicitation_id", solicitationId)
-        .eq("is_ai_generated", true);
-
       const { data, error } = await supabase.functions.invoke("generate-questions", {
-        body: { solicitationId, ...input },
+        body: {
+          solicitationId,
+          focusAreas: input.focusAreas,
+          focusDocumentIds: input.focusDocumentIds,
+          regenerate: input.regenerate,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+      const runId: string | undefined = data?.runId;
+      if (!runId) throw new Error("Generation did not return a run id");
 
-      // Background generation: poll up to ~4 minutes for new rows.
-      const deadline = Date.now() + 4 * 60 * 1000;
+      // Poll the run record up to ~10 minutes
+      const deadline = Date.now() + 10 * 60 * 1000;
       while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 4000));
-        const { count: nowCount } = await supabase
-          .from("strategic_questions")
-          .select("id", { count: "exact", head: true })
-          .eq("solicitation_id", solicitationId)
-          .eq("is_ai_generated", true);
-        qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
-        if ((nowCount ?? 0) > (input.regenerate ? 0 : (beforeCount ?? 0))) {
-          return { success: true, count: (nowCount ?? 0) - (beforeCount ?? 0) };
+        await new Promise((r) => setTimeout(r, 3000));
+        const { data: run } = await supabase
+          .from("question_generation_runs")
+          .select("status, total_batches, completed_batches, failed_batches, inserted_count, current_step, error_message")
+          .eq("id", runId)
+          .maybeSingle();
+        if (run) {
+          input.onProgress?.({
+            completed: run.completed_batches ?? 0,
+            total: run.total_batches ?? 0,
+            inserted: run.inserted_count ?? 0,
+            step: run.current_step ?? null,
+          });
+          qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+          if (run.status === "completed" || run.status === "partial" || run.status === "failed") {
+            return {
+              status: run.status as "completed" | "partial" | "failed",
+              count: run.inserted_count ?? 0,
+              failedBatches: run.failed_batches ?? 0,
+              error: run.error_message,
+            };
+          }
         }
       }
       throw new Error("Generation timed out. Check back shortly — questions may still appear.");
