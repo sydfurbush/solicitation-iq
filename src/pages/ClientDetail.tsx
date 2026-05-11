@@ -30,6 +30,7 @@ import { useClient, useUpdateClient } from "@/features/clients/hooks/useClients"
 import { useDeleteSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { CreateClientDialog } from "@/features/clients/components/CreateClientDialog";
 import { ClientUsersManagement } from "@/features/clients/components/ClientUsersManagement";
+import { CapabilitiesEditor } from "@/features/clients/components/CapabilitiesEditor";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
@@ -248,6 +249,8 @@ export default function ClientDetail() {
               </CardContent>
             </Card>
           </div>
+
+          <CapabilitiesEditor client={client} />
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
