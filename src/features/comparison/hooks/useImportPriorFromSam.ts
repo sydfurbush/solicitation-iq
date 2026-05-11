@@ -196,19 +196,32 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
  * Polls until all of a solicitation's documents have moved out of `uploading`/`processing`.
  * Returns when all are `parsed`/`analyzed`/`failed`, or after a hard timeout.
  */
+export class ImportCancelledError extends Error {
+  constructor(message = "Cancelled") {
+    super(message);
+    this.name = "ImportCancelledError";
+  }
+}
+
 export async function waitForDocumentsParsed(
   solicitationId: string,
   opts: {
     timeoutMs?: number;
     intervalMs?: number;
     onProgress?: (p: { parsed: number; total: number }) => void;
+    signal?: AbortSignal;
   } = {},
 ) {
   const timeoutMs = opts.timeoutMs ?? 4 * 60 * 1000;
   const intervalMs = opts.intervalMs ?? 4000;
   const deadline = Date.now() + timeoutMs;
 
+  const checkAbort = () => {
+    if (opts.signal?.aborted) throw new ImportCancelledError("Import cancelled");
+  };
+
   while (Date.now() < deadline) {
+    checkAbort();
     const { data, error } = await supabase
       .from("documents")
       .select("status")
@@ -222,7 +235,22 @@ export async function waitForDocumentsParsed(
     const parsed = total - pending;
     opts.onProgress?.({ parsed, total });
     if (pending === 0) return { ready: true, total };
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(() => {
+        opts.signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, intervalMs);
+      const onAbort = () => {
+        clearTimeout(t);
+        reject(new ImportCancelledError("Import cancelled"));
+      };
+      if (opts.signal?.aborted) {
+        clearTimeout(t);
+        reject(new ImportCancelledError("Import cancelled"));
+        return;
+      }
+      opts.signal?.addEventListener("abort", onAbort, { once: true });
+    });
   }
   return { ready: false, total: -1 };
 }
