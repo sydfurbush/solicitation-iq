@@ -300,7 +300,20 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
                 )}
               </div>
             )}
-          </div>
+          </fieldset>
+
+          {busy && (
+            <div className="space-y-1.5 px-1" aria-live="polite" role="status">
+              <Progress value={progress} className="h-2" />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {stage || "Working…"}
+                </span>
+                <span>{progress}%</span>
+              </div>
+            </div>
+          )}
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
@@ -312,7 +325,7 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
               ) : (
                 <Download className="h-4 w-4 mr-2" />
               )}
-              Export
+              {busy ? "Exporting…" : "Export"}
             </Button>
           </DialogFooter>
         </DialogContent>
