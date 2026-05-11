@@ -37,24 +37,69 @@ function ChipsInput({
   onChange,
   placeholder,
   disabled,
+  splitPattern = /[\s,;]+/,
+  transform,
+  validate,
+  helperText,
 }: {
   label: string;
   values: string[];
   onChange: (next: string[]) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** How to split pasted/typed input into multiple chips. Default: any whitespace, commas, or semicolons. */
+  splitPattern?: RegExp;
+  /** Normalize each value before validation (e.g. strip non-digits). */
+  transform?: (raw: string) => string;
+  /** Return an error string to reject the value, or null to accept. */
+  validate?: (value: string) => string | null;
+  helperText?: string;
 }) {
   const [draft, setDraft] = useState("");
-  const add = () => {
-    const v = draft.trim();
-    if (!v) return;
-    if (values.includes(v)) {
+  const [error, setError] = useState<string | null>(null);
+
+  const tryAddMany = (raw: string): { added: number; rejected: { value: string; reason: string }[] } => {
+    const tokens = raw.split(splitPattern).map((t) => t.trim()).filter(Boolean);
+    if (tokens.length === 0) return { added: 0, rejected: [] };
+
+    const next = [...values];
+    const rejected: { value: string; reason: string }[] = [];
+    for (const t of tokens) {
+      const normalized = transform ? transform(t) : t;
+      if (!normalized) continue;
+      if (next.includes(normalized)) {
+        rejected.push({ value: t, reason: "duplicate" });
+        continue;
+      }
+      const err = validate?.(normalized);
+      if (err) {
+        rejected.push({ value: t, reason: err });
+        continue;
+      }
+      next.push(normalized);
+    }
+    if (next.length !== values.length) onChange(next);
+    return { added: next.length - values.length, rejected };
+  };
+
+  const commit = (raw: string, opts: { keepOnError?: boolean } = {}) => {
+    if (!raw.trim()) {
       setDraft("");
+      setError(null);
       return;
     }
-    onChange([...values, v]);
-    setDraft("");
+    const { added, rejected } = tryAddMany(raw);
+    if (rejected.length > 0) {
+      const first = rejected[0];
+      setError(`"${first.value}" — ${first.reason}${rejected.length > 1 ? ` (+${rejected.length - 1} more rejected)` : ""}`);
+      // If only invalid tokens, optionally keep the input so user can fix it
+      setDraft(opts.keepOnError && added === 0 ? raw : "");
+    } else {
+      setError(null);
+      setDraft("");
+    }
   };
+
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
@@ -79,25 +124,58 @@ function ChipsInput({
         ))}
       </div>
       {!disabled && (
-        <div className="flex gap-2">
-          <Input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === ",") {
-                e.preventDefault();
-                add();
-              }
-            }}
-            placeholder={placeholder}
-          />
-          <Button type="button" variant="outline" size="icon" onClick={add}>
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
+        <>
+          <div className="flex gap-2">
+            <Input
+              value={draft}
+              onChange={(e) => {
+                const v = e.target.value;
+                // If user typed a separator, auto-commit completed tokens
+                if (splitPattern.test(v)) {
+                  commit(v, { keepOnError: true });
+                } else {
+                  setDraft(v);
+                  if (error) setError(null);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commit(draft, { keepOnError: true });
+                } else if (e.key === "Backspace" && draft === "" && values.length > 0) {
+                  // quick-delete last chip
+                  onChange(values.slice(0, -1));
+                }
+              }}
+              onBlur={() => commit(draft, { keepOnError: true })}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData("text");
+                if (text && splitPattern.test(text)) {
+                  e.preventDefault();
+                  commit(text, { keepOnError: true });
+                }
+              }}
+              placeholder={placeholder}
+              aria-invalid={!!error}
+            />
+            <Button type="button" variant="outline" size="icon" onClick={() => commit(draft, { keepOnError: true })}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+          {error ? (
+            <p className="text-xs text-destructive">{error}</p>
+          ) : helperText ? (
+            <p className="text-xs text-muted-foreground">{helperText}</p>
+          ) : null}
+        </>
       )}
     </div>
   );
+}
+
+const NAICS_REGEX = /^\d{6}$/;
+const validateNaics = (v: string) => (NAICS_REGEX.test(v) ? null : "NAICS must be exactly 6 digits");
+const transformNaics = (v: string) => v.replace(/\D/g, "");
 }
 
 function buildCleaned(draft: Capabilities): Capabilities {
