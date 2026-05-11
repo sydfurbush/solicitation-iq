@@ -119,13 +119,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("SAM_GOV_API_KEY");
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "SAM_GOV_API_KEY is not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const keyResult = await getCallerSamKey(req);
+    if (keyResult.error) return keyResult.error;
+    const apiKey = keyResult.key!;
 
     const body = await req.json().catch(() => null);
     const url: string | undefined = body?.url;
