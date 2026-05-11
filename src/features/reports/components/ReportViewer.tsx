@@ -6,6 +6,7 @@ import { saveAs } from "file-saver";
 import { generatePdf } from "../utils/pdfGenerator";
 import { generateDocx } from "../utils/wordGenerator";
 import type { ReportContent } from "../templates/types";
+import { sectionBlocks, type Block } from "../templates/blocks";
 import type { ReportRow } from "../hooks/useReports";
 
 function renderInline(text: string) {
