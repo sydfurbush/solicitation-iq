@@ -253,13 +253,61 @@ function renderDocxSection(s: ExportSection, depth = 0): (Paragraph | Table)[] {
 }
 
 async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promise<Blob> {
-  const children: (Paragraph | Table)[] = [
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.LEFT,
-      children: [new TextRun({ text: doc.title, bold: true })],
-    }),
-  ];
+  const children: (Paragraph | Table)[] = [];
+
+  // ---- Cover page ----
+  if (!opts.noCover) {
+    const cover = doc.cover ?? {};
+    // Spacer to push content down
+    for (let i = 0; i < 6; i++) {
+      children.push(new Paragraph({ children: [new TextRun("")] }));
+    }
+    if (cover.clientName) {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: cover.clientName.toUpperCase(), bold: true, color: "283C5A", size: 22 })],
+      }));
+    }
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 240, after: 240 },
+      children: [new TextRun({ text: doc.title, bold: true, size: 56 })],
+    }));
+    if (cover.solicitationTitle) {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 480 },
+        children: [new TextRun({ text: cover.solicitationTitle, color: "555555", size: 28 })],
+      }));
+    }
+
+    const meta: [string, string][] = [];
+    const phase = phaseLabel(cover.phase);
+    if (phase) meta.push(["Phase", phase]);
+    if (opts.version?.trim()) meta.push(["Version", opts.version.trim()]);
+    meta.push(["Generated", fmtDateTime()]);
+
+    meta.forEach(([k, v]) => {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 60, after: 60 },
+        children: [
+          new TextRun({ text: `${k.toUpperCase()}  `, bold: true, color: "888888", size: 18 }),
+          new TextRun({ text: v, size: 20 }),
+        ],
+      }));
+    });
+
+    // Page break to start content on a new page
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+  }
+
+  // ---- Body ----
+  children.push(new Paragraph({
+    heading: HeadingLevel.TITLE,
+    alignment: AlignmentType.LEFT,
+    children: [new TextRun({ text: doc.title, bold: true })],
+  }));
   if (doc.subtitle) children.push(new Paragraph({ children: [new TextRun({ text: doc.subtitle, italics: true })] }));
   children.push(new Paragraph({ children: [new TextRun({ text: `Generated ${fmtDate()}`, color: "888888", size: 18 })] }));
 
