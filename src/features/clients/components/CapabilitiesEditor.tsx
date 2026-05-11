@@ -1,14 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CloudOff, Loader2, Pencil, Plus, Save, X } from "lucide-react";
+import { Check, CloudOff, Loader2, Pencil, Plus, Save, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useUpdateClient } from "@/features/clients/hooks/useClients";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
+import { CAPABILITY_TEMPLATES, type CapabilityTemplate } from "@/features/clients/lib/capabilityTemplates";
 
 type ClientRow = Database["public"]["Tables"]["clients"]["Row"];
 
@@ -249,6 +268,66 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(client.updated_at ? new Date(client.updated_at) : null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pendingTemplate, setPendingTemplate] = useState<CapabilityTemplate | null>(null);
+
+  const applyTemplate = (tpl: CapabilityTemplate, mode: "merge" | "replace") => {
+    const base: Capabilities = mode === "replace" ? {} : { ...draft };
+    const mergeText = (a?: string, b?: string) => {
+      const aa = (a ?? "").trim();
+      const bb = (b ?? "").trim();
+      if (!aa) return bb || undefined;
+      if (!bb) return aa || undefined;
+      if (aa.toLowerCase().includes(bb.toLowerCase())) return aa;
+      return `${aa}\n\n${bb}`;
+    };
+    const mergeChips = (a?: string[], b?: string[]) => {
+      const set = new Set<string>([...(a ?? []), ...(b ?? [])]);
+      return Array.from(set);
+    };
+    const next: Capabilities = {
+      core_capabilities:
+        mode === "replace"
+          ? tpl.data.core_capabilities
+          : mergeText(base.core_capabilities, tpl.data.core_capabilities),
+      differentiators:
+        mode === "replace"
+          ? tpl.data.differentiators
+          : mergeText(base.differentiators, tpl.data.differentiators),
+      past_performance:
+        mode === "replace"
+          ? tpl.data.past_performance
+          : mergeText(base.past_performance, tpl.data.past_performance),
+      key_personnel:
+        mode === "replace" ? tpl.data.key_personnel : mergeText(base.key_personnel, tpl.data.key_personnel),
+      teaming_partners:
+        mode === "replace"
+          ? tpl.data.teaming_partners
+          : mergeText(base.teaming_partners, tpl.data.teaming_partners),
+      notes: mode === "replace" ? tpl.data.notes : mergeText(base.notes, tpl.data.notes),
+      naics_codes:
+        mode === "replace" ? tpl.data.naics_codes ?? [] : mergeChips(base.naics_codes, tpl.data.naics_codes),
+      certifications:
+        mode === "replace"
+          ? tpl.data.certifications ?? []
+          : mergeChips(base.certifications, tpl.data.certifications),
+    };
+    setDraft(next);
+    setEditing(true);
+    setPendingTemplate(null);
+    toast({
+      title: `Applied "${tpl.name}" template`,
+      description: mode === "replace" ? "Existing fields were replaced." : "Merged into existing fields.",
+    });
+  };
+
+  const handleTemplatePick = (tpl: CapabilityTemplate) => {
+    const hasContent = Object.keys(buildCleaned(draft)).length > 0;
+    if (hasContent) {
+      setPendingTemplate(tpl);
+    } else {
+      applyTemplate(tpl, "replace");
+    }
+  };
 
   const lastSavedJsonRef = useRef<string>(JSON.stringify(buildCleaned(initial)));
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -349,6 +428,30 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
         </div>
         <div className="flex items-center gap-3">
           {editing && <SaveIndicator status={status} savedAt={savedAt} error={errorMsg} />}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Sparkles className="h-3.5 w-3.5 mr-1" /> Templates
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Apply a capability template</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {CAPABILITY_TEMPLATES.map((tpl) => (
+                <DropdownMenuItem
+                  key={tpl.id}
+                  className="flex flex-col items-start gap-0.5 py-2"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    handleTemplatePick(tpl);
+                  }}
+                >
+                  <span className="font-medium text-sm">{tpl.name}</span>
+                  <span className="text-xs text-muted-foreground">{tpl.description}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {!editing ? (
             <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
               <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
@@ -471,6 +574,33 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
           </div>
         )}
       </CardContent>
+
+      <AlertDialog open={!!pendingTemplate} onOpenChange={(o) => !o && setPendingTemplate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply "{pendingTemplate?.name}" template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This profile already has content. Choose how to apply the template:
+              <span className="block mt-2"><strong>Merge</strong> appends new text and adds new chips without removing what's there.</span>
+              <span className="block mt-1"><strong>Replace</strong> overwrites every field with the template's values.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2">
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => pendingTemplate && applyTemplate(pendingTemplate, "merge")}
+            >
+              Merge
+            </Button>
+            <AlertDialogAction
+              onClick={() => pendingTemplate && applyTemplate(pendingTemplate, "replace")}
+            >
+              Replace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
