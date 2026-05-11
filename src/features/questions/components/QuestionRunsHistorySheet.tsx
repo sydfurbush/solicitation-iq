@@ -193,6 +193,21 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        {run.status !== "running" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDownload(run)}
+                            disabled={downloadingId === run.id}
+                          >
+                            {downloadingId === run.id ? (
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : (
+                              <Download className="h-3 w-3 mr-1" />
+                            )}
+                            Report
+                          </Button>
+                        )}
                         {run.error_message && (
                           <Button
                             size="sm"
