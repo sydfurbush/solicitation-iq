@@ -163,7 +163,7 @@ function renderDocxSection(s: ExportSection, depth = 0): (Paragraph | Table)[] {
   return out;
 }
 
-async function renderDocx(doc: ExportDocument): Promise<Blob> {
+async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promise<Blob> {
   const children: (Paragraph | Table)[] = [
     new Paragraph({
       heading: HeadingLevel.TITLE,
@@ -176,19 +176,35 @@ async function renderDocx(doc: ExportDocument): Promise<Blob> {
 
   doc.sections.forEach((s) => children.push(...renderDocxSection(s, 0)));
 
-  const docx = new Document({ sections: [{ children }] });
+  // US Letter: 12240 x 15840 DXA. A4: 11906 x 16838 DXA.
+  const size = opts.pageSize === "a4"
+    ? { width: 11906, height: 16838 }
+    : { width: 12240, height: 15840 };
+
+  const docx = new Document({
+    sections: [{
+      properties: {
+        page: {
+          size,
+          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+        },
+      },
+      children,
+    }],
+  });
   const blob = await Packer.toBlob(docx);
   return blob;
 }
 
 /* -------------------- Public API -------------------- */
-export async function exportDocument(doc: ExportDocument, format: ExportFormat) {
-  const filename = `${sanitize(doc.filenameBase)}_${fmtDate()}.${format}`;
+export async function exportDocument(doc: ExportDocument, format: ExportFormat, opts: ExportOptions = {}) {
+  const base = opts.filenameBase?.trim() || doc.filenameBase;
+  const filename = `${sanitize(base)}_${fmtDate()}.${format}`;
   if (format === "pdf") {
-    const blob = renderPdf(doc);
+    const blob = renderPdf(doc, opts);
     saveAs(blob, filename);
   } else {
-    const blob = await renderDocx(doc);
+    const blob = await renderDocx(doc, opts);
     saveAs(blob, filename);
   }
 }
