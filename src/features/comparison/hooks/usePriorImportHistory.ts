@@ -14,6 +14,8 @@ export type PriorImportHistoryRow = {
   failed_count: number;
   failed_attachments: FailedAttachment[];
   error_message: string | null;
+  lookup_params: LookupParams;
+  error_response: SamErrorResponse | null;
   started_at: string;
   completed_at: string | null;
   performed_by: string | null;
