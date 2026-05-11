@@ -53,37 +53,63 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
 
   const handleImportFromSam = async () => {
     try {
-      setImportStage("Looking up SAM.gov…");
       const result = await importFromSam.mutateAsync({
         url: priorRecord.external_url,
         solicitationNumber: priorRecord.external_reference,
         externalReference: priorRecord.external_reference,
+        onProgress: setProgress,
       });
       // Drop the legacy external-only link so the new fully-linked record is canonical
       try { await unlink.mutateAsync(priorRecord.id); } catch { /* ignore */ }
-      toast({
-        title: "Prior imported",
-        description: `${result.imported} of ${result.found} attachment(s) imported${result.failed ? `, ${result.failed} failed` : ""}.`,
-      });
+
       if (result.imported > 0) {
-        setImportStage("Parsing prior documents…");
-        await waitForDocumentsParsed(result.priorSolicitationId);
+        setProgress({
+          stage: "parsing",
+          message: `Parsing ${result.imported} document(s)…`,
+          found: result.found,
+          imported: result.imported,
+          failed: result.failed,
+          parsed: 0,
+          totalDocs: result.imported,
+        });
+        await waitForDocumentsParsed(result.priorSolicitationId, {
+          onProgress: ({ parsed, total }) =>
+            setProgress((p) => p && {
+              ...p,
+              stage: "parsing",
+              message: `Parsing documents (${parsed}/${total})…`,
+              parsed,
+              totalDocs: total,
+            }),
+        });
       }
-      setImportStage("Re-running comparison…");
-      compare.mutate(
-        { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
-        {
-          onSuccess: () => { toast({ title: "Comparison updated" }); refetchLink(); },
-          onError: (e) => toast({ title: "Comparison failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
-        },
+
+      setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
+      await new Promise<void>((resolve, reject) =>
+        compare.mutate(
+          { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+          {
+            onSuccess: () => { refetchLink(); resolve(); },
+            onError: (e) => reject(e),
+          },
+        ),
       );
+
+      setProgress((p) => p && {
+        ...p,
+        stage: "done",
+        message: `Done — ${result.imported}/${result.found} attachment(s) imported, comparison updated.`,
+      });
+      toast({ title: "Comparison updated" });
     } catch (e) {
+      setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
       toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-    } finally {
-      setImportStage(null);
     }
   };
-  const importing = importFromSam.isPending || !!importStage;
+  const importing =
+    importFromSam.isPending ||
+    compare.isPending ||
+    (!!progress && progress.stage !== "done" && progress.stage !== "error");
 
   const totalChanges =
     (changes?.requirements?.length ?? 0) +
