@@ -40,9 +40,27 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [docIds, setDocIds] = useState<string[]>([]);
   const [regenerate, setRegenerate] = useState(false);
-  const [progress, setProgress] = useState<{ completed: number; total: number; inserted: number; step: string | null } | null>(null);
+  const [progress, setProgress] = useState<ProgressState | null>(null);
+  const [stepLog, setStepLog] = useState<string[]>([]);
+  const lastStepRef = useRef<string | null>(null);
   const generate = useGenerateQuestions(solicitationId);
   const { data: latestRun } = useLatestQuestionRun(open ? solicitationId : undefined);
+
+  useEffect(() => {
+    if (!open) {
+      setProgress(null);
+      setStepLog([]);
+      lastStepRef.current = null;
+    }
+  }, [open]);
+
+  const handleProgress = (p: ProgressState) => {
+    setProgress(p);
+    if (p.step && p.step !== lastStepRef.current) {
+      lastStepRef.current = p.step;
+      setStepLog((log) => [...log, p.step!].slice(-12));
+    }
+  };
 
   const retryable = useMemo(() => {
     if (!latestRun) return null;
