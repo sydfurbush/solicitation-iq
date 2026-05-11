@@ -378,3 +378,108 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
     </Dialog>
   );
 }
+
+type UploadTabProps = {
+  form: ReturnType<typeof useForm<{ title: string; external_reference: string; notes: string }>>;
+  files: File[];
+  setFiles: (f: File[]) => void;
+  disabled: boolean;
+};
+
+function UploadTabContent({ form, files, setFiles, disabled }: UploadTabProps) {
+  const onDrop = useCallback(
+    (accepted: File[]) => {
+      const merged = [...files];
+      for (const f of accepted) {
+        if (!merged.some((m) => m.name === f.name && m.size === f.size)) merged.push(f);
+      }
+      setFiles(merged);
+    },
+    [files, setFiles],
+  );
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop,
+    accept: ALLOWED_MIME_TYPES,
+    maxSize: MAX_FILE_SIZE,
+    noClick: true,
+    noKeyboard: true,
+    multiple: true,
+    disabled,
+  });
+  const removeFile = (idx: number) => setFiles(files.filter((_, i) => i !== idx));
+
+  return (
+    <>
+      <div className="space-y-2">
+        <Label htmlFor="upload-title">Title</Label>
+        <Input
+          id="upload-title"
+          {...form.register("title")}
+          placeholder="e.g. FY24 RFP – W912DY-19-R-0001"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="upload-ref">Reference / solicitation # (optional)</Label>
+        <Input
+          id="upload-ref"
+          {...form.register("external_reference")}
+          placeholder="e.g. W912DY-19-R-0001"
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="upload-notes">Notes (optional)</Label>
+        <Textarea id="upload-notes" {...form.register("notes")} rows={2} />
+      </div>
+      <div
+        {...getRootProps()}
+        className={`relative border-2 border-dashed rounded-lg p-5 transition-colors ${
+          isDragActive ? "border-primary bg-primary/5" : "border-border bg-muted/30"
+        }`}
+      >
+        <input {...getInputProps()} />
+        <div className="flex flex-col items-center justify-center text-center gap-2">
+          <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+            <UploadCloud className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium">
+            {isDragActive ? "Drop files here" : "Drag prior solicitation documents here"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            up to 50MB · {ALLOWED_EXTENSIONS.join(", ")}
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={open} disabled={disabled}>
+            Browse files
+          </Button>
+        </div>
+      </div>
+      {files.length > 0 && (
+        <ul className="space-y-1.5">
+          {files.map((f, i) => (
+            <li
+              key={`${f.name}-${i}`}
+              className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm"
+            >
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="flex-1 truncate">{f.name}</span>
+              <span className="text-xs text-muted-foreground">{formatFileSize(f.size)}</span>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                onClick={() => removeFile(i)}
+                disabled={disabled}
+                title="Remove"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs text-muted-foreground">
+        We'll create a prior solicitation record, upload these documents, parse them, and run the AI comparison automatically.
+      </p>
+    </>
+  );
+}
+
