@@ -135,10 +135,82 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       if (abortRef.current === controller) abortRef.current = null;
     }
   };
+
+  const handleRetryFailed = async () => {
+    if (!lastImport || lastImport.failedAttachments.length === 0) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setRetrying(true);
+    const toRetry = lastImport.failedAttachments;
+    try {
+      setProgress({
+        stage: "downloading",
+        message: `Retrying ${toRetry.length} failed attachment(s)…`,
+        found: toRetry.length,
+      });
+      const res = await retryAttachmentImport(lastImport.priorSolicitationId, toRetry);
+      if (controller.signal.aborted) throw new ImportCancelledError();
+
+      // Update remembered failures so user can retry again if some still fail
+      setLastImport((prev) => prev && { ...prev, failedAttachments: res.failed });
+
+      setProgress({
+        stage: "downloading",
+        message: `Re-downloaded ${res.imported} of ${toRetry.length}${res.failed.length ? ` (${res.failed.length} still failed)` : ""}.`,
+        found: toRetry.length,
+        imported: res.imported,
+        failed: res.failed.length,
+      });
+
+      if (res.imported > 0) {
+        setProgress((p) => p && { ...p, stage: "parsing", message: `Parsing ${res.imported} new document(s)…`, parsed: 0, totalDocs: res.imported });
+        await waitForDocumentsParsed(lastImport.priorSolicitationId, {
+          signal: controller.signal,
+          onProgress: ({ parsed, total }) =>
+            setProgress((p) => p && { ...p, stage: "parsing", message: `Parsing documents (${parsed}/${total})…`, parsed, totalDocs: total }),
+        });
+      }
+
+      if (controller.signal.aborted) throw new ImportCancelledError();
+      setProgress((p) => p && { ...p, stage: "comparing", message: "Re-running AI comparison…" });
+      await new Promise<void>((resolve, reject) =>
+        compare.mutate(
+          { priorSolicitationId: lastImport.priorSolicitationId, priorRecordId: lastImport.priorRecordId },
+          { onSuccess: () => { refetchLink(); resolve(); }, onError: (e) => reject(e) },
+        ),
+      );
+
+      setProgress((p) => p && {
+        ...p,
+        stage: "done",
+        message: res.failed.length
+          ? `Retried — ${res.imported}/${toRetry.length} recovered, ${res.failed.length} still failing. Comparison updated.`
+          : `Retried — all ${res.imported} recovered. Comparison updated.`,
+      });
+      toast({ title: "Retry complete" });
+    } catch (e) {
+      if (e instanceof ImportCancelledError || controller.signal.aborted) {
+        setProgress({ stage: "error", message: "Cancelled by user." });
+      } else {
+        setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
+        toast({ title: "Retry failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      }
+    } finally {
+      setRetrying(false);
+      if (abortRef.current === controller) abortRef.current = null;
+    }
+  };
+
   const importing =
     importFromSam.isPending ||
     compare.isPending ||
+    retrying ||
     (!!progress && progress.stage !== "done" && progress.stage !== "error");
+
+  const hasFailedToRetry =
+    !!lastImport &&
+    lastImport.failedAttachments.length > 0 &&
+    !importing;
 
   const totalChanges =
     (changes?.requirements?.length ?? 0) +
