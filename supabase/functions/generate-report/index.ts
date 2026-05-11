@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const ctx = await gatherContext(supabase, solicitationId);
+    const ctx = await gatherContext(supabase, solicitationId, reportType as ReportType);
     if (!ctx.sol) {
       return new Response(JSON.stringify({ error: "Solicitation not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
