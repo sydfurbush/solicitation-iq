@@ -8,6 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
 import { useRequirementItems, useExtractRequirements, useUpdateRequirement } from "@/features/deepdive/hooks/useRequirementItems";
 import { useSectionAnalyses, useAnalyzeSections } from "@/features/deepdive/hooks/useSectionAnalyses";
@@ -22,17 +23,44 @@ const SEV_COLOR: Record<string, string> = {
 };
 
 export default function DeepDiveTab({ solicitationId, currentPhase }: { solicitationId: string; currentPhase: string }) {
+  const [tab, setTab] = useState("rtm");
+  const { data: items = [] } = useRequirementItems(solicitationId);
+  const analyzeGaps = useAnalyzeGaps(solicitationId);
+  const hasRequirements = items.length > 0;
+
+  const autoRunGaps = async () => {
+    try {
+      const r = await analyzeGaps.mutateAsync();
+      toast({ title: "Gaps analyzed", description: `${r.inserted} gaps identified` });
+      setTab("gaps");
+    } catch (e) {
+      toast({
+        title: "Auto gap analysis failed",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="rtm">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="rtm">Requirements (RTM)</TabsTrigger>
           <TabsTrigger value="sections">Section analysis</TabsTrigger>
           <TabsTrigger value="gaps">Gaps</TabsTrigger>
         </TabsList>
-        <TabsContent value="rtm" className="mt-4"><RTMTable solicitationId={solicitationId} /></TabsContent>
+        <TabsContent value="rtm" className="mt-4">
+          <RTMTable solicitationId={solicitationId} onExtracted={autoRunGaps} autoGapsPending={analyzeGaps.isPending} />
+        </TabsContent>
         <TabsContent value="sections" className="mt-4"><SectionAccordion solicitationId={solicitationId} /></TabsContent>
-        <TabsContent value="gaps" className="mt-4"><GapsList solicitationId={solicitationId} /></TabsContent>
+        <TabsContent value="gaps" className="mt-4">
+          <GapsList
+            solicitationId={solicitationId}
+            hasRequirements={hasRequirements}
+            externalAnalyze={analyzeGaps}
+          />
+        </TabsContent>
       </Tabs>
       {currentPhase === "phase_2_deep_dive" && (
         <AdvancePhaseButton solicitationId={solicitationId} currentPhase="phase_2_deep_dive" />
@@ -41,7 +69,15 @@ export default function DeepDiveTab({ solicitationId, currentPhase }: { solicita
   );
 }
 
-function RTMTable({ solicitationId }: { solicitationId: string }) {
+function RTMTable({
+  solicitationId,
+  onExtracted,
+  autoGapsPending,
+}: {
+  solicitationId: string;
+  onExtracted: () => void | Promise<void>;
+  autoGapsPending: boolean;
+}) {
   const { data: items = [], isLoading } = useRequirementItems(solicitationId);
   const extract = useExtractRequirements(solicitationId);
   const update = useUpdateRequirement(solicitationId);
@@ -61,21 +97,29 @@ function RTMTable({ solicitationId }: { solicitationId: string }) {
     try {
       const r = await extract.mutateAsync({ regenerate });
       toast({ title: "RTM extracted", description: `${r.inserted} requirements added` });
+      if (r.inserted > 0) {
+        toast({ title: "Running gap analysis…", description: "Comparing requirements against client capabilities." });
+        await onExtracted();
+      }
     } catch (e) {
       toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
+
+  const busy = extract.isPending || autoGapsPending;
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <div>
           <CardTitle className="text-base">Requirements Traceability Matrix</CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">{items.length} requirements</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {items.length} requirements{autoGapsPending ? " · running gap analysis…" : ""}
+          </p>
         </div>
         <div className="flex gap-2">
           <Input placeholder="Filter…" value={filter} onChange={(e) => setFilter(e.target.value)} className="w-64" />
-          <Button onClick={() => run(items.length > 0)} disabled={extract.isPending}>
+          <Button onClick={() => run(items.length > 0)} disabled={busy}>
             {extract.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
             {items.length > 0 ? "Regenerate" : "Extract requirements"}
           </Button>
@@ -85,7 +129,7 @@ function RTMTable({ solicitationId }: { solicitationId: string }) {
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No requirements yet. Click "Extract requirements" to build the RTM from your documents.</p>
+          <p className="text-sm text-muted-foreground">No requirements yet. Click "Extract requirements" to build the RTM from your documents. Gap analysis will run automatically after.</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -208,19 +252,35 @@ function SectionAccordion({ solicitationId }: { solicitationId: string }) {
   );
 }
 
-function GapsList({ solicitationId }: { solicitationId: string }) {
+function GapsList({
+  solicitationId,
+  hasRequirements,
+  externalAnalyze,
+}: {
+  solicitationId: string;
+  hasRequirements: boolean;
+  externalAnalyze: ReturnType<typeof useAnalyzeGaps>;
+}) {
   const { data: gaps = [], isLoading } = useCapabilityGaps(solicitationId);
-  const analyze = useAnalyzeGaps(solicitationId);
   const update = useUpdateGap(solicitationId);
   const critical = gaps.filter((g) => g.severity === "critical" && !g.is_resolved);
   const run = async () => {
     try {
-      const r = await analyze.mutateAsync();
+      const r = await externalAnalyze.mutateAsync();
       toast({ title: "Gaps analyzed", description: `${r.inserted} gaps identified` });
     } catch (e) {
       toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
+
+  const disabled = !hasRequirements || externalAnalyze.isPending;
+  const button = (
+    <Button onClick={run} disabled={disabled}>
+      {externalAnalyze.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+      {gaps.length ? "Regenerate gaps" : "Generate gaps"}
+    </Button>
+  );
+
   return (
     <div className="space-y-4">
       {critical.length > 0 && (
@@ -234,15 +294,26 @@ function GapsList({ solicitationId }: { solicitationId: string }) {
       )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Capability gaps</CardTitle>
-          <Button onClick={run} disabled={analyze.isPending}>
-            {analyze.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-            {gaps.length ? "Regenerate" : "Analyze gaps"}
-          </Button>
+          <div>
+            <CardTitle className="text-base">Capability gaps</CardTitle>
+            {!hasRequirements && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Extract the RTM first — gap analysis needs the requirements list.
+              </p>
+            )}
+          </div>
+          {!hasRequirements ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild><span>{button}</span></TooltipTrigger>
+                <TooltipContent>Run RTM extraction first</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : button}
         </CardHeader>
         <CardContent>
           {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
-            gaps.length === 0 ? <p className="text-sm text-muted-foreground">No gaps identified yet. Run the RTM extraction first, then click "Analyze gaps".</p> :
+            gaps.length === 0 ? <p className="text-sm text-muted-foreground">No gaps identified yet. {hasRequirements ? "Click \"Generate gaps\" to compare requirements against client capabilities." : "Extract the RTM to enable gap analysis."}</p> :
             <ul className="space-y-3">
               {gaps.map((g) => (
                 <li key={g.id} className="border rounded-md p-3">
