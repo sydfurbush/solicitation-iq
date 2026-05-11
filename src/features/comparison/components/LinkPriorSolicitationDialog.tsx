@@ -101,6 +101,7 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
 
       const controller = new AbortController();
       abortRef.current = controller;
+      setNotFound(null);
       try {
         const result = await importFromSam.mutateAsync({
           url: url || null,
