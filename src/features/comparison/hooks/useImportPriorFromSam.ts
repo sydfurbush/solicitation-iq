@@ -130,44 +130,90 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
       if (input.url) samBody.url = input.url;
       else if (input.solicitationNumber) samBody.solicitationNumber = input.solicitationNumber;
 
+      const lookupParams: LookupParams = {
+        url: input.url ?? null,
+        solicitationNumber: input.solicitationNumber ?? null,
+      };
+
       const { data: samData, error: samErr } = await supabase.functions.invoke<{
         prefill?: SamPrefill;
         noticeId?: string | null;
         error?: string;
         lookup?: { noticeId?: string | null; solicitationNumber?: string | null };
         triedStrategies?: string[];
+        attempts?: unknown;
       }>("sam-import", { body: samBody });
 
       // Try to read structured error body even when invoke marks the call as failed (non-2xx)
       let errorPayload: {
         error?: string;
+        detail?: string;
         lookup?: { noticeId?: string | null; solicitationNumber?: string | null };
         triedStrategies?: string[];
+        attempts?: unknown;
       } | null = samData ?? null;
+      let errorStatus: number | undefined;
       if (samErr) {
         const ctx = (samErr as unknown as { context?: { response?: Response } }).context;
         if (ctx?.response) {
+          errorStatus = ctx.response.status;
           try {
             errorPayload = await ctx.response.clone().json();
-          } catch { /* ignore */ }
+          } catch {
+            try {
+              const text = await ctx.response.clone().text();
+              errorPayload = { error: text.slice(0, 500) };
+            } catch { /* ignore */ }
+          }
         }
       }
 
+      if (errorPayload?.lookup?.noticeId) lookupParams.noticeId = errorPayload.lookup.noticeId;
+      if (errorPayload?.triedStrategies) lookupParams.triedStrategies = errorPayload.triedStrategies;
+      if (samData?.noticeId) lookupParams.noticeId = samData.noticeId;
+
+      const buildErrorResponse = (): SamErrorResponse => ({
+        status: errorStatus,
+        error: errorPayload?.error,
+        detail: errorPayload?.detail,
+        attempts: errorPayload?.attempts,
+        raw: errorPayload,
+      });
+
       if (errorPayload?.error?.toLowerCase().includes("no sam.gov notice found")) {
-        throw new SamNoticeNotFoundError(errorPayload.error, {
-          lookup: errorPayload.lookup,
-          triedStrategies: errorPayload.triedStrategies,
-          url: input.url ?? null,
-          solicitationNumber: input.solicitationNumber ?? null,
-        });
+        throw new SamNoticeNotFoundError(
+          errorPayload.error,
+          {
+            lookup: errorPayload.lookup,
+            triedStrategies: errorPayload.triedStrategies,
+            url: input.url ?? null,
+            solicitationNumber: input.solicitationNumber ?? null,
+          },
+          buildErrorResponse(),
+          lookupParams,
+        );
       }
-      if (samErr) throw samErr;
-      if (samData?.error) throw new Error(samData.error);
+      if (samErr) {
+        const augmented = samErr as Error & { errorResponse?: SamErrorResponse; lookupParams?: LookupParams };
+        augmented.errorResponse = buildErrorResponse();
+        augmented.lookupParams = lookupParams;
+        throw augmented;
+      }
+      if (samData?.error) {
+        const e = new Error(samData.error) as Error & { errorResponse?: SamErrorResponse; lookupParams?: LookupParams };
+        e.errorResponse = buildErrorResponse();
+        e.lookupParams = lookupParams;
+        throw e;
+      }
       const prefill = samData?.prefill;
       if (!prefill) {
-        throw new SamNoticeNotFoundError("SAM.gov returned no notice for that reference", {
-          url: input.url ?? null,
-          solicitationNumber: input.solicitationNumber ?? null,
+        throw new SamNoticeNotFoundError(
+          "SAM.gov returned no notice for that reference",
+          { url: input.url ?? null, solicitationNumber: input.solicitationNumber ?? null },
+          buildErrorResponse(),
+          lookupParams,
+        );
+      }
         });
       }
 
