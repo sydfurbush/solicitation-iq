@@ -1,3 +1,5 @@
+import type { Block } from "./blocks";
+
 export type ReportType =
   | "executive_summary"
   | "full_analysis"
@@ -10,7 +12,8 @@ export type ReportType =
 export type ReportSection = {
   id: string;
   heading: string;
-  body: string; // markdown allowed
+  body?: string; // markdown allowed (legacy / fallback)
+  blocks?: Block[]; // preferred — structured rendering
   level?: 1 | 2 | 3;
 };
 
@@ -21,6 +24,7 @@ export type ReportContent = {
   meta?: Record<string, string | number | null | undefined>;
   sections: ReportSection[];
   citations?: Array<{ id: string; document: string; section?: string; page?: number; quote?: string }>;
+  branding?: ReportOptions["branding"];
 };
 
 export type ReportOptions = {

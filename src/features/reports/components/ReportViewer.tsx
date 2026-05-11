@@ -6,6 +6,7 @@ import { saveAs } from "file-saver";
 import { generatePdf } from "../utils/pdfGenerator";
 import { generateDocx } from "../utils/wordGenerator";
 import type { ReportContent } from "../templates/types";
+import { sectionBlocks, type Block } from "../templates/blocks";
 import type { ReportRow } from "../hooks/useReports";
 
 function renderInline(text: string) {
@@ -52,6 +53,82 @@ function MarkdownLite({ source }: { source: string }) {
   return <>{out}</>;
 }
 
+function BlocksRenderer({ blocks, fallbackBody }: { blocks: Block[]; fallbackBody?: string }) {
+  if (!blocks?.length) return <MarkdownLite source={fallbackBody ?? ""} />;
+  return (
+    <div className="space-y-3">
+      {blocks.map((b, i) => {
+        switch (b.kind) {
+          case "paragraph":
+            return <p key={i} className="leading-relaxed">{renderInline(b.text)}</p>;
+          case "bullets":
+            return (
+              <ul key={i} className="list-disc pl-6 space-y-1">
+                {b.items.map((it, j) => <li key={j}>{renderInline(it)}</li>)}
+              </ul>
+            );
+          case "kv":
+            return (
+              <table key={i} className="w-full border-collapse text-sm my-2">
+                <tbody>
+                  {b.rows.map(([k, v], j) => (
+                    <tr key={j}>
+                      <th className="bg-[#1E3A5F] text-white text-left px-3 py-2 font-semibold w-48 align-top">{k}</th>
+                      <td className={`px-3 py-2 border border-[#E5E7EB] align-top ${j % 2 ? "bg-[#F5F7FA]" : "bg-white"}`}>{v}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          case "category": {
+            const headerCls = b.tone === "opportunity" ? "bg-[#2E7D32]" : b.tone === "risk" ? "bg-[#C62828]" : "bg-[#1E3A5F]";
+            const tintCls = b.tone === "opportunity" ? "bg-[#E8F3EA] text-[#2E7D32]" : b.tone === "risk" ? "bg-[#FBEAEA] text-[#C62828]" : "bg-[#EAF2FA] text-[#1E3A5F]";
+            return (
+              <div key={i} className="border border-[#E5E7EB] my-2">
+                <div className={`${headerCls} text-white px-3 py-2 font-bold text-sm uppercase`}>{b.title}</div>
+                <table className="w-full border-collapse text-sm">
+                  <tbody>
+                    {b.rows.map(([t, d], j) => (
+                      <tr key={j} className="border-t border-[#E5E7EB]">
+                        <td className={`${tintCls} px-3 py-2 font-semibold w-56 align-top`}>{t}</td>
+                        <td className="px-3 py-2 align-top">{d}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          }
+          case "recommendation":
+            return (
+              <div key={i} className="bg-[#FFF8E1] border-2 border-[#C9A227] p-6 text-center my-3">
+                <p className="text-xs font-bold text-[#6B7280] tracking-wider">RECOMMENDATION</p>
+                <p className="text-2xl font-bold text-[#1E3A5F] my-2 uppercase">{b.verdict}</p>
+                <p className="italic text-sm text-[#374151]">{b.rationale}</p>
+              </div>
+            );
+          case "steps":
+            return (
+              <table key={i} className="w-full border-collapse text-sm my-2 border border-[#E5E7EB]">
+                <tbody>
+                  {b.items.map((it, j) => (
+                    <tr key={j} className="border-t border-[#E5E7EB]">
+                      <td className="bg-[#1E3A5F] text-white text-center font-bold w-12 text-lg">{String(j + 1).padStart(2, "0")}</td>
+                      <td className="bg-[#EAF2FA] text-[#1E3A5F] font-semibold px-3 py-3 w-56 align-top">{it.title}</td>
+                      <td className="px-3 py-3 align-top">{it.detail}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            );
+          default:
+            return null;
+        }
+      })}
+    </div>
+  );
+}
+
 export function ReportViewer({ report, open, onOpenChange }: { report: ReportRow | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const [active, setActive] = useState(0);
   if (!report) return null;
@@ -90,8 +167,8 @@ export function ReportViewer({ report, open, onOpenChange }: { report: ReportRow
             {content.subtitle && <p className="text-muted-foreground italic mb-4">{content.subtitle}</p>}
             {sections.map((s, i) => (
               <section key={i} id={`sec-${i}`} className="mb-6">
-                <h2 className="font-bold text-xl border-b pb-1 mb-3">{s.heading}</h2>
-                <MarkdownLite source={s.body} />
+                <h2 className="font-bold text-xl uppercase text-[#1E3A5F] border-b-2 border-[#C9A227] pb-1 mb-3">{s.heading}</h2>
+                <BlocksRenderer blocks={sectionBlocks(s)} fallbackBody={s.body} />
               </section>
             ))}
             {content.citations?.length ? (

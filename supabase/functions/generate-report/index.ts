@@ -18,8 +18,24 @@ type ReportType =
   | "comparison_report"
   | "proposal_outline";
 
+const BLOCKS_GUIDE = `
+
+OUTPUT STRUCTURE — IMPORTANT:
+Each section MAY return either a markdown 'body' (prose) OR an array of structured 'blocks' (preferred for branded layout).
+Block kinds available:
+- { "kind":"paragraph", "text":"..." }
+- { "kind":"bullets", "items":["...","..."] }
+- { "kind":"kv", "rows":[["Label","Value"], ...] }                       // key/value snapshot table
+- { "kind":"category", "tone":"opportunity"|"risk"|"neutral", "title":"TOP OPPORTUNITIES", "rows":[["Title","Description"], ...] }
+- { "kind":"recommendation", "verdict":"GO"|"NO-GO"|"CONDITIONAL GO", "rationale":"..." }
+- { "kind":"steps", "items":[{"title":"Submit Questions","detail":"..."}, ...] }
+
+Use blocks for: Opportunity Snapshot (kv), Strategic Assessment (category opportunity + category risk), Recommendation (recommendation), Next Steps (steps).
+Use paragraphs/bullets for narrative sections.
+`;
+
 const PROMPTS: Record<ReportType, string> = {
-  executive_summary: `Generate a professional executive summary report. Sections: Executive Overview (1 paragraph), Opportunity Snapshot (bullets: agency, solicitation #, contract type, value range, key dates, incumbent), Strategic Assessment (top 3 opportunities, top 3 risks, competitive positioning), Recommendation (go/no-go, rationale, key success factors, next steps). Crisp executive language. Use markdown. Cite as [Doc §Section p.X].`,
+  executive_summary: `Generate a professional executive summary report. Sections in order: Executive Overview (1-2 paragraph blocks), Opportunity Snapshot (kv block with rows: Agency, Solicitation #, Contract Type, Set-Aside, Incumbent, Release Date, Q&A / Proposal Due, Award Date), Strategic Assessment (one category block tone='opportunity' titled 'TOP OPPORTUNITIES' with 3 rows, one category block tone='risk' titled 'TOP RISKS' with 3 rows), Competitive Positioning (paragraph + bullets), Recommendation (recommendation block with verdict GO / NO-GO / CONDITIONAL GO + rationale), Key Success Factors (bullets), Next Steps (steps block, 3-5 items). Crisp executive language. Cite inline as [Doc §Section p.X].${BLOCKS_GUIDE}`,
   full_analysis: `Generate a comprehensive solicitation analysis report. Sections: Executive Summary, Solicitation Overview, Requirements Analysis, Evaluation Criteria Analysis, Risk Assessment, Opportunities Analysis, Competitive Landscape, Strategic Questions, Comparison to Prior Solicitation (skip if no data), Proposal Strategy Recommendations, Appendices. Every claim cites [Doc §Section p.X]. Use markdown.`,
   questions_brief: `Generate a Strategic Questions brief. Sections: Submitted Questions (recommendation 'ask', numbered Q&A with rationale), Strategic Hold Questions (recommendation 'hold', explain advantage), Internal Discussion Items (monitor/internal). Citations required.`,
   risk_assessment: `Generate a Risk Assessment. Sections: Risk Overview (summary + count by severity), Critical Risks (each high/critical risk with description, citation, mitigation), Mitigation Plan (prioritized actions).`,
@@ -28,26 +44,66 @@ const PROMPTS: Record<ReportType, string> = {
   proposal_outline: `Generate a Proposal Outline. Sections: Volume Structure (recommended volumes with page-limit suggestions), Section Outline (mapped to evaluation factors), Compliance Matrix (markdown table: Requirement | Source | Volume/Section | Notes), Win Themes (3-5 with proof points), Discriminators (3-5), Key Personnel Requirements, Past Performance Suggestions.`,
 };
 
+const BLOCK_SCHEMA = {
+  type: "object",
+  description: "Structured content block. Choose 'kind' to determine which other fields are populated.",
+  properties: {
+    kind: { type: "string", description: "One of: paragraph, bullets, kv, category, recommendation, steps." },
+    text: { type: "string", description: "Used when kind=paragraph." },
+    items: {
+      type: "array",
+      description: "Used when kind=bullets (array of {text}) or kind=steps (array of {title, detail}).",
+      items: {
+        type: "object",
+        description: "For bullets, only 'text' is used. For steps, 'title' and 'detail' are used.",
+        properties: {
+          text: { type: "string", description: "Bullet text (used when parent block kind=bullets)." },
+          title: { type: "string", description: "Step title (used when parent block kind=steps)." },
+          detail: { type: "string", description: "Step detail (used when parent block kind=steps)." },
+        },
+      },
+    },
+    rows: {
+      type: "array",
+      description: "Used when kind=kv or kind=category. Array of two-element [label, value] string arrays.",
+      items: {
+        type: "array",
+        description: "Two-element [label, value] pair.",
+        items: { type: "string", description: "Cell text." },
+      },
+    },
+    tone: { type: "string", description: "Used when kind=category. One of: opportunity, risk, neutral." },
+    title: { type: "string", description: "Used when kind=category. Header bar title (e.g., TOP OPPORTUNITIES)." },
+    verdict: { type: "string", description: "Used when kind=recommendation. e.g., GO, NO-GO, CONDITIONAL GO." },
+    rationale: { type: "string", description: "Used when kind=recommendation. Italic supporting text." },
+  },
+};
+
 const SCHEMA = {
   name: "generate_report",
   description: "Structured executive report content",
   parameters: {
     type: "object",
     properties: {
-      title: { type: "string" },
-      subtitle: { type: "string" },
+      title: { type: "string", description: "Report title." },
+      subtitle: { type: "string", description: "Report subtitle (e.g., solicitation number)." },
       sections: {
         type: "array",
         description: "Ordered report sections.",
         items: {
           type: "object",
+          description: "A report section. Use 'blocks' for branded layout, or 'body' for plain markdown.",
           properties: {
             id: { type: "string", description: "Stable section identifier." },
             heading: { type: "string", description: "Section heading text." },
             level: { type: "integer", description: "Heading level 1-3." },
-            body: { type: "string", description: "Markdown body for this section." },
+            body: { type: "string", description: "Optional markdown body — used only when 'blocks' is not provided." },
+            blocks: {
+              type: "array",
+              description: "Preferred: structured content blocks for branded rendering.",
+              items: BLOCK_SCHEMA,
+            },
           },
-          required: ["heading", "body"],
         },
       },
       citations: {
@@ -55,14 +111,14 @@ const SCHEMA = {
         description: "Inline source citations referenced in section bodies.",
         items: {
           type: "object",
+          description: "A single source citation.",
           properties: {
-            id: { type: "string", description: "Citation identifier." },
+            id: { type: "string", description: "Citation identifier (e.g., C1)." },
             document: { type: "string", description: "Source document name." },
             section: { type: "string", description: "Source section." },
             page: { type: "integer", description: "Source page number." },
             quote: { type: "string", description: "Optional quoted text." },
           },
-          required: ["id", "document"],
         },
       },
     },
@@ -194,6 +250,22 @@ ${JSON.stringify(options ?? {})}`;
       tool: SCHEMA,
     }) as Record<string, any>;
 
+    // Normalize blocks: AI returns bullets/steps `items` as object arrays,
+    // but our bullets renderer expects string[].
+    const normalizeSections = (sections: any[] = []) => sections.map((s) => {
+      const blocks = Array.isArray(s.blocks) ? s.blocks.map((b: any) => {
+        if (!b || typeof b !== "object") return b;
+        if (b.kind === "bullets" && Array.isArray(b.items)) {
+          return { ...b, items: b.items.map((it: any) => typeof it === "string" ? it : (it?.text ?? "")) };
+        }
+        if (b.kind === "steps" && Array.isArray(b.items)) {
+          return { ...b, items: b.items.map((it: any) => ({ title: it?.title ?? "", detail: it?.detail ?? "" })) };
+        }
+        return b;
+      }) : undefined;
+      return blocks ? { ...s, blocks } : s;
+    });
+
     const content = {
       title: parsed.title ?? `${reportType.replace(/_/g, " ")} – ${sol.title}`,
       subtitle: parsed.subtitle ?? sol.solicitation_number ?? null,
@@ -204,9 +276,10 @@ ${JSON.stringify(options ?? {})}`;
         client: (sol.client as { name?: string } | null)?.name,
         contract_type: sol.contract_type,
       },
-      sections: parsed.sections ?? [],
+      sections: normalizeSections(parsed.sections),
       citations: parsed.citations ?? [],
       options: options ?? {},
+      branding: options?.branding ?? null,
     };
 
     const { data: report, error } = await supabase
