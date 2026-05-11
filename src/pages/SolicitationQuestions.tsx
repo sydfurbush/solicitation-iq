@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Download, LayoutGrid, List, Plus, Sparkles } from "lucide-react";
+import { Download, History, LayoutGrid, List, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { CreateQuestionDialog } from "@/features/questions/components/CreateQuestionDialog";
 import { GenerateQuestionsDialog } from "@/features/questions/components/GenerateQuestionsDialog";
+import { QuestionRunsHistorySheet } from "@/features/questions/components/QuestionRunsHistorySheet";
 import { QuestionDetailPanel } from "@/features/questions/components/QuestionDetailPanel";
 import { QuestionExport } from "@/features/questions/components/QuestionExport";
 import { QuestionsFilters } from "@/features/questions/components/QuestionsFilters";
@@ -38,6 +39,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
   const [createOpen, setCreateOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const { data: filtered = [], isLoading } = useStrategicQuestions(solicitationId, filters);
   const { data: allQuestions = [] } = useStrategicQuestions(solicitationId);
@@ -94,6 +96,9 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
               <TabsTrigger value="submitted">Submitted</TabsTrigger>
             </TabsList>
           </Tabs>
+          <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+            <History className="h-4 w-4 mr-1" /> History
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={allQuestions.length === 0}>
             <Download className="h-4 w-4 mr-1" /> Export
           </Button>
@@ -174,6 +179,12 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
         questions={allQuestions}
         open={exportOpen}
         onOpenChange={setExportOpen}
+      />
+      <QuestionRunsHistorySheet
+        solicitationId={solicitationId}
+        documents={documents}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
       />
       <QuestionDetailPanel
         question={selected}
