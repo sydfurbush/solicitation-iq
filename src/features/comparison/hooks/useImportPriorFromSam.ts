@@ -205,6 +205,34 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
 }
 
 /**
+ * Re-imports a specific subset of attachments into an existing shadow solicitation.
+ * Used to retry only the items that failed during the initial import.
+ */
+export async function retryAttachmentImport(
+  priorSolicitationId: string,
+  attachments: { href: string; fileName?: string }[],
+): Promise<{ imported: number; failed: FailedAttachment[]; total: number }> {
+  if (!attachments.length) return { imported: 0, failed: [], total: 0 };
+  const { data, error } = await supabase.functions.invoke<{
+    imported?: number;
+    failed?: { href: string; error?: string }[];
+    total?: number;
+    error?: string;
+  }>("sam-import-attachments", {
+    body: { solicitationId: priorSolicitationId, attachments },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  const byHref = new Map(attachments.map((a) => [a.href, a.fileName]));
+  const failed = (data?.failed ?? []).map((f) => ({
+    href: f.href,
+    error: f.error,
+    fileName: byHref.get(f.href),
+  }));
+  return { imported: data?.imported ?? 0, failed, total: attachments.length };
+}
+
+/**
  * Polls until all of a solicitation's documents have moved out of `uploading`/`processing`.
  * Returns when all are `parsed`/`analyzed`/`failed`, or after a hard timeout.
  */
