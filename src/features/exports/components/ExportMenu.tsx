@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,6 +32,9 @@ interface Props {
 export function ExportMenu({ build, disabled, label = "Export" }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [stage, setStage] = useState<string>("");
+  const inflightRef = useRef(false);
   const [doc, setDoc] = useState<ExportDocument | null>(null);
 
   const [format, setFormat] = useState<ExportFormat>("pdf");
@@ -41,6 +45,7 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
   const [selected, setSelected] = useState<Record<number, boolean>>({});
 
   const openDialog = () => {
+    if (busy) return;
     const built = build();
     if (!built) {
       toast({
@@ -53,12 +58,19 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
     setDoc(built);
     setFilename(built.filenameBase);
     setSelected(Object.fromEntries(built.sections.map((_, i) => [i, true])));
+    setProgress(0);
+    setStage("");
     setOpen(true);
   };
 
   // Reset transient state when closing
   useEffect(() => {
-    if (!open) setBusy(false);
+    if (!open) {
+      setBusy(false);
+      setProgress(0);
+      setStage("");
+      inflightRef.current = false;
+    }
   }, [open]);
 
   const allOn = useMemo(
@@ -77,44 +89,76 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
 
   const handleExport = async () => {
     if (!doc) return;
+    if (inflightRef.current) return; // hard guard against double clicks
     const sections = doc.sections.filter((_, i) => selected[i]);
     if (sections.length === 0) {
-      toast({
-        title: "Select at least one section",
-        variant: "destructive",
-      });
+      toast({ title: "Select at least one section", variant: "destructive" });
       return;
     }
+
+    inflightRef.current = true;
+    setBusy(true);
+    setProgress(5);
+    setStage("Preparing document…");
+
+    // Yield to the browser so the spinner/progress paints before heavy work
+    const tick = (p: number, s: string) =>
+      new Promise<void>((r) => {
+        setProgress(p);
+        setStage(s);
+        // double rAF then a microtask gap so React commits before we block on render
+        requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 0)));
+      });
+
     try {
-      setBusy(true);
+      await tick(20, "Building cover & sections…");
+      await tick(45, format === "pdf" ? "Rendering PDF pages…" : "Rendering Word document…");
+
       await exportDocument({ ...doc, sections }, format, {
         pageSize,
         filenameBase: filename || doc.filenameBase,
         version,
         noCover: !includeCover,
       });
+
+      await tick(95, "Saving file…");
+      await tick(100, "Done");
       toast({ title: "Export ready", description: `${format.toUpperCase()} downloaded.` });
-      setOpen(false);
+      // brief pause so the user sees 100% before close
+      setTimeout(() => setOpen(false), 350);
     } catch (e) {
       toast({
         title: "Export failed",
         description: e instanceof Error ? e.message : String(e),
         variant: "destructive",
       });
+      setStage("Failed");
     } finally {
       setBusy(false);
+      inflightRef.current = false;
     }
   };
 
   return (
     <>
-      <Button variant="outline" size="sm" disabled={disabled} onClick={openDialog}>
-        <Download className="h-4 w-4 mr-2" />
-        {label}
+      <Button variant="outline" size="sm" disabled={disabled || busy} onClick={openDialog}>
+        {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+        {busy ? "Exporting…" : label}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          // Prevent closing while a download is in flight
+          if (busy && !next) return;
+          setOpen(next);
+        }}
+      >
+        <DialogContent
+          className="sm:max-w-lg"
+          onInteractOutside={(e) => busy && e.preventDefault()}
+          onEscapeKeyDown={(e) => busy && e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Export settings</DialogTitle>
             <DialogDescription>
@@ -122,8 +166,8 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 py-2">
-            {/* Format */}
+          <fieldset disabled={busy} className="space-y-5 py-2 disabled:opacity-60">
+            {/* fieldset disables nested form controls (radios, checkboxes, inputs, buttons) while exporting */}
             <div className="space-y-2">
               <Label>Format</Label>
               <RadioGroup
@@ -256,7 +300,20 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
                 )}
               </div>
             )}
-          </div>
+          </fieldset>
+
+          {busy && (
+            <div className="space-y-1.5 px-1" aria-live="polite" role="status">
+              <Progress value={progress} className="h-2" />
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  {stage || "Working…"}
+                </span>
+                <span>{progress}%</span>
+              </div>
+            </div>
+          )}
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
@@ -268,7 +325,7 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
               ) : (
                 <Download className="h-4 w-4 mr-2" />
               )}
-              Export
+              {busy ? "Exporting…" : "Export"}
             </Button>
           </DialogFooter>
         </DialogContent>
