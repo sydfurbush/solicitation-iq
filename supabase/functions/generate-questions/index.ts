@@ -213,13 +213,43 @@ function mapRows(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { solicitationId, focusAreas, focusDocumentIds, regenerate } = await req.json();
+    const { solicitationId, focusAreas, focusDocumentIds, regenerate, retryRunId } = await req.json();
     if (!solicitationId) {
       return new Response(JSON.stringify({ error: "solicitationId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Retry mode: load prior run and restrict scope to its failed batches.
+    let retryDocIds: string[] | null = null;
+    let retryCrossDoc = false;
+    let parentRunId: string | null = null;
+    if (retryRunId) {
+      const { data: prior, error: priorErr } = await supabase
+        .from("question_generation_runs")
+        .select("id, solicitation_id, status, failed_doc_ids, cross_doc_failed")
+        .eq("id", retryRunId)
+        .maybeSingle();
+      if (priorErr || !prior) {
+        return new Response(JSON.stringify({ error: "Prior run not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (prior.solicitation_id !== solicitationId) {
+        return new Response(JSON.stringify({ error: "Prior run does not match solicitation" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      retryDocIds = (prior.failed_doc_ids ?? []) as string[];
+      retryCrossDoc = !!prior.cross_doc_failed;
+      parentRunId = prior.id;
+      if (retryDocIds.length === 0 && !retryCrossDoc) {
+        return new Response(JSON.stringify({ error: "Prior run has no failed batches to retry" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const { data: sol } = await supabase
       .from("solicitations")
@@ -233,7 +263,16 @@ Deno.serve(async (req) => {
       .eq("solicitation_id", solicitationId)
       .is("deleted_at", null)
       .in("status", ["parsed", "analyzed"]);
-    if (focusDocumentIds?.length) docQuery = docQuery.in("id", focusDocumentIds);
+    if (retryDocIds !== null) {
+      if (retryDocIds.length === 0) {
+        // cross-doc-only retry; load all docs (cross pass needs them) but skip per-doc batches
+        // (no extra filter)
+      } else {
+        docQuery = docQuery.in("id", retryDocIds);
+      }
+    } else if (focusDocumentIds?.length) {
+      docQuery = docQuery.in("id", focusDocumentIds);
+    }
     const { data: documents } = await docQuery;
 
     if (!documents || documents.length === 0) {
