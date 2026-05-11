@@ -199,6 +199,102 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     }
   };
 
+  const handleUploadPrior = async (input: { title: string; notes: string | null; files: File[] }) => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const startedAt = new Date().toISOString();
+    const linkIdAtStart = priorRecord.id;
+    setUploadOpen(false);
+    try {
+      const result = await uploadPrior.mutateAsync({
+        title: input.title,
+        externalReference: priorRecord.external_reference ?? null,
+        notes: input.notes,
+        files: input.files,
+        onProgress: setProgress,
+      });
+      if (controller.signal.aborted) throw new ImportCancelledError();
+
+      await logPriorImport({
+        priorLinkId: result.priorRecordId,
+        priorSolicitationId: result.priorSolicitationId,
+        source: "upload",
+        action: "initial",
+        status: result.failed === 0 ? "success" : result.uploaded === 0 ? "failed" : "partial",
+        foundCount: input.files.length,
+        importedCount: result.uploaded,
+        failedCount: result.failed,
+        failedAttachments: result.failedFiles.map((f) => ({ href: f.fileName, fileName: f.fileName, error: f.error })),
+        lookupParams: { url: null, solicitationNumber: priorRecord.external_reference ?? null },
+        startedAt,
+      });
+      invalidateHistory(result.priorRecordId);
+
+      try { await unlink.mutateAsync(linkIdAtStart); } catch { /* ignore */ }
+
+      if (result.uploaded > 0) {
+        setProgress({
+          stage: "parsing",
+          message: `Parsing ${result.uploaded} document(s)…`,
+          found: result.uploaded,
+          imported: result.uploaded,
+          failed: result.failed,
+          parsed: 0,
+          totalDocs: result.uploaded,
+        });
+        await waitForDocumentsParsed(result.priorSolicitationId, {
+          signal: controller.signal,
+          onProgress: ({ parsed, total }) =>
+            setProgress((p) => p && {
+              ...p,
+              stage: "parsing",
+              message: `Parsing documents (${parsed}/${total})…`,
+              parsed,
+              totalDocs: total,
+            }),
+        });
+      }
+
+      if (controller.signal.aborted) throw new ImportCancelledError();
+      setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
+      await new Promise<void>((resolve, reject) =>
+        compare.mutate(
+          { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+          { onSuccess: () => { refetchLink(); resolve(); }, onError: (e) => reject(e) },
+        ),
+      );
+      setProgress((p) => p && {
+        ...p,
+        stage: "done",
+        message: `Done — ${result.uploaded} document(s) uploaded, comparison updated.`,
+      });
+      toast({ title: "Comparison updated" });
+    } catch (e) {
+      const cancelled = e instanceof ImportCancelledError || controller.signal.aborted;
+      if (cancelled) {
+        setProgress({ stage: "error", message: "Cancelled by user." });
+      } else {
+        setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
+        toast({ title: "Upload failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      }
+      await logPriorImport({
+        priorLinkId: linkIdAtStart,
+        source: "upload",
+        action: "initial",
+        status: cancelled ? "cancelled" : "failed",
+        foundCount: input.files.length,
+        importedCount: 0,
+        failedCount: input.files.length,
+        errorMessage: e instanceof Error ? e.message : String(e),
+        lookupParams: { url: null, solicitationNumber: priorRecord.external_reference ?? null },
+        startedAt,
+      });
+      invalidateHistory(linkIdAtStart);
+    } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+    }
+  };
+
   const handleRetryFailed = async () => {
     if (!lastImport || lastImport.failedAttachments.length === 0) return;
     const controller = new AbortController();
