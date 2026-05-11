@@ -39,6 +39,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
   const [createOpen, setCreateOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const { data: filtered = [], isLoading } = useStrategicQuestions(solicitationId, filters);
   const { data: allQuestions = [] } = useStrategicQuestions(solicitationId);
