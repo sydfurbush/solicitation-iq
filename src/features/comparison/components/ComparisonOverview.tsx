@@ -266,6 +266,39 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
             </AlertDescription>
           </Alert>
         )}
+        {hasFailedToRetry && (
+          <Alert variant="default" className="border-destructive/40 bg-destructive/5">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <AlertTitle>
+              {lastImport!.failedAttachments.length} attachment{lastImport!.failedAttachments.length === 1 ? "" : "s"} failed to import
+            </AlertTitle>
+            <AlertDescription className="space-y-2">
+              <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5 max-h-24 overflow-auto">
+                {lastImport!.failedAttachments.slice(0, 6).map((f, i) => (
+                  <li key={i} className="truncate">
+                    <span className="font-medium text-foreground">{f.fileName ?? f.href}</span>
+                    {f.error ? <span> — {f.error}</span> : null}
+                  </li>
+                ))}
+                {lastImport!.failedAttachments.length > 6 && (
+                  <li>…and {lastImport!.failedAttachments.length - 6} more</li>
+                )}
+              </ul>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={handleRetryFailed} disabled={importing}>
+                  <RefreshCw className={cn("mr-2 h-4 w-4", importing && "animate-spin")} />
+                  Retry failed ({lastImport!.failedAttachments.length})
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setLastImport((p) => p && { ...p, failedAttachments: [] })}>
+                  Dismiss
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+        {(retrying || (importing && lastImport)) && progress && !isExternalOnly && (
+          <ImportProgressPanel progress={progress} />
+        )}
         <div className="grid md:grid-cols-2 gap-4">
           <SolicitationHeader label="Prior" sol={prior ?? null} fallback={priorRecord.external_reference} fallbackUrl={priorRecord.external_url} />
           <SolicitationHeader label="Current" sol={current ?? null} />
