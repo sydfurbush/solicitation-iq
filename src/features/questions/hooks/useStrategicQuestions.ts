@@ -9,6 +9,16 @@ import {
 
 const qsKey = (id: string) => ["strategic-questions", id] as const;
 
+// Invalidate every query that exposes a question count for this solicitation.
+// The detail StatCard and Solicitations list both read embedded counts from
+// `["solicitation", id]` / `["solicitations", ...]`, so they must be refreshed
+// whenever questions are added, edited, or removed.
+function invalidateQuestionCounts(qc: ReturnType<typeof useQueryClient>, solicitationId: string) {
+  qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+  qc.invalidateQueries({ queryKey: ["solicitation", solicitationId] });
+  qc.invalidateQueries({ queryKey: ["solicitations"] });
+}
+
 export function useStrategicQuestions(
   solicitationId: string | undefined,
   filters?: QuestionFilters,
