@@ -1,4 +1,47 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
+
+async function getCallerSamKey(req: Request): Promise<{ key?: string; error?: Response }> {
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return {
+      error: new Response(
+        JSON.stringify({ error: "SAM_KEY_MISSING", message: "Sign in and add your SAM.gov API key in Settings → Integrations." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      ),
+    };
+  }
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const { data: userData } = await admin.auth.getUser(token);
+  const userId = userData?.user?.id;
+  if (!userId) {
+    return {
+      error: new Response(
+        JSON.stringify({ error: "UNAUTHENTICATED", message: "Sign in to import from SAM.gov." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      ),
+    };
+  }
+  const { data: row } = await admin
+    .from("user_integrations")
+    .select("api_key")
+    .eq("user_id", userId)
+    .eq("provider", "sam_gov")
+    .maybeSingle();
+  const key = (row as { api_key?: string } | null)?.api_key?.trim();
+  if (!key) {
+    return {
+      error: new Response(
+        JSON.stringify({ error: "SAM_KEY_MISSING", message: "Add your SAM.gov API key in Settings → Integrations." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      ),
+    };
+  }
+  return { key };
+}
 
 interface SamNotice {
   noticeId?: string;
@@ -72,13 +115,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get("SAM_GOV_API_KEY");
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "SAM_GOV_API_KEY is not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const keyResult = await getCallerSamKey(req);
+    if (keyResult.error) return keyResult.error;
+    const apiKey = keyResult.key!;
 
     const body = await req.json().catch(() => null);
     const url: string | undefined = body?.url;

@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { readEdgeError } from "@/lib/supabase/edgeError";
 
 type Attachment = { href: string; fileName?: string };
 
@@ -88,10 +89,11 @@ export function useSamPullAttachments(solicitationId: string, samUrl: string | n
         variant: r.imported === 0 && failedCount > 0 ? "destructive" : undefined,
       });
     },
-    onError: (e) => {
+    onError: async (e) => {
+      const description = await readEdgeError(e);
       toast({
         title: "SAM.gov pull failed",
-        description: e instanceof Error ? e.message : String(e),
+        description,
         variant: "destructive",
       });
     },

@@ -13,6 +13,7 @@ import { useAuthContext } from "@/features/auth/components/AuthProvider";
 import { useUser } from "@/features/auth/hooks/useUser";
 import { MetaTags } from "@/components/shared/MetaTags";
 import { AIModelsTab } from "@/features/settings/components/AIModelsTab";
+import { IntegrationsTab } from "@/features/settings/components/IntegrationsTab";
 
 export default function Settings() {
   const { role } = useUser();
@@ -40,7 +41,7 @@ export default function Settings() {
         <TabsContent value="organization" className="mt-6"><OrganizationTab /></TabsContent>
         <TabsContent value="notifications" className="mt-6"><NotificationsTab /></TabsContent>
         {isAdmin && <TabsContent value="ai-models" className="mt-6"><AIModelsTab /></TabsContent>}
-        <TabsContent value="integrations" className="mt-6"><PlaceholderTab title="Integrations" body="API keys and webhook management is coming soon." /></TabsContent>
+        <TabsContent value="integrations" className="mt-6"><IntegrationsTab /></TabsContent>
         <TabsContent value="billing" className="mt-6"><PlaceholderTab title="Billing" body="Subscription and billing details will appear here." /></TabsContent>
       </Tabs>
     </div>
