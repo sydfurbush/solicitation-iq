@@ -8,7 +8,7 @@ import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseBut
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import type { ExportDocument } from "@/features/exports/lib/exporters";
 
-export default function SolicitationOutline({ solicitationId, currentPhase }: { solicitationId: string; currentPhase: string }) {
+export default function SolicitationOutline({ solicitationId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
   const { data: outline, isLoading } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
   const gen = useGenerateOutline(solicitationId);
@@ -35,6 +35,7 @@ export default function SolicitationOutline({ solicitationId, currentPhase }: { 
           },
         },
       ],
+      cover: { clientName, solicitationTitle, phase: currentPhase },
     };
   };
 

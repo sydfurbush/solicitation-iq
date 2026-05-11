@@ -12,6 +12,7 @@ import {
   TableCell,
   WidthType,
   AlignmentType,
+  PageBreak,
 } from "docx";
 
 export type ExportFormat = "pdf" | "docx";
@@ -21,6 +22,16 @@ export interface ExportOptions {
   pageSize?: ExportPageSize;
   /** Override the filename base (without extension) */
   filenameBase?: string;
+  /** User-supplied version string (rendered on the cover page) */
+  version?: string;
+  /** Suppress the cover page (defaults to false). */
+  noCover?: boolean;
+}
+
+export interface ExportCover {
+  clientName?: string;
+  solicitationTitle?: string;
+  phase?: string;
 }
 
 export interface ExportSection {
@@ -40,12 +51,37 @@ export interface ExportDocument {
   subtitle?: string;
   sections: ExportSection[];
   filenameBase: string;
+  /** Optional metadata used for the cover page */
+  cover?: ExportCover;
 }
 
 const sanitize = (s: string) => s.replace(/[^a-z0-9-_]+/gi, "_").slice(0, 80);
 
 function fmtDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function fmtDateTime() {
+  return new Date().toLocaleString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+const PHASE_LABELS: Record<string, string> = {
+  phase_1_initial: "Phase 1 — Initial",
+  phase_2_outline: "Phase 2 — Outline",
+  phase_3_deep_dive: "Phase 3 — Deep Dive",
+  phase_4_win_themes: "Phase 4 — Win Themes",
+  phase_5_complete: "Phase 5 — Complete",
+};
+
+function phaseLabel(p?: string) {
+  if (!p) return undefined;
+  return PHASE_LABELS[p] ?? p.replace(/_/g, " ");
 }
 
 /* -------------------- PDF -------------------- */
@@ -75,6 +111,59 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
       y += opts.size + 4;
     }
   };
+
+  // ---- Cover page ----
+  if (!opts.noCover) {
+    const cover = doc.cover ?? {};
+    const centerY = pageH / 2 - 80;
+    const drawCenter = (text: string, size: number, weight: "bold" | "normal", color: [number, number, number], offset: number) => {
+      pdf.setFont("helvetica", weight);
+      pdf.setFontSize(size);
+      pdf.setTextColor(...color);
+      const lines = pdf.splitTextToSize(text, pageW - margin * 2);
+      lines.forEach((line: string, idx: number) => {
+        pdf.text(line, pageW / 2, centerY + offset + idx * (size + 4), { align: "center" });
+      });
+      return lines.length * (size + 4);
+    };
+
+    // Top accent bar
+    pdf.setFillColor(40, 60, 90);
+    pdf.rect(0, 0, pageW, 8, "F");
+
+    let coverY = 0;
+    if (cover.clientName) {
+      coverY += drawCenter(cover.clientName.toUpperCase(), 11, "bold", [40, 60, 90], coverY) + 8;
+    }
+    coverY += drawCenter(doc.title, 28, "bold", [25, 25, 25], coverY) + 16;
+    if (cover.solicitationTitle) {
+      coverY += drawCenter(cover.solicitationTitle, 14, "normal", [80, 80, 80], coverY) + 24;
+    }
+
+    // Meta block
+    const meta: [string, string][] = [];
+    const phase = phaseLabel(cover.phase);
+    if (phase) meta.push(["Phase", phase]);
+    if (opts.version?.trim()) meta.push(["Version", opts.version.trim()]);
+    meta.push(["Generated", fmtDateTime()]);
+
+    const metaTop = centerY + coverY + 40;
+    pdf.setDrawColor(220, 220, 220);
+    pdf.line(pageW / 2 - 100, metaTop - 16, pageW / 2 + 100, metaTop - 16);
+    meta.forEach((row, i) => {
+      const ry = metaTop + i * 18;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(row[0].toUpperCase(), pageW / 2 - 12, ry, { align: "right" });
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(40, 40, 40);
+      pdf.text(row[1], pageW / 2 + 12, ry, { align: "left" });
+    });
+
+    pdf.addPage();
+    y = margin;
+  }
 
   // Title
   writeWrapped(doc.title, { size: 20, bold: true });
@@ -164,13 +253,61 @@ function renderDocxSection(s: ExportSection, depth = 0): (Paragraph | Table)[] {
 }
 
 async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promise<Blob> {
-  const children: (Paragraph | Table)[] = [
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      alignment: AlignmentType.LEFT,
-      children: [new TextRun({ text: doc.title, bold: true })],
-    }),
-  ];
+  const children: (Paragraph | Table)[] = [];
+
+  // ---- Cover page ----
+  if (!opts.noCover) {
+    const cover = doc.cover ?? {};
+    // Spacer to push content down
+    for (let i = 0; i < 6; i++) {
+      children.push(new Paragraph({ children: [new TextRun("")] }));
+    }
+    if (cover.clientName) {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: cover.clientName.toUpperCase(), bold: true, color: "283C5A", size: 22 })],
+      }));
+    }
+    children.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 240, after: 240 },
+      children: [new TextRun({ text: doc.title, bold: true, size: 56 })],
+    }));
+    if (cover.solicitationTitle) {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 480 },
+        children: [new TextRun({ text: cover.solicitationTitle, color: "555555", size: 28 })],
+      }));
+    }
+
+    const meta: [string, string][] = [];
+    const phase = phaseLabel(cover.phase);
+    if (phase) meta.push(["Phase", phase]);
+    if (opts.version?.trim()) meta.push(["Version", opts.version.trim()]);
+    meta.push(["Generated", fmtDateTime()]);
+
+    meta.forEach(([k, v]) => {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 60, after: 60 },
+        children: [
+          new TextRun({ text: `${k.toUpperCase()}  `, bold: true, color: "888888", size: 18 }),
+          new TextRun({ text: v, size: 20 }),
+        ],
+      }));
+    });
+
+    // Page break to start content on a new page
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+  }
+
+  // ---- Body ----
+  children.push(new Paragraph({
+    heading: HeadingLevel.TITLE,
+    alignment: AlignmentType.LEFT,
+    children: [new TextRun({ text: doc.title, bold: true })],
+  }));
   if (doc.subtitle) children.push(new Paragraph({ children: [new TextRun({ text: doc.subtitle, italics: true })] }));
   children.push(new Paragraph({ children: [new TextRun({ text: `Generated ${fmtDate()}`, color: "888888", size: 18 })] }));
 

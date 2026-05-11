@@ -36,6 +36,8 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
   const [format, setFormat] = useState<ExportFormat>("pdf");
   const [pageSize, setPageSize] = useState<ExportPageSize>("letter");
   const [filename, setFilename] = useState("");
+  const [version, setVersion] = useState("v1");
+  const [includeCover, setIncludeCover] = useState(true);
   const [selected, setSelected] = useState<Record<number, boolean>>({});
 
   const openDialog = () => {
@@ -88,6 +90,8 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
       await exportDocument({ ...doc, sections }, format, {
         pageSize,
         filenameBase: filename || doc.filenameBase,
+        version,
+        noCover: !includeCover,
       });
       toast({ title: "Export ready", description: `${format.toUpperCase()} downloaded.` });
       setOpen(false);
@@ -185,7 +189,38 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
               </div>
             </div>
 
-            {/* Sections */}
+            {/* Cover page */}
+            <div className="space-y-2 rounded-md border p-3">
+              <label htmlFor="export-cover" className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  id="export-cover"
+                  checked={includeCover}
+                  onCheckedChange={(c) => setIncludeCover(!!c)}
+                />
+                <span className="text-sm font-medium">Include cover page</span>
+              </label>
+              {includeCover && (
+                <div className="grid grid-cols-1 gap-2 pt-1">
+                  <div className="space-y-1">
+                    <Label htmlFor="export-version" className="text-xs">Version</Label>
+                    <Input
+                      id="export-version"
+                      value={version}
+                      onChange={(e) => setVersion(e.target.value)}
+                      placeholder="v1, Draft, Final…"
+                    />
+                  </div>
+                  {(doc?.cover?.clientName || doc?.cover?.solicitationTitle || doc?.cover?.phase) && (
+                    <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
+                      {doc?.cover?.clientName && <div><span className="font-medium">Client:</span> {doc.cover.clientName}</div>}
+                      {doc?.cover?.solicitationTitle && <div><span className="font-medium">Solicitation:</span> {doc.cover.solicitationTitle}</div>}
+                      {doc?.cover?.phase && <div><span className="font-medium">Phase:</span> {doc.cover.phase.replace(/_/g, " ")}</div>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {doc && doc.sections.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
