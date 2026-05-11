@@ -39,6 +39,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useDeleteSolicitation, useSolicitation, useUpdateSolicitationStatus } from "@/features/solicitations/hooks/useSolicitations";
+import { useClient } from "@/features/clients/hooks/useClients";
 import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
 import { SolicitationOverview } from "@/features/solicitations/components/SolicitationOverview";
 import { EditSolicitationDialog } from "@/features/solicitations/components/EditSolicitationDialog";
