@@ -177,6 +177,8 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     abortRef.current = controller;
     setRetrying(true);
     const toRetry = lastImport.failedAttachments;
+    const startedAt = new Date().toISOString();
+    const targetLinkId = lastImport.priorRecordId;
     try {
       setProgress({
         stage: "downloading",
@@ -186,8 +188,20 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       const res = await retryAttachmentImport(lastImport.priorSolicitationId, toRetry);
       if (controller.signal.aborted) throw new ImportCancelledError();
 
-      // Update remembered failures so user can retry again if some still fail
       setLastImport((prev) => prev && { ...prev, failedAttachments: res.failed });
+
+      await logPriorImport({
+        priorLinkId: targetLinkId,
+        priorSolicitationId: lastImport.priorSolicitationId,
+        action: "retry",
+        status: res.failed.length === 0 ? "success" : res.imported === 0 ? "failed" : "partial",
+        foundCount: toRetry.length,
+        importedCount: res.imported,
+        failedCount: res.failed.length,
+        failedAttachments: res.failed,
+        startedAt,
+      });
+      invalidateHistory(targetLinkId);
 
       setProgress({
         stage: "downloading",
@@ -224,12 +238,26 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
       });
       toast({ title: "Retry complete" });
     } catch (e) {
-      if (e instanceof ImportCancelledError || controller.signal.aborted) {
+      const cancelled = e instanceof ImportCancelledError || controller.signal.aborted;
+      if (cancelled) {
         setProgress({ stage: "error", message: "Cancelled by user." });
       } else {
         setProgress({ stage: "error", message: e instanceof Error ? e.message : String(e) });
         toast({ title: "Retry failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
       }
+      await logPriorImport({
+        priorLinkId: targetLinkId,
+        priorSolicitationId: lastImport.priorSolicitationId,
+        action: "retry",
+        status: cancelled ? "cancelled" : "failed",
+        foundCount: toRetry.length,
+        importedCount: 0,
+        failedCount: toRetry.length,
+        failedAttachments: toRetry,
+        errorMessage: e instanceof Error ? e.message : String(e),
+        startedAt,
+      });
+      invalidateHistory(targetLinkId);
     } finally {
       setRetrying(false);
       if (abortRef.current === controller) abortRef.current = null;
