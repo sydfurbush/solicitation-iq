@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Loader2, RotateCcw, Sparkles } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,7 +13,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
-import { useGenerateQuestions } from "../hooks/useStrategicQuestions";
+import { useGenerateQuestions, useLatestQuestionRun } from "../hooks/useStrategicQuestions";
 
 const FOCUS_OPTIONS = ["Technical", "Management", "Pricing", "Compliance", "Staffing"];
 
@@ -31,24 +31,40 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
   const [regenerate, setRegenerate] = useState(false);
   const [progress, setProgress] = useState<{ completed: number; total: number; inserted: number; step: string | null } | null>(null);
   const generate = useGenerateQuestions(solicitationId);
+  const { data: latestRun } = useLatestQuestionRun(open ? solicitationId : undefined);
+
+  const retryable = useMemo(() => {
+    if (!latestRun) return null;
+    const failedIds = (latestRun.failed_doc_ids ?? []) as string[];
+    const crossDoc = !!latestRun.cross_doc_failed;
+    const status = latestRun.status as string;
+    if ((status === "partial" || status === "failed") && (failedIds.length > 0 || crossDoc)) {
+      const docMap = new Map(documents.map((d) => [d.id, d.file_name]));
+      const failedNames = failedIds.map((id) => docMap.get(id)).filter(Boolean) as string[];
+      return { runId: latestRun.id as string, failedNames, crossDoc, count: failedIds.length + (crossDoc ? 1 : 0) };
+    }
+    return null;
+  }, [latestRun, documents]);
 
   const toggle = (arr: string[], v: string) => arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
 
-  const handleRun = async () => {
+  const runGenerate = async (overrides?: { retryRunId?: string }) => {
     setProgress({ completed: 0, total: 0, inserted: 0, step: "Starting…" });
     try {
       const result = await generate.mutateAsync({
-        focusAreas: focusAreas.length ? focusAreas : undefined,
-        focusDocumentIds: docIds.length ? docIds : undefined,
-        regenerate,
+        focusAreas: overrides?.retryRunId ? undefined : (focusAreas.length ? focusAreas : undefined),
+        focusDocumentIds: overrides?.retryRunId ? undefined : (docIds.length ? docIds : undefined),
+        regenerate: overrides?.retryRunId ? false : regenerate,
+        retryRunId: overrides?.retryRunId,
         onProgress: setProgress,
       });
+      const verb = overrides?.retryRunId ? "Retried" : "Generated";
       if (result.status === "completed") {
-        toast({ title: "Questions generated", description: `${result.count} questions added.` });
+        toast({ title: `${verb} successfully`, description: `${result.count} questions added.` });
       } else if (result.status === "partial") {
         toast({
           title: "Partially generated",
-          description: `${result.count} questions added · ${result.failedBatches} batch(es) failed. You can re-run to fill gaps.`,
+          description: `${result.count} questions added · ${result.failedBatches} batch(es) failed. You can retry the failed batches.`,
         });
       } else {
         toast({ title: "Generation failed", description: result.error ?? "All batches failed.", variant: "destructive" });
@@ -61,6 +77,9 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
     }
   };
 
+  const handleRun = () => runGenerate();
+  const handleRetry = () => retryable && runGenerate({ retryRunId: retryable.runId });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -71,6 +90,28 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
         </DialogHeader>
 
         <div className="space-y-4">
+          {retryable && (
+            <Alert>
+              <AlertDescription className="text-sm space-y-2">
+                <div className="font-medium">
+                  Last run finished with {retryable.count} failed batch{retryable.count === 1 ? "" : "es"}.
+                </div>
+                {retryable.failedNames.length > 0 && (
+                  <div className="text-muted-foreground">
+                    Failed: {retryable.failedNames.join(", ")}
+                    {retryable.crossDoc ? " · cross-document pass" : ""}
+                  </div>
+                )}
+                {retryable.failedNames.length === 0 && retryable.crossDoc && (
+                  <div className="text-muted-foreground">Failed: cross-document pass</div>
+                )}
+                <Button size="sm" variant="outline" onClick={handleRetry} disabled={generate.isPending}>
+                  <RotateCcw className="h-4 w-4 mr-2" /> Retry failed batches
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {hasExistingAi && (
             <Alert>
               <AlertDescription className="text-sm">

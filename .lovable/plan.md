@@ -1,43 +1,69 @@
 ## Goal
-Make strategic-question generation reliable on large solicitations by batching the work into 2–3 documents per AI call, retrying transient failures, and inserting results incrementally.
 
-## Why
-The last failure was a 503 "connection termination" from the AI Gateway on a single 241K-char prompt covering 11 docs / 742 sections. The request was simply too big/long for one upstream call. Smaller, parallel-friendly calls are far more reliable and let partial progress survive a single bad batch.
+Add a "Retry failed batches" button that re-runs only the document batches (and/or the cross-document pass) that failed in the most recent generation run, instead of re-processing the entire solicitation package.
 
-## Changes
+## How it works today
 
-### 1. Backend — `supabase/functions/generate-questions/index.ts`
-- **Batch by document group:** sort documents by section count and pack them into batches targeting ≤ 3 docs and ≤ ~70K prompt chars per batch.
-- **Per-batch AI call:** each batch runs its own `callAiTool` with the same SYSTEM_PROMPT and SCHEMA, scoped to that batch's documents only.
-- **Incremental insert:** insert each batch's rows immediately on success, so a later batch failure never loses earlier ones.
-- **Regenerate semantics:** when `regenerate=true`, delete prior AI rows once — right before the first batch's successful insert — never before the AI call returns.
-- **Cross-document pass:** after per-doc batches finish, run one final smaller call that sees only:
-  - each document's TOC,
-  - extracted KPIs / numbers / dates / locations / staffing snippets,
-  - so contradiction / cross-reference questions are not lost to batching.
-- **Per-batch logging:** `batch=i/N docs=[...] promptChars=... finish=... inserted=...` for easy diagnosis.
-- **Progress tracking:** write a lightweight progress record (see §3) at start, after each batch, and at end.
+- `generate-questions` packs documents into N per-doc batches plus 1 cross-doc pass, runs them sequentially, and writes counts (`completed_batches`, `failed_batches`, `inserted_count`) to `question_generation_runs`.
+- The run record knows *how many* batches failed but not *which* docs were in those failed batches, so the UI can only offer a full re-run.
 
-### 2. Backend — `supabase/functions/_shared/aiClient.ts`
-- Add automatic retry (up to 2 retries, exponential backoff ~2s/5s) for Lovable Gateway responses with status 503 or fetch errors that look like connection resets.
-- Keep existing logging of `finish_reason`, `usage`, and `tool_arg_chars`.
+## What we'll change
 
-### 3. Database — new `question_generation_runs` table
-Tracks each generation run so the UI can show real progress instead of polling row counts blindly.
-- Columns: `solicitation_id`, `status` (`running` | `completed` | `failed` | `partial`), `total_batches`, `completed_batches`, `inserted_count`, `error_message`, timestamps.
-- RLS: same org scope as `strategic_questions`.
+### 1. Database — track failure detail per run
 
-### 4. Frontend — `useStrategicQuestions.ts` + `GenerateQuestionsDialog.tsx`
-- Replace the "poll row count for 4 minutes" hack with polling the new `question_generation_runs` row.
-- Show progress: "Batch 3 of 5 complete · 42 questions added so far".
-- Final toast distinguishes:
-  - **Completed** — all batches succeeded.
-  - **Partial** — some batches failed; show how many questions were still added.
-  - **Failed** — no batches succeeded.
+Add two columns to `question_generation_runs`:
 
-## Out of scope
-- No changes to the question schema, categories, or UI rendering of questions.
-- No model change — staying on `google/gemini-2.5-pro` @ 32K max tokens.
+- `failed_doc_ids uuid[] not null default '{}'` — flat list of document IDs whose batch failed (a batch contains 1–3 docs; if it fails, all its doc IDs go in here).
+- `cross_doc_failed boolean not null default false` — true if the cross-document contradiction pass failed.
+
+No RLS changes needed (existing policies cover the table).
+
+### 2. Edge function `generate-questions`
+
+- **Track per-batch identity.** When a batch throws/insert-errors, append `batch.map(d => d.id)` to a `failedDocIds` accumulator and update the run row with `failed_doc_ids`. Set `cross_doc_failed = true` if the cross-doc pass fails.
+- **New retry mode.** Accept a new optional input shape:
+  ```ts
+  { solicitationId, retryRunId: string }
+  ```
+  When `retryRunId` is provided:
+  - Load the prior run; require `status in ('partial','failed')` and same `solicitation_id`.
+  - Restrict `documents` to `prior.failed_doc_ids` (skip per-doc batches entirely if empty).
+  - Run the cross-doc pass only if `prior.cross_doc_failed` was true.
+  - **Never delete existing rows** in retry mode (ignore `regenerate`); always append.
+  - Create a new `question_generation_runs` row that links to the prior one via a new `parent_run_id uuid` column (added in migration above) so we keep history.
+  - On success/partial, also clear the parent's `failed_doc_ids` entries that succeeded this round, and update the parent's `status` to `completed` if everything is now resolved.
+- Non-retry path is unchanged except for populating `failed_doc_ids` / `cross_doc_failed`.
+
+### 3. Hook `useStrategicQuestions.ts`
+
+- Extend `useGenerateQuestions` input to accept `retryRunId?: string` and forward it to the function. Polling logic is identical (it polls the new run id returned from the function).
+- Add a small `useLatestQuestionRun(solicitationId)` query that selects the most recent row from `question_generation_runs` for that solicitation (status, failed_batches, failed_doc_ids, cross_doc_failed, completed_at). Used by the dialog to decide whether to show the retry button.
+
+### 4. UI `GenerateQuestionsDialog.tsx`
+
+- When the dialog opens, read the latest run via the new hook.
+- If `latestRun.status` is `partial` or `failed` AND (`failed_doc_ids.length > 0` OR `cross_doc_failed`), show a new section above the "Generate" button:
+  ```
+  Last run finished with N failed batch(es).
+  [ Retry failed batches ]   <- secondary button
+  ```
+  with a one-line description listing the affected file names (looked up from the `documents` prop) and "+ cross-document pass" if applicable.
+- Clicking the button calls `generate.mutateAsync({ retryRunId: latestRun.id, onProgress: setProgress })`. Same progress UI is reused. Toast wording on success: "Retried N batch(es) · X questions added".
+- The existing "Generate" / "Replace existing" controls stay unchanged for full re-runs.
+
+### 5. Out of scope
+
+- No changes to question schema, categorization, prompts, or the cross-doc logic itself.
+- No retry-individual-batch UI; retry is always "all currently-failed batches from the last run".
+- No automatic retry on dialog open — user must click the button.
+
+## Technical notes
+
+- Migration is additive (`add column ... default ...`), safe on existing rows.
+- The retry endpoint is the same edge function; only the request body shape distinguishes the modes, so no new function deployment plumbing is needed.
+- Because retries create a fresh run row, the existing polling code in `useGenerateQuestions` works unchanged.
+- If the retry itself fails again, the new run row will carry its own `failed_doc_ids`, so the user can keep retrying.
 
 ## Expected outcome
-A full RFP package (10+ docs, 700+ sections) generates in 4–6 sequential AI calls instead of one giant call, each well under the gateway's stability threshold, with visible progress and no all-or-nothing failures.
+
+After a partial run, the user sees exactly which files failed and can recover them with one click in seconds, without re-billing or re-processing the docs that already succeeded.

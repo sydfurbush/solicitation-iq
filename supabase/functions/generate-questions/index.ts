@@ -213,13 +213,43 @@ function mapRows(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { solicitationId, focusAreas, focusDocumentIds, regenerate } = await req.json();
+    const { solicitationId, focusAreas, focusDocumentIds, regenerate, retryRunId } = await req.json();
     if (!solicitationId) {
       return new Response(JSON.stringify({ error: "solicitationId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Retry mode: load prior run and restrict scope to its failed batches.
+    let retryDocIds: string[] | null = null;
+    let retryCrossDoc = false;
+    let parentRunId: string | null = null;
+    if (retryRunId) {
+      const { data: prior, error: priorErr } = await supabase
+        .from("question_generation_runs")
+        .select("id, solicitation_id, status, failed_doc_ids, cross_doc_failed")
+        .eq("id", retryRunId)
+        .maybeSingle();
+      if (priorErr || !prior) {
+        return new Response(JSON.stringify({ error: "Prior run not found" }), {
+          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (prior.solicitation_id !== solicitationId) {
+        return new Response(JSON.stringify({ error: "Prior run does not match solicitation" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      retryDocIds = (prior.failed_doc_ids ?? []) as string[];
+      retryCrossDoc = !!prior.cross_doc_failed;
+      parentRunId = prior.id;
+      if (retryDocIds.length === 0 && !retryCrossDoc) {
+        return new Response(JSON.stringify({ error: "Prior run has no failed batches to retry" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const { data: sol } = await supabase
       .from("solicitations")
@@ -233,7 +263,16 @@ Deno.serve(async (req) => {
       .eq("solicitation_id", solicitationId)
       .is("deleted_at", null)
       .in("status", ["parsed", "analyzed"]);
-    if (focusDocumentIds?.length) docQuery = docQuery.in("id", focusDocumentIds);
+    if (retryDocIds !== null) {
+      if (retryDocIds.length === 0) {
+        // cross-doc-only retry; load all docs (cross pass needs them) but skip per-doc batches
+        // (no extra filter)
+      } else {
+        docQuery = docQuery.in("id", retryDocIds);
+      }
+    } else if (focusDocumentIds?.length) {
+      docQuery = docQuery.in("id", focusDocumentIds);
+    }
     const { data: documents } = await docQuery;
 
     if (!documents || documents.length === 0) {
@@ -256,8 +295,12 @@ Deno.serve(async (req) => {
     for (const d of documents) sectionsByDoc.set(d.id, []);
     for (const s of (sections ?? []) as Section[]) sectionsByDoc.get(s.document_id)?.push(s);
 
-    const batches = packBatches(documents as Doc[], sectionsByDoc);
-    const totalBatches = batches.length + 1; // +1 for cross-doc pass
+    const isRetry = retryRunId !== undefined && retryRunId !== null;
+    const isCrossDocOnlyRetry = isRetry && (retryDocIds?.length ?? 0) === 0;
+    const runCrossDoc = !isRetry || retryCrossDoc;
+
+    const batches = isCrossDocOnlyRetry ? [] : packBatches(documents as Doc[], sectionsByDoc);
+    const totalBatches = batches.length + (runCrossDoc ? 1 : 0);
 
     // Create the run record
     const { data: runRow } = await supabase
@@ -269,14 +312,17 @@ Deno.serve(async (req) => {
         completed_batches: 0,
         failed_batches: 0,
         inserted_count: 0,
-        current_step: `Preparing ${batches.length} document batch(es)`,
+        current_step: isRetry
+          ? `Retrying ${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""}`
+          : `Preparing ${batches.length} document batch(es)`,
+        parent_run_id: parentRunId,
       })
       .select("id")
       .single();
     const runId = runRow?.id;
 
     console.log(
-      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} regenerate=${!!regenerate} runId=${runId}`,
+      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} retry=${isRetry} crossDoc=${runCrossDoc} regenerate=${!!regenerate} runId=${runId} parentRunId=${parentRunId ?? "-"}`,
     );
 
     const focusText = focusAreas?.length
@@ -288,7 +334,10 @@ Deno.serve(async (req) => {
       let totalInserted = 0;
       let completed = 0;
       let failed = 0;
-      let didRegenDelete = false;
+      // Retry mode never deletes — only appends.
+      let didRegenDelete = isRetry;
+      const failedDocIds: string[] = [];
+      let crossDocFailed = false;
 
       const updateRun = async (patch: Record<string, unknown>) => {
         if (!runId) return;
@@ -297,7 +346,6 @@ Deno.serve(async (req) => {
           .update({ ...patch, updated_at: new Date().toISOString() })
           .eq("id", runId);
       };
-
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         const batchLabel = `${i + 1}/${batches.length}`;
@@ -345,6 +393,7 @@ Deno.serve(async (req) => {
             if (insErr) {
               console.error(`[generate-questions] batch=${batchLabel} insert error`, insErr);
               failed++;
+              for (const d of batch) failedDocIds.push(d.id);
             } else {
               totalInserted += rows.length;
               completed++;
@@ -355,78 +404,83 @@ Deno.serve(async (req) => {
         } catch (err) {
           console.error(`[generate-questions] batch=${batchLabel} failed`, err);
           failed++;
+          for (const d of batch) failedDocIds.push(d.id);
         }
 
         await updateRun({
           completed_batches: completed,
           failed_batches: failed,
           inserted_count: totalInserted,
+          failed_doc_ids: failedDocIds,
         });
       }
 
-      // Cross-document contradiction pass
-      await updateRun({ current_step: "Cross-document contradiction pass" });
-      try {
-        let crossPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
-        for (const d of documents) {
-          const ds = sectionsByDoc.get(d.id) ?? [];
-          const toc = ds
-            .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
-            .slice(0, 80)
-            .join("\n");
-          crossPrompt += `\n--- ${d.file_name} ---\n${toc}\n`;
-        }
-        // Append extracted entities (KPIs/numbers/dates/places)
-        const { data: entities } = await supabase
-          .from("extracted_entities")
-          .select("document_id, entity_type, entity_value, page_number, context_snippet")
-          .in("document_id", docIds)
-          .limit(800);
-        if (entities && entities.length) {
-          const docName = new Map<string, string>();
-          documents.forEach((d) => docName.set(d.id, d.file_name));
-          crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS ---\n`;
-          for (const e of entities) {
-            crossPrompt += `[${docName.get(e.document_id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 160)}` : ""}\n`;
+      // Cross-document contradiction pass (skipped in retries that don't need it)
+      if (runCrossDoc) {
+        await updateRun({ current_step: "Cross-document contradiction pass" });
+        try {
+          let crossPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
+          for (const d of documents) {
+            const ds = sectionsByDoc.get(d.id) ?? [];
+            const toc = ds
+              .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
+              .slice(0, 80)
+              .join("\n");
+            crossPrompt += `\n--- ${d.file_name} ---\n${toc}\n`;
           }
-        }
-        crossPrompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
-
-        if (crossPrompt.length > 120_000) crossPrompt = crossPrompt.slice(0, 120_000) + "\n…[truncated]…";
-
-        console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length}`);
-        const parsed = (await callAiTool({
-          functionName: "generate-questions",
-          system: CROSS_DOC_SYSTEM_PROMPT,
-          user: crossPrompt,
-          tool: SCHEMA,
-        })) as Record<string, any>;
-        const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
-        const rows = mapRows(questions, solicitationId, docByName);
-        console.log(`[generate-questions] cross-doc got ${rows.length} questions`);
-        if (rows.length > 0) {
-          if (regenerate && !didRegenDelete) {
-            await supabase
-              .from("strategic_questions")
-              .delete()
-              .eq("solicitation_id", solicitationId)
-              .eq("is_ai_generated", true);
-            didRegenDelete = true;
+          const { data: entities } = await supabase
+            .from("extracted_entities")
+            .select("document_id, entity_type, entity_value, page_number, context_snippet")
+            .in("document_id", docIds)
+            .limit(800);
+          if (entities && entities.length) {
+            const docName = new Map<string, string>();
+            documents.forEach((d) => docName.set(d.id, d.file_name));
+            crossPrompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS ---\n`;
+            for (const e of entities) {
+              crossPrompt += `[${docName.get(e.document_id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${e.context_snippet ? ` — ${String(e.context_snippet).slice(0, 160)}` : ""}\n`;
+            }
           }
-          const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
-          if (insErr) {
-            console.error("[generate-questions] cross-doc insert error", insErr);
-            failed++;
+          crossPrompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
+
+          if (crossPrompt.length > 120_000) crossPrompt = crossPrompt.slice(0, 120_000) + "\n…[truncated]…";
+
+          console.log(`[generate-questions] cross-doc promptChars=${crossPrompt.length}`);
+          const parsed = (await callAiTool({
+            functionName: "generate-questions",
+            system: CROSS_DOC_SYSTEM_PROMPT,
+            user: crossPrompt,
+            tool: SCHEMA,
+          })) as Record<string, any>;
+          const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
+          const rows = mapRows(questions, solicitationId, docByName);
+          console.log(`[generate-questions] cross-doc got ${rows.length} questions`);
+          if (rows.length > 0) {
+            if (regenerate && !didRegenDelete) {
+              await supabase
+                .from("strategic_questions")
+                .delete()
+                .eq("solicitation_id", solicitationId)
+                .eq("is_ai_generated", true);
+              didRegenDelete = true;
+            }
+            const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
+            if (insErr) {
+              console.error("[generate-questions] cross-doc insert error", insErr);
+              failed++;
+              crossDocFailed = true;
+            } else {
+              totalInserted += rows.length;
+              completed++;
+            }
           } else {
-            totalInserted += rows.length;
             completed++;
           }
-        } else {
-          completed++;
+        } catch (err) {
+          console.error("[generate-questions] cross-doc failed", err);
+          failed++;
+          crossDocFailed = true;
         }
-      } catch (err) {
-        console.error("[generate-questions] cross-doc failed", err);
-        failed++;
       }
 
       const finalStatus =
@@ -435,13 +489,30 @@ Deno.serve(async (req) => {
         completed_batches: completed,
         failed_batches: failed,
         inserted_count: totalInserted,
+        failed_doc_ids: failedDocIds,
+        cross_doc_failed: crossDocFailed,
         status: finalStatus,
         current_step: null,
         completed_at: new Date().toISOString(),
         error_message: failed > 0 ? `${failed} batch(es) failed` : null,
       });
+
+      // If retry succeeded fully, mark the parent run as completed and clear its failure markers.
+      if (isRetry && parentRunId && finalStatus === "completed") {
+        await supabase
+          .from("question_generation_runs")
+          .update({
+            status: "completed",
+            failed_doc_ids: [],
+            cross_doc_failed: false,
+            error_message: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", parentRunId);
+      }
+
       console.log(
-        `[generate-questions] DONE sol=${solicitationId} status=${finalStatus} inserted=${totalInserted} ok=${completed} failed=${failed}`,
+        `[generate-questions] DONE sol=${solicitationId} status=${finalStatus} inserted=${totalInserted} ok=${completed} failed=${failed} retry=${isRetry}`,
       );
     })();
 
