@@ -94,6 +94,29 @@ function HistoryRow({ row, isOpen, onToggle }: { row: PriorImportHistoryRow; isO
           {row.error_message && (
             <div className="pl-7 text-destructive">{row.error_message}</div>
           )}
+          {row.lookup_params && Object.keys(row.lookup_params).length > 0 && (
+            <div className="pl-7">
+              <p className="text-muted-foreground mb-1 font-medium">SAM.gov lookup parameters:</p>
+              <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-0.5">
+                {row.lookup_params.url && (<><dt className="text-muted-foreground">URL</dt><dd className="break-all font-mono">{row.lookup_params.url}</dd></>)}
+                {row.lookup_params.solicitationNumber && (<><dt className="text-muted-foreground">Solicitation #</dt><dd className="font-mono">{row.lookup_params.solicitationNumber}</dd></>)}
+                {row.lookup_params.noticeId && (<><dt className="text-muted-foreground">Notice ID</dt><dd className="font-mono">{row.lookup_params.noticeId}</dd></>)}
+                {row.lookup_params.triedStrategies && row.lookup_params.triedStrategies.length > 0 && (
+                  <><dt className="text-muted-foreground">Tried</dt><dd>{row.lookup_params.triedStrategies.join(", ")}</dd></>
+                )}
+              </dl>
+            </div>
+          )}
+          {row.error_response && (
+            <details className="pl-7">
+              <summary className="cursor-pointer text-muted-foreground font-medium hover:text-foreground">
+                SAM.gov error response{row.error_response.status ? ` (HTTP ${row.error_response.status})` : ""}
+              </summary>
+              <pre className="mt-1 max-h-48 overflow-auto rounded bg-muted/50 p-2 font-mono text-[11px]">
+                {JSON.stringify(row.error_response, null, 2)}
+              </pre>
+            </details>
+          )}
           {failed.length > 0 && (
             <div className="pl-7">
               <p className="text-muted-foreground mb-1">Failed attachments:</p>
