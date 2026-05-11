@@ -66,11 +66,15 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
     if (!latestRun) return null;
     const failedIds = (latestRun.failed_doc_ids ?? []) as string[];
     const crossDoc = !!latestRun.cross_doc_failed;
+    const failedBatches = (latestRun.failed_batches ?? 0) as number;
     const status = latestRun.status as string;
-    if ((status === "partial" || status === "failed") && (failedIds.length > 0 || crossDoc)) {
+    const hasFailure = failedIds.length > 0 || crossDoc || failedBatches > 0;
+    if ((status === "partial" || status === "failed") && hasFailure) {
       const docMap = new Map(documents.map((d) => [d.id, d.file_name]));
       const failedNames = failedIds.map((id) => docMap.get(id)).filter(Boolean) as string[];
-      return { runId: latestRun.id as string, failedNames, crossDoc, count: failedIds.length + (crossDoc ? 1 : 0) };
+      const unknownScope = failedIds.length === 0 && !crossDoc;
+      const count = unknownScope ? failedBatches : failedIds.length + (crossDoc ? 1 : 0);
+      return { runId: latestRun.id as string, failedNames, crossDoc, count, unknownScope };
     }
     return null;
   }, [latestRun, documents]);
