@@ -43,9 +43,9 @@ export default function DeepDiveTab({ solicitationId, currentPhase }: { solicita
           head: ["#", "Volume / Section", "Shall text", "Owner", "Status"],
           rows: items.map((r) => [
             r.req_number ?? "",
-            [r.volume, r.section_code].filter(Boolean).join(" / "),
+            [r.proposal_volume, r.proposal_section].filter(Boolean).join(" / "),
             r.shall_text ?? "",
-            r.owner ?? "",
+            r.compliance_owner ?? "",
             r.status ?? "",
           ]),
         },
