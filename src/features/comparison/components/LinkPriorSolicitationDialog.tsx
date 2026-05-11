@@ -27,8 +27,13 @@ type Props = {
 
 export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked }: Props) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"existing" | "external">("existing");
+  const [tab, setTab] = useState<"existing" | "upload" | "external">("existing");
   const [selectedPriorId, setSelectedPriorId] = useState<string | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const uploadForm = useForm({
+    defaultValues: { title: "", external_reference: "", notes: "" },
+  });
+  const uploadPrior = useUploadPriorDocuments(solicitationId);
 
   const { data: current } = useSolicitation(solicitationId);
   const { data: all } = useSolicitations({});
