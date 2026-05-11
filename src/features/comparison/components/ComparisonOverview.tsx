@@ -167,10 +167,17 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
                 SAM.gov to get a full requirement-level comparison.
               </p>
               <div className="space-y-2">
-                <Button size="sm" onClick={handleImportFromSam} disabled={importing}>
-                  <DownloadCloud className={cn("mr-2 h-4 w-4", importing && "animate-pulse")} />
-                  {importing ? (progress?.message ?? "Importing…") : "Import from SAM.gov"}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button size="sm" onClick={handleImportFromSam} disabled={importing}>
+                    <DownloadCloud className={cn("mr-2 h-4 w-4", importing && "animate-pulse")} />
+                    {importing ? (progress?.message ?? "Importing…") : "Import from SAM.gov"}
+                  </Button>
+                  {importing && (
+                    <Button size="sm" variant="outline" onClick={handleCancelImport}>
+                      <X className="mr-2 h-4 w-4" /> Cancel
+                    </Button>
+                  )}
+                </div>
                 {progress && <ImportProgressPanel progress={progress} />}
               </div>
             </AlertDescription>
