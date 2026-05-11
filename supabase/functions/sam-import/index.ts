@@ -82,15 +82,17 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => null);
     const url: string | undefined = body?.url;
-    if (!url || typeof url !== "string") {
-      return new Response(JSON.stringify({ error: "Missing 'url' in request body" }), {
+    const solicitationNumber: string | undefined = body?.solicitationNumber;
+
+    if ((!url || typeof url !== "string") && (!solicitationNumber || typeof solicitationNumber !== "string")) {
+      return new Response(JSON.stringify({ error: "Provide 'url' or 'solicitationNumber' in body" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const noticeId = extractNoticeId(url);
-    if (!noticeId) {
+    const noticeId = url ? extractNoticeId(url) : null;
+    if (url && !noticeId && !solicitationNumber) {
       return new Response(
         JSON.stringify({ error: "Could not parse a SAM.gov notice ID from that URL" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -105,7 +107,11 @@ Deno.serve(async (req) => {
 
     const apiUrl = new URL("https://api.sam.gov/opportunities/v2/search");
     apiUrl.searchParams.set("api_key", apiKey);
-    apiUrl.searchParams.set("noticeid", noticeId);
+    if (noticeId) {
+      apiUrl.searchParams.set("noticeid", noticeId);
+    } else if (solicitationNumber) {
+      apiUrl.searchParams.set("solnum", solicitationNumber);
+    }
     apiUrl.searchParams.set("postedFrom", fmt(past));
     apiUrl.searchParams.set("postedTo", fmt(today));
     apiUrl.searchParams.set("limit", "1");
