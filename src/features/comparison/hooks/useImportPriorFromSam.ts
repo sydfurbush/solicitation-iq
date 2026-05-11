@@ -151,6 +151,7 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
       // 5. Pull attachments into the shadow solicitation
       let imported = 0;
       let failed = 0;
+      let failedAttachments: FailedAttachment[] = [];
       if (attachments.length > 0) {
         report({
           stage: "downloading",
@@ -159,7 +160,7 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
         });
         const { data: importData, error: importErr } = await supabase.functions.invoke<{
           imported?: number;
-          failed?: unknown[];
+          failed?: { href: string; error?: string }[];
           total?: number;
           error?: string;
         }>("sam-import-attachments", {
@@ -168,7 +169,14 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
         if (importErr) throw importErr;
         if (importData?.error) throw new Error(importData.error);
         imported = importData?.imported ?? 0;
-        failed = (importData?.failed ?? []).length;
+        const failedRaw = importData?.failed ?? [];
+        failed = failedRaw.length;
+        const byHref = new Map(attachments.map((a) => [a.href, a.fileName]));
+        failedAttachments = failedRaw.map((f) => ({
+          href: f.href,
+          error: f.error,
+          fileName: byHref.get(f.href),
+        }));
         report({
           stage: "downloading",
           message: `Downloaded ${imported} of ${attachments.length} attachment(s)${failed ? ` (${failed} failed)` : ""}.`,
@@ -184,6 +192,7 @@ export function useImportPriorFromSam(currentSolicitationId: string | undefined)
         imported,
         failed,
         found: attachments.length,
+        failedAttachments,
       };
     },
     onSuccess: () => {
