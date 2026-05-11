@@ -93,16 +93,36 @@ Deno.serve(async (req) => {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const SAM_KEY = Deno.env.get("SAM_GOV_API_KEY") ?? "";
 
     const userClient = createClient(SUPABASE_URL, ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
     const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
-    // Note: we do NOT call userClient.auth.getUser() because the new ES256
-    // JWT signing keys may not validate against the legacy anon key client.
-    // Instead, we let RLS enforce access via the solicitation lookup below.
+    // Resolve caller and load their personal SAM.gov key
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const { data: userData } = await userClient.auth.getUser();
+    const userId = userData?.user?.id;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "UNAUTHENTICATED", message: "Sign in to import from SAM.gov." }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const { data: keyRow } = await admin
+      .from("user_integrations")
+      .select("api_key")
+      .eq("user_id", userId)
+      .eq("provider", "sam_gov")
+      .maybeSingle();
+    const SAM_KEY = (keyRow as { api_key?: string } | null)?.api_key?.trim() ?? "";
+    if (!SAM_KEY) {
+      return new Response(
+        JSON.stringify({ error: "SAM_KEY_MISSING", message: "Add your SAM.gov API key in Settings → Integrations." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    void token;
 
     const body = await req.json().catch(() => null) as
       | { solicitationId?: string; attachments?: { href: string; fileName?: string }[] }
