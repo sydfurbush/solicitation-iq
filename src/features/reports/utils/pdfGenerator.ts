@@ -4,10 +4,10 @@ import { sectionBlocks, type Block } from "../templates/blocks";
 import { RGB, FONT_PDF, DEFAULT_FOOTER_TEXT } from "../templates/theme";
 
 const PAGE = { w: 612, h: 792 }; // US Letter pt
-const MARGIN = { top: 64, right: 56, bottom: 56, left: 56 };
-const HEADER_H = 36;
+const MARGIN = { top: 36, right: 56, bottom: 56, left: 56 };
+const HEADER_H = 18;
 const FOOTER_H = 32;
-const CONTENT_TOP = MARGIN.top + HEADER_H + 12;
+const CONTENT_TOP = MARGIN.top + HEADER_H + 6;
 const CONTENT_BOTTOM = PAGE.h - MARGIN.bottom - FOOTER_H;
 const CONTENT_W = PAGE.w - MARGIN.left - MARGIN.right;
 
