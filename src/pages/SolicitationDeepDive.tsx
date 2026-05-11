@@ -230,6 +230,7 @@ function GapsList({
 
   return (
     <div className="space-y-4">
+      <CapabilitiesProfileCard clientId={clientId} gapsUpdatedAt={lastGapsAt} />
       {critical.length > 0 && (
         <div className="border border-destructive/30 bg-destructive/5 rounded-md p-4 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />
