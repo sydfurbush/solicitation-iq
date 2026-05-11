@@ -497,6 +497,11 @@ Deno.serve(async (req) => {
 
       const finalStatus =
         failed === 0 ? "completed" : completed > 0 ? "partial" : "failed";
+      if (failed > 0 && failedDocIds.length === 0 && !crossDocFailed) {
+        console.warn(
+          `[generate-questions] failure flags not recorded: runId=${runId} failed=${failed} — retry will fall back to full re-run`,
+        );
+      }
       await updateRun({
         completed_batches: completed,
         failed_batches: failed,
