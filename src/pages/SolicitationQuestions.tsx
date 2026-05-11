@@ -24,6 +24,7 @@ import {
 } from "@/features/questions/hooks/useStrategicQuestions";
 import {
   filterQuestions,
+  getPriorityLevel,
   type QuestionFilters,
   type QuestionRow,
 } from "@/features/questions/utils/questionHelpers";
