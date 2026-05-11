@@ -124,6 +124,7 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase }: 
         <TabsContent value="gaps" className="mt-4">
           <GapsList
             solicitationId={solicitationId}
+            clientId={clientId}
             hasRequirements={hasRequirements}
             externalAnalyze={analyzeGaps}
           />
