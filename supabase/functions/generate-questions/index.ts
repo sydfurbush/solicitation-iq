@@ -346,16 +346,6 @@ Deno.serve(async (req) => {
           .update({ ...patch, updated_at: new Date().toISOString() })
           .eq("id", runId);
       };
-
-
-      const updateRun = async (patch: Record<string, unknown>) => {
-        if (!runId) return;
-        await supabase
-          .from("question_generation_runs")
-          .update({ ...patch, updated_at: new Date().toISOString() })
-          .eq("id", runId);
-      };
-
       for (let i = 0; i < batches.length; i++) {
         const batch = batches[i];
         const batchLabel = `${i + 1}/${batches.length}`;
