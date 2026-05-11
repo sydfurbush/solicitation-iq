@@ -50,6 +50,40 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
     }
   };
 
+  const handleImportFromSam = async () => {
+    try {
+      setImportStage("Looking up SAM.gov…");
+      const result = await importFromSam.mutateAsync({
+        url: priorRecord.external_url,
+        solicitationNumber: priorRecord.external_reference,
+        externalReference: priorRecord.external_reference,
+      });
+      // Drop the legacy external-only link so the new fully-linked record is canonical
+      try { await unlink.mutateAsync(priorRecord.id); } catch { /* ignore */ }
+      toast({
+        title: "Prior imported",
+        description: `${result.imported} of ${result.found} attachment(s) imported${result.failed ? `, ${result.failed} failed` : ""}.`,
+      });
+      if (result.imported > 0) {
+        setImportStage("Parsing prior documents…");
+        await waitForDocumentsParsed(result.priorSolicitationId);
+      }
+      setImportStage("Re-running comparison…");
+      compare.mutate(
+        { priorSolicitationId: result.priorSolicitationId, priorRecordId: result.priorRecordId },
+        {
+          onSuccess: () => { toast({ title: "Comparison updated" }); refetchLink(); },
+          onError: (e) => toast({ title: "Comparison failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" }),
+        },
+      );
+    } catch (e) {
+      toast({ title: "SAM import failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setImportStage(null);
+    }
+  };
+  const importing = importFromSam.isPending || !!importStage;
+
   const totalChanges =
     (changes?.requirements?.length ?? 0) +
     (changes?.evaluation_factors?.length ?? 0) +
