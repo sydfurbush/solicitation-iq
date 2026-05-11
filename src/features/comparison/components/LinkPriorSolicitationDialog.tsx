@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import { useSolicitations, useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useLinkPriorSolicitation } from "../hooks/usePriorSolicitation";
 import { useRunComparison } from "../hooks/useRunComparison";
-import { useImportPriorFromSam, waitForDocumentsParsed, type ImportProgress } from "../hooks/useImportPriorFromSam";
+import { useImportPriorFromSam, waitForDocumentsParsed, ImportCancelledError, type ImportProgress } from "../hooks/useImportPriorFromSam";
 import { ImportProgressPanel } from "./ImportProgressPanel";
 
 type Props = {
@@ -41,8 +41,16 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
   const compare = useRunComparison(solicitationId);
   const importFromSam = useImportPriorFromSam(solicitationId);
   const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const busy = link.isPending || importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
+  const importing = importFromSam.isPending || compare.isPending || (!!progress && progress.stage !== "done" && progress.stage !== "error");
+
+  const handleCancelImport = () => {
+    abortRef.current?.abort();
+    setProgress({ stage: "error", message: "Cancelled by user." });
+    toast({ title: "Import cancelled" });
+  };
 
   const handleLink = async () => {
     try {
@@ -68,6 +76,8 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
         return;
       }
 
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
         const result = await importFromSam.mutateAsync({
           url: url || null,
@@ -76,6 +86,7 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
           notes: v.notes || null,
           onProgress: setProgress,
         });
+        if (controller.signal.aborted) throw new ImportCancelledError();
         onLinked?.();
 
         if (result.imported > 0) {
@@ -89,6 +100,7 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
             totalDocs: result.imported,
           });
           await waitForDocumentsParsed(result.priorSolicitationId, {
+            signal: controller.signal,
             onProgress: ({ parsed, total }) =>
               setProgress((p) => p && {
                 ...p,
@@ -100,6 +112,7 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
           });
         }
 
+        if (controller.signal.aborted) throw new ImportCancelledError();
         setProgress((p) => p && { ...p, stage: "comparing", message: "Running AI comparison…" });
         await new Promise<void>((resolve, reject) =>
           compare.mutate(
@@ -116,6 +129,10 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
         toast({ title: "Comparison updated" });
         setTimeout(() => setOpen(false), 1200);
       } catch (samErr) {
+        if (samErr instanceof ImportCancelledError || controller.signal.aborted) {
+          setProgress({ stage: "error", message: "Cancelled by user." });
+          return;
+        }
         // Fall back to a plain external-reference link so the user isn't blocked
         console.warn("SAM import failed, falling back to external-reference link", samErr);
         setProgress({
@@ -134,6 +151,8 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
         onLinked?.();
         compare.mutate({ priorSolicitationId: null, priorRecordId: linked?.id ?? null });
         setTimeout(() => setOpen(false), 1500);
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null;
       }
     } catch (e) {
       toast({ title: "Failed to link", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
@@ -215,7 +234,11 @@ export function LinkPriorSolicitationDialog({ solicitationId, trigger, onLinked 
         {progress && <ImportProgressPanel progress={progress} />}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+          {importing ? (
+            <Button variant="outline" onClick={handleCancelImport}>Cancel import</Button>
+          ) : (
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={busy}>Close</Button>
+          )}
           <Button onClick={handleLink} disabled={busy}>
             <ExternalLink className="mr-2 h-4 w-4" /> {busy ? "Working…" : "Link & compare"}
           </Button>
