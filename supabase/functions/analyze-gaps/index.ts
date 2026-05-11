@@ -49,6 +49,25 @@ const SCHEMA = {
   },
 };
 
+function formatCapabilities(caps: unknown): string {
+  if (!caps) return "(no capabilities profile on file — flag this as a critical gap)";
+  if (typeof caps === "string") return caps;
+  if (typeof caps !== "object") return String(caps);
+  const c = caps as Record<string, unknown>;
+  const lines: string[] = [];
+  const arr = (k: string) => Array.isArray(c[k]) ? (c[k] as unknown[]).map(String).filter(Boolean) : [];
+  const str = (k: string) => typeof c[k] === "string" ? (c[k] as string).trim() : "";
+  if (str("core_capabilities")) lines.push(`Core capabilities:\n${str("core_capabilities")}`);
+  if (str("differentiators")) lines.push(`Differentiators:\n${str("differentiators")}`);
+  const naics = arr("naics_codes"); if (naics.length) lines.push(`NAICS codes: ${naics.join(", ")}`);
+  const certs = arr("certifications"); if (certs.length) lines.push(`Certifications & set-asides: ${certs.join(", ")}`);
+  if (str("past_performance")) lines.push(`Past performance:\n${str("past_performance")}`);
+  if (str("key_personnel")) lines.push(`Key personnel:\n${str("key_personnel")}`);
+  if (str("teaming_partners")) lines.push(`Teaming partners:\n${str("teaming_partners")}`);
+  if (str("notes")) lines.push(`Additional notes:\n${str("notes")}`);
+  return lines.length ? lines.join("\n\n") : "(profile present but empty)";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -87,11 +106,9 @@ Deno.serve(async (req) => {
     ).join("\n");
 
     const capabilities = (client?.metadata as Record<string, unknown> | null)?.capabilities ?? null;
-    const capText = capabilities
-      ? typeof capabilities === "string" ? capabilities : JSON.stringify(capabilities, null, 2)
-      : "(no capabilities profile on file)";
+    const capText = formatCapabilities(capabilities);
     const clientText = client
-      ? `CLIENT: ${client.name}\nINDUSTRY: ${client.industry ?? "n/a"}\nNOTES: ${client.notes ?? "n/a"}\nCAPABILITIES:\n${capText}`
+      ? `CLIENT: ${client.name}\nINDUSTRY: ${client.industry ?? "n/a"}\nNOTES: ${client.notes ?? "n/a"}\n\nCAPABILITIES PROFILE:\n${capText}`
       : "(no client profile)";
 
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${clientText}\n\nREQUIREMENTS:\n${reqText}\n\nIdentify gaps.`;

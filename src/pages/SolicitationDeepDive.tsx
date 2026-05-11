@@ -12,6 +12,7 @@ import { useSectionAnalyses, useAnalyzeSections } from "@/features/deepdive/hook
 import { useCapabilityGaps, useAnalyzeGaps, useUpdateGap } from "@/features/deepdive/hooks/useCapabilityGaps";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { RTMTable } from "@/features/deepdive/components/RTMTable";
+import { CapabilitiesProfileCard } from "@/features/deepdive/components/CapabilitiesProfileCard";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
@@ -22,7 +23,7 @@ const SEV_COLOR: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
-export default function DeepDiveTab({ solicitationId, currentPhase }: { solicitationId: string; currentPhase: string }) {
+export default function DeepDiveTab({ solicitationId, clientId, currentPhase }: { solicitationId: string; clientId?: string | null; currentPhase: string }) {
   const [tab, setTab] = useState("rtm");
   const { data: items = [] } = useRequirementItems(solicitationId);
   const { data: sections = [] } = useSectionAnalyses(solicitationId);
@@ -123,6 +124,7 @@ export default function DeepDiveTab({ solicitationId, currentPhase }: { solicita
         <TabsContent value="gaps" className="mt-4">
           <GapsList
             solicitationId={solicitationId}
+            clientId={clientId}
             hasRequirements={hasRequirements}
             externalAnalyze={analyzeGaps}
           />
@@ -192,16 +194,23 @@ function SectionAccordion({ solicitationId }: { solicitationId: string }) {
 
 function GapsList({
   solicitationId,
+  clientId,
   hasRequirements,
   externalAnalyze,
 }: {
   solicitationId: string;
+  clientId?: string | null;
   hasRequirements: boolean;
   externalAnalyze: ReturnType<typeof useAnalyzeGaps>;
 }) {
   const { data: gaps = [], isLoading } = useCapabilityGaps(solicitationId);
   const update = useUpdateGap(solicitationId);
   const critical = gaps.filter((g) => g.severity === "critical" && !g.is_resolved);
+  const lastGapsAt = gaps.reduce<string | null>((acc, g) => {
+    const t = g.updated_at ?? g.created_at ?? null;
+    if (!acc) return t;
+    return t && t > acc ? t : acc;
+  }, null);
   const run = async () => {
     try {
       const r = await externalAnalyze.mutateAsync();
@@ -221,6 +230,7 @@ function GapsList({
 
   return (
     <div className="space-y-4">
+      <CapabilitiesProfileCard clientId={clientId} gapsUpdatedAt={lastGapsAt} />
       {critical.length > 0 && (
         <div className="border border-destructive/30 bg-destructive/5 rounded-md p-4 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-destructive mt-0.5" />

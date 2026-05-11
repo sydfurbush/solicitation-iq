@@ -308,7 +308,7 @@ export default function SolicitationDetail() {
         <TabsContent value="questions" className="mt-6"><SolicitationQuestions solicitationId={s.id} /></TabsContent>
         <TabsContent value="risks" className="mt-6"><SolicitationRisksOpportunities solicitationId={s.id} /></TabsContent>
         <TabsContent value="deep-dive" className="mt-6">
-          <SolicitationDeepDive solicitationId={s.id} currentPhase={s.current_phase ?? "phase_1_initial"} />
+          <SolicitationDeepDive solicitationId={s.id} clientId={s.client_id} currentPhase={s.current_phase ?? "phase_1_initial"} />
         </TabsContent>
         <TabsContent value="outline" className="mt-6">
           <SolicitationOutline solicitationId={s.id} currentPhase={s.current_phase ?? "phase_1_initial"} />
