@@ -30,6 +30,24 @@ export function useStrategicQuestions(
   });
 }
 
+export function useLatestQuestionRun(solicitationId: string | undefined) {
+  return useQuery({
+    queryKey: ["latest-question-run", solicitationId],
+    enabled: !!solicitationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("question_generation_runs")
+        .select("id, status, failed_batches, failed_doc_ids, cross_doc_failed, completed_at, inserted_count")
+        .eq("solicitation_id", solicitationId!)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useGenerateQuestions(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
@@ -37,6 +55,7 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
       focusAreas?: string[];
       focusDocumentIds?: string[];
       regenerate?: boolean;
+      retryRunId?: string;
       onProgress?: (p: { completed: number; total: number; inserted: number; step: string | null }) => void;
     }) => {
       if (!solicitationId) throw new Error("Missing solicitationId");
@@ -47,6 +66,7 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
           focusAreas: input.focusAreas,
           focusDocumentIds: input.focusDocumentIds,
           regenerate: input.regenerate,
+          retryRunId: input.retryRunId,
         },
       });
       if (error) throw error;
@@ -54,7 +74,6 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
       const runId: string | undefined = data?.runId;
       if (!runId) throw new Error("Generation did not return a run id");
 
-      // Poll the run record up to ~10 minutes
       const deadline = Date.now() + 10 * 60 * 1000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 3000));
@@ -84,7 +103,10 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
       throw new Error("Generation timed out. Check back shortly — questions may still appear.");
     },
     onSuccess: () => {
-      if (solicitationId) qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+      if (solicitationId) {
+        qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
+        qc.invalidateQueries({ queryKey: ["latest-question-run", solicitationId] });
+      }
     },
   });
 }
