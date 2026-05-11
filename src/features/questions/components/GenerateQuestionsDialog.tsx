@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Loader2, RotateCcw, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CheckCircle2, Loader2, RotateCcw, Sparkles, XCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,9 +11,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { useGenerateQuestions, useLatestQuestionRun } from "../hooks/useStrategicQuestions";
+
+type ProgressState = {
+  runId: string;
+  status: string;
+  completed: number;
+  total: number;
+  failed: number;
+  inserted: number;
+  step: string | null;
+};
 
 const FOCUS_OPTIONS = ["Technical", "Management", "Pricing", "Compliance", "Staffing"];
 
@@ -29,9 +40,27 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [docIds, setDocIds] = useState<string[]>([]);
   const [regenerate, setRegenerate] = useState(false);
-  const [progress, setProgress] = useState<{ completed: number; total: number; inserted: number; step: string | null } | null>(null);
+  const [progress, setProgress] = useState<ProgressState | null>(null);
+  const [stepLog, setStepLog] = useState<string[]>([]);
+  const lastStepRef = useRef<string | null>(null);
   const generate = useGenerateQuestions(solicitationId);
   const { data: latestRun } = useLatestQuestionRun(open ? solicitationId : undefined);
+
+  useEffect(() => {
+    if (!open) {
+      setProgress(null);
+      setStepLog([]);
+      lastStepRef.current = null;
+    }
+  }, [open]);
+
+  const handleProgress = (p: ProgressState) => {
+    setProgress(p);
+    if (p.step && p.step !== lastStepRef.current) {
+      lastStepRef.current = p.step;
+      setStepLog((log) => [...log, p.step!].slice(-12));
+    }
+  };
 
   const retryable = useMemo(() => {
     if (!latestRun) return null;
@@ -49,14 +78,16 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
   const toggle = (arr: string[], v: string) => arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v];
 
   const runGenerate = async (overrides?: { retryRunId?: string }) => {
-    setProgress({ completed: 0, total: 0, inserted: 0, step: "Starting…" });
+    setStepLog([]);
+    lastStepRef.current = null;
+    setProgress({ runId: "", status: "running", completed: 0, total: 0, failed: 0, inserted: 0, step: "Starting…" });
     try {
       const result = await generate.mutateAsync({
         focusAreas: overrides?.retryRunId ? undefined : (focusAreas.length ? focusAreas : undefined),
         focusDocumentIds: overrides?.retryRunId ? undefined : (docIds.length ? docIds : undefined),
         regenerate: overrides?.retryRunId ? false : regenerate,
         retryRunId: overrides?.retryRunId,
-        onProgress: setProgress,
+        onProgress: handleProgress,
       });
       const verb = overrides?.retryRunId ? "Retried" : "Generated";
       if (result.status === "completed") {
@@ -157,14 +188,52 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
 
           {generate.isPending && progress && (
             <Alert>
-              <AlertDescription className="text-sm space-y-1">
-                <div className="font-medium">
-                  {progress.total > 0
-                    ? `Batch ${progress.completed} of ${progress.total} complete`
-                    : "Starting…"}
-                  {progress.inserted > 0 ? ` · ${progress.inserted} questions added` : ""}
+              <AlertDescription className="text-sm space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                    {progress.total > 0
+                      ? `Batch ${progress.completed} of ${progress.total}`
+                      : "Preparing batches…"}
+                  </div>
+                  <div className="text-xs text-muted-foreground tabular-nums">
+                    {progress.inserted} question{progress.inserted === 1 ? "" : "s"} added
+                  </div>
                 </div>
-                {progress.step && <div className="text-muted-foreground">{progress.step}</div>}
+
+                <Progress
+                  value={progress.total > 0 ? ((progress.completed + progress.failed) / progress.total) * 100 : 0}
+                />
+
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {progress.completed} done
+                  </span>
+                  {progress.failed > 0 && (
+                    <span className="inline-flex items-center gap-1 text-destructive">
+                      <XCircle className="h-3.5 w-3.5" />
+                      {progress.failed} failed
+                    </span>
+                  )}
+                  <span className="text-muted-foreground">
+                    {Math.max(progress.total - progress.completed - progress.failed, 0)} pending
+                  </span>
+                </div>
+
+                {progress.step && (
+                  <div className="text-muted-foreground border-t pt-2">{progress.step}</div>
+                )}
+
+                {stepLog.length > 1 && (
+                  <ScrollArea className="h-20 rounded-md bg-muted/40 p-2">
+                    <ul className="text-xs space-y-0.5 text-muted-foreground">
+                      {stepLog.slice(0, -1).map((s, i) => (
+                        <li key={`${i}-${s}`} className="truncate">· {s}</li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                )}
               </AlertDescription>
             </Alert>
           )}

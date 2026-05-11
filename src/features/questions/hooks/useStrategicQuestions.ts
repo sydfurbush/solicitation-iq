@@ -56,7 +56,15 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
       focusDocumentIds?: string[];
       regenerate?: boolean;
       retryRunId?: string;
-      onProgress?: (p: { completed: number; total: number; inserted: number; step: string | null }) => void;
+      onProgress?: (p: {
+        runId: string;
+        status: string;
+        completed: number;
+        total: number;
+        failed: number;
+        inserted: number;
+        step: string | null;
+      }) => void;
     }) => {
       if (!solicitationId) throw new Error("Missing solicitationId");
 
@@ -76,7 +84,7 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
 
       const deadline = Date.now() + 10 * 60 * 1000;
       while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 3000));
+        await new Promise((r) => setTimeout(r, 1500));
         const { data: run } = await supabase
           .from("question_generation_runs")
           .select("status, total_batches, completed_batches, failed_batches, inserted_count, current_step, error_message")
@@ -84,8 +92,11 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
           .maybeSingle();
         if (run) {
           input.onProgress?.({
+            runId,
+            status: run.status as string,
             completed: run.completed_batches ?? 0,
             total: run.total_batches ?? 0,
+            failed: run.failed_batches ?? 0,
             inserted: run.inserted_count ?? 0,
             step: run.current_step ?? null,
           });
