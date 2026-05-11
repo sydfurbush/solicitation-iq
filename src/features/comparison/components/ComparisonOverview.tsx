@@ -22,7 +22,7 @@ export function ComparisonOverview({ solicitationId, priorRecord, changes }: Pro
   const unlink = useUnlinkPriorSolicitation(solicitationId);
   const compare = useRunComparison(solicitationId);
   const importFromSam = useImportPriorFromSam(solicitationId);
-  const [importStage, setImportStage] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
   const isExternalOnly = !priorRecord.prior_solicitation_id && !!priorRecord.external_reference;
 
   const valueDelta = pctDelta(prior?.estimated_value_high ?? null, current?.estimated_value_high ?? null);
