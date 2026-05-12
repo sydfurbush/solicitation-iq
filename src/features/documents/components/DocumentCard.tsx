@@ -99,9 +99,22 @@ export function DocumentCard({
                   {DOCUMENT_TYPE_LABELS[doc.document_type]}
                 </Badge>
               )}
-              <Badge variant="outline" className={cn("text-[10px]", statusCfg.className)}>
-                {statusCfg.label}
-              </Badge>
+              {status === "failed" && doc.processing_error ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className={cn("text-[10px] cursor-help", statusCfg.className)}>
+                      {statusCfg.label}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-sm break-words">
+                    {doc.processing_error}
+                  </TooltipContent>
+                </Tooltip>
+              ) : (
+                <Badge variant="outline" className={cn("text-[10px]", statusCfg.className)}>
+                  {statusCfg.label}
+                </Badge>
+              )}
               {doc.version && doc.version > 1 && (
                 <Badge variant="outline" className="text-[10px]">
                   v{doc.version}

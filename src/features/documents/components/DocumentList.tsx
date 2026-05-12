@@ -21,6 +21,7 @@ type Props = {
   onShowVersions?: (doc: DocumentRow) => void;
   onBulkDelete?: (docs: DocumentRow[]) => void;
   onBulkReprocess?: (docs: DocumentRow[]) => void;
+  onRetry?: (doc: DocumentRow) => void;
 };
 
 type SortKey = "created_at" | "file_name" | "document_type" | "status";
@@ -34,6 +35,7 @@ export function DocumentList({
   onShowVersions,
   onBulkDelete,
   onBulkReprocess,
+  onRetry,
 }: Props) {
   const [sort, setSort] = useState<SortKey>("created_at");
   const [typeFilter, setTypeFilter] = useState<DocumentType | "all">("all");
@@ -166,6 +168,7 @@ export function DocumentList({
                       onReplace={onReplace}
                       onDelete={onDelete}
                       onShowVersions={onShowVersions}
+                      onRetry={onRetry}
                     />
                   ))}
                 </div>
