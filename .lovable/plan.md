@@ -1,34 +1,64 @@
-## Short answer
+# Notify when all documents are Analyzed and ready for questions
 
-**Yes — two ways, one already exists, one is half-built.**
+## Goal
 
-### What exists today
+Surface a clear, automatic notification on the solicitation page the moment **every** non-deleted document for that solicitation reaches `status = 'analyzed'`, so the user knows it's safe to move on to **Generate strategic questions**.
 
-- The **"Process all (N)"** button on the Documents tab already targets only docs with status `parsed`, `failed`, or `uploading`. So if every other doc is `analyzed`, clicking it effectively re-runs only the 2 failed ones. It just doesn't *say* that.
-- `DocumentCard` already has an `onRetry` handler and renders a **"Retry processing"** menu item in the row's `⋯` menu **when the doc's status is `failed`** — but the parent (`SolicitationDocuments` → `DocumentList`) never wires `onRetry` through, so clicking it does nothing today.
+## Behavior
 
-### Proposed plan
+- While any document is still `uploading`, `parsed`, `processing`, or `failed`, show a small "readiness" indicator in the Documents/Phase 1 header:
+  - `"3 of 4 documents analyzed — 1 still processing"` (or `"1 failed"` in destructive color when applicable).
+- The instant the last document flips to `analyzed`, fire a one-time toast:
+  - Title: **"All documents ready"**
+  - Description: **"4 of 4 analyzed. You can now generate strategic questions."**
+  - Action button: **"Generate questions"** → navigates to `?tab=phase-1&step=questions` and opens the Generate dialog.
+- The toast fires only on the *transition* from "not all analyzed" → "all analyzed", not on every refresh, and not when the page first loads already-complete (in that case just show the steady-state badge "All documents analyzed ✓").
+- If any document is `failed`, do NOT fire the success toast; instead keep the readiness badge in destructive style with the count of failures.
 
-1. **Wire the per-row retry** (the main fix).
-   - `DocumentList.tsx`: accept and forward an `onRetry` prop to each `DocumentCard`.
-   - `SolicitationDocuments.tsx`: pass `onRetry={(d) => { invokeProcessDocument(d.id); toast(...); qc.invalidate(["documents", solicitationId]); }}`.
-   - Result: open the `⋯` on a Failed card → **Retry processing** → just that document re-runs.
+## Realtime trigger
 
-2. **Add a "Retry failed (N)" button** next to "Process all" when any failed docs exist.
-   - Same component (`ProcessAllDocuments.tsx`), second button rendered only when `failed.length > 0`.
-   - Reuses the existing concurrency runner, but filters to `status === "failed"` only.
-   - Label updates to `Retrying 1 of 2…` while running.
+Use Supabase Realtime on the `documents` table filtered by `solicitation_id` so the toast appears without the user manually refreshing. Realtime is already used elsewhere in the app (`useClientNotifications`), so the pattern is established.
 
-3. **Show the failure reason on hover.**
-   - Tooltip on the red **Failed** badge bound to `doc.processing_error` so you can see *why* before clicking retry. Pure read of an existing column, no schema change.
+```text
+documents (UPDATE) ── filter: solicitation_id=eq.<id>
+   └── invalidate ["documents", solicitationId]
+        └── readiness hook recomputes → transition detector → toast
+```
 
-### Out of scope
+## Implementation
 
-- No DB changes.
-- No edge-function changes (Phase 1 / 2 model swap from the previous plan handles the underlying cause).
-- No bulk-action changes elsewhere.
+### New hook
+`src/features/documents/hooks/useDocumentsReadiness.ts`
+- Input: `solicitationId`.
+- Reads from the existing `useDocuments(solicitationId)` query (no extra fetch).
+- Computes `{ total, analyzed, failed, processing, allReady, hasFailures }`.
+- Subscribes to Postgres changes on `documents` for that solicitation and invalidates the documents query so counts stay live.
+- Tracks the previous `allReady` value in a ref; when it transitions `false → true` and `hasFailures === false`, emits a one-shot callback (or returns a `justBecameReady` boolean for the consumer to react to).
 
-### Verification
+### Mount the watcher at the solicitation level
+`src/pages/SolicitationDetail.tsx` (or whichever component wraps all phase tabs — confirm during implementation):
+- Call `useDocumentsReadiness(solicitationId)` once so the toast fires regardless of which tab the user is on.
+- On `justBecameReady`, call `toast({ title: "All documents ready", description: "...", action: <ToastAction>Generate questions</ToastAction> })`. Action navigates to the questions step and sets a query param like `&autoOpenGenerate=1`.
 
-- On this solicitation, the two PDFs flip Failed → Analyzed when Retry is clicked individually.
-- "Retry failed (2)" runs both with the progress bar and finishes with a toast.
+### Header badge
+`src/pages/SolicitationDocuments.tsx` — replace the existing `"X of Y documents analyzed"` line with a richer `<DocumentReadinessBadge />` (new small component in `src/features/documents/components/`) that shows:
+- `Loader2` + `"3 of 4 analyzing…"` while in progress
+- `AlertTriangle` + `"1 failed"` (destructive) when failures exist
+- `CheckCircle2` + `"All 4 analyzed"` (success) when complete
+
+### Auto-open Generate dialog
+`src/pages/SolicitationQuestions.tsx`:
+- Read the `autoOpenGenerate` query param on mount and call `setGenerateOpen(true)` once, then strip the param.
+
+## Out of scope
+
+- No DB schema changes, no edge-function changes.
+- No persistent notification record — this is an in-session toast plus a live header badge. (We can layer on `client_notifications` later if you want a bell-icon history.)
+- Does not change the existing retry/failed-document flow.
+
+## Verification
+
+1. With the current 4 docs (3 analyzed, 1 failed), the header badge shows **"1 failed"** in red and no success toast appears.
+2. Retry the failed doc; when it flips to `analyzed`, the toast **"All documents ready"** appears with a **Generate questions** button, and the badge turns green **"All 4 analyzed"**.
+3. Reload the page after everything is analyzed — no toast re-fires; the green badge is shown immediately.
+4. Click the toast's **Generate questions** action — lands on `?step=questions` with the Generate dialog open.

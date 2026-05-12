@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Plus, FileText, DownloadCloud, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,8 +18,10 @@ import {
   type DocumentRow,
 } from "@/features/documents/hooks/useDocuments";
 import { DocumentList } from "@/features/documents/components/DocumentList";
+import { DocumentReadinessBadge } from "@/features/documents/components/DocumentReadinessBadge";
 import { DocumentUploader } from "@/features/documents/components/DocumentUploader";
 import { DocumentsEmptyState } from "@/features/documents/components/DocumentsEmptyState";
+import { useDocumentsReadiness } from "@/features/documents/hooks/useDocumentsReadiness";
 import { DocumentViewer } from "@/features/documents/components/DocumentViewer";
 import { DocumentVersionHistory } from "@/features/documents/components/DocumentVersionHistory";
 import { ProcessAllDocuments } from "@/features/documents/components/ProcessAllDocuments";
@@ -41,11 +43,7 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
   const [confirmDelete, setConfirmDelete] = useState<DocumentRow | null>(null);
 
   const docs = documents ?? [];
-  const stats = useMemo(() => {
-    const total = docs.length;
-    const analyzed = docs.filter((d) => d.status === "analyzed").length;
-    return { total, analyzed };
-  }, [docs]);
+  const readiness = useDocumentsReadiness(solicitationId);
 
   if (isLoading) {
     return (
@@ -76,9 +74,7 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
           </div>
           <div>
             <h2 className="text-xl font-semibold">Documents</h2>
-            <p className="text-xs text-muted-foreground">
-              {stats.analyzed} of {stats.total} document{stats.total === 1 ? "" : "s"} analyzed
-            </p>
+            <DocumentReadinessBadge readiness={readiness} />
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
