@@ -505,6 +505,24 @@ function drawBlock(ctx: Ctx, b: Block) {
     case "category": return drawCategoryTable(ctx, b);
     case "recommendation": return drawRecommendation(ctx, b.verdict, b.rationale);
     case "steps": return drawSteps(ctx, b.items);
+    case "statsStrip": return drawStatsStrip(ctx, b.tiles);
+    case "categoryBand": return drawCategoryBand(ctx, b.title, b.count, b.tone);
+    case "questionCard": return drawQuestionCard(ctx, b);
+  }
+}
+
+function stampPageTotals(ctx: Ctx) {
+  const total = ctx.doc.getNumberOfPages();
+  const y = PAGE.h - MARGIN.bottom;
+  for (let i = 1; i <= total; i++) {
+    ctx.doc.setPage(i);
+    // overpaint right side of footer to clear "Page N"
+    setFill(ctx.doc, RGB.white);
+    ctx.doc.rect(PAGE.w - MARGIN.right - 90, y - 12, 90, 12, "F");
+    ctx.doc.setFont(FONT_PDF, "italic");
+    ctx.doc.setFontSize(8);
+    setText(ctx.doc, RGB.textMuted);
+    ctx.doc.text(`Page ${i} of ${total}`, PAGE.w - MARGIN.right, y - 4, { align: "right" });
   }
 }
 
@@ -515,8 +533,10 @@ export function generatePdf(report: ReportContent): Blob {
     || report.title;
   const headerRight = (report.subtitle || report.meta?.solicitation_number || "") as string;
   const footerLeft = report.branding?.footerText || DEFAULT_FOOTER_TEXT;
+  const headerExtra = "CONFIDENTIAL";
+  const footerTitle = report.title;
 
-  const ctx: Ctx = { doc, y: CONTENT_TOP, page: 1, headerLeft, headerRight, footerLeft };
+  const ctx: Ctx = { doc, y: CONTENT_TOP, page: 1, headerLeft, headerRight, headerExtra, footerLeft, footerTitle };
   drawHeader(ctx);
   drawFooter(ctx);
 
@@ -532,6 +552,8 @@ export function generatePdf(report: ReportContent): Blob {
   if (report.citations?.length) {
     drawCitations(ctx, report.citations);
   }
+
+  stampPageTotals(ctx);
 
   return doc.output("blob");
 }
