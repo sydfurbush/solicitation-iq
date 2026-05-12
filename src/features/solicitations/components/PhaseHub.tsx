@@ -153,6 +153,8 @@ export function PhaseHub({
           </Button>
         </div>
       </div>
+
+      <ApprovalsTimeline solicitationId={solicitationId} />
     </div>
   );
 }
