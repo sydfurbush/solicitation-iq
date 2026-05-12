@@ -412,19 +412,48 @@ function renderDocxSection(s: ExportSection, depth = 0, primaryHex = "283C5A", o
 }
 
 async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promise<Blob> {
+  const brand = opts.brand ?? {};
+  const primaryHex = hexNoHash(brand.primaryColor, "283C5A");
+  const onPrimaryHex = hexNoHash(brand.accentColor, "FFFFFF");
   const children: (Paragraph | Table)[] = [];
 
   // ---- Cover page ----
   if (!opts.noCover) {
     const cover = doc.cover ?? {};
-    // Spacer to push content down
-    for (let i = 0; i < 6; i++) {
-      children.push(new Paragraph({ children: [new TextRun("")] }));
+    for (let i = 0; i < 4; i++) children.push(new Paragraph({ children: [new TextRun("")] }));
+
+    // Logo
+    if (brand.showLogoOnCover !== false && brand.logo) {
+      try {
+        const ratio = brand.logo.widthPx && brand.logo.heightPx ? brand.logo.widthPx / brand.logo.heightPx : 1;
+        let w = 220;
+        let h = w / ratio;
+        if (h > 90) { h = 90; w = h * ratio; }
+        const fmt = brand.logo.mime.includes("png") ? "png" : brand.logo.mime.includes("jpeg") || brand.logo.mime.includes("jpg") ? "jpg" : null;
+        if (fmt) {
+          children.push(new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new ImageRun({
+              type: fmt as "png" | "jpg",
+              data: dataUrlToBytes(brand.logo.dataUrl),
+              transformation: { width: w, height: h },
+              altText: { title: "Logo", description: "Brand logo", name: "logo" },
+            })],
+          }));
+          children.push(new Paragraph({ children: [new TextRun("")] }));
+        }
+      } catch { /* ignore */ }
     }
-    if (cover.clientName) {
+
+    if (brand.firmName) {
       children.push(new Paragraph({
         alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: cover.clientName.toUpperCase(), bold: true, color: "283C5A", size: 22 })],
+        children: [new TextRun({ text: brand.firmName.toUpperCase(), bold: true, color: primaryHex, size: 22 })],
+      }));
+    } else if (cover.clientName) {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: cover.clientName.toUpperCase(), bold: true, color: primaryHex, size: 22 })],
       }));
     }
     children.push(new Paragraph({
@@ -435,8 +464,15 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
     if (cover.solicitationTitle) {
       children.push(new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { after: 480 },
+        spacing: { after: 240 },
         children: [new TextRun({ text: cover.solicitationTitle, color: "555555", size: 28 })],
+      }));
+    }
+    if (brand.firmName && cover.clientName) {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 360 },
+        children: [new TextRun({ text: `Prepared for ${cover.clientName}`, color: "777777", size: 22 })],
       }));
     }
 
@@ -445,7 +481,6 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
     if (phase) meta.push(["Phase", phase]);
     if (opts.version?.trim()) meta.push(["Version", opts.version.trim()]);
     meta.push(["Generated", fmtDateTime()]);
-
     meta.forEach(([k, v]) => {
       children.push(new Paragraph({
         alignment: AlignmentType.CENTER,
@@ -457,7 +492,6 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
       }));
     });
 
-    // Page break to start content on a new page
     children.push(new Paragraph({ children: [new PageBreak()] }));
   }
 
@@ -470,19 +504,51 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
   if (doc.subtitle) children.push(new Paragraph({ children: [new TextRun({ text: doc.subtitle, italics: true })] }));
   children.push(new Paragraph({ children: [new TextRun({ text: `Generated ${fmtDate()}`, color: "888888", size: 18 })] }));
 
-  doc.sections.forEach((s) => children.push(...renderDocxSection(s, 0)));
+  doc.sections.forEach((s) => children.push(...renderDocxSection(s, 0, primaryHex, onPrimaryHex)));
 
-  // US Letter: 12240 x 15840 DXA. A4: 11906 x 16838 DXA.
   const size = opts.pageSize === "a4"
     ? { width: 11906, height: 16838 }
     : { width: 12240, height: 15840 };
 
+  // Header / Footer
+  const headerPara = brand.headerText
+    ? new Paragraph({
+        alignment: AlignmentType.LEFT,
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: primaryHex, space: 1 } },
+        children: [new TextRun({ text: brand.headerText, color: "777777", size: 16 })],
+      })
+    : new Paragraph({ children: [new TextRun("")] });
+
+  const footerChildren: TextRun[] = [];
+  if (brand.footerText) footerChildren.push(new TextRun({ text: brand.footerText, color: "777777", size: 16 }));
+  if (brand.showPageNumbers !== false) {
+    footerChildren.push(new TextRun({ text: "\t\tPage ", color: "777777", size: 16 }));
+    footerChildren.push(new TextRun({ children: [PageNumber.CURRENT], color: "777777", size: 16 }));
+    footerChildren.push(new TextRun({ text: " of ", color: "777777", size: 16 }));
+    footerChildren.push(new TextRun({ children: [PageNumber.TOTAL_PAGES], color: "777777", size: 16 }));
+  }
+  const footerPara = footerChildren.length
+    ? new Paragraph({
+        border: { top: { style: BorderStyle.SINGLE, size: 6, color: primaryHex, space: 1 } },
+        children: footerChildren,
+      })
+    : new Paragraph({ children: [new TextRun("")] });
+
   const docx = new Document({
     sections: [{
       properties: {
-        page: {
-          size,
-          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+        page: { size, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } },
+      },
+      headers: brand.headerText ? { default: new Header({ children: [headerPara] }) } : undefined,
+      footers: (brand.footerText || brand.showPageNumbers !== false)
+        ? { default: new Footer({ children: [footerPara] }) }
+        : undefined,
+      children,
+    }],
+  });
+  const blob = await Packer.toBlob(docx);
+  return blob;
+}
         },
       },
       children,
