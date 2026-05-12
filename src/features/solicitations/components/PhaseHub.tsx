@@ -12,6 +12,7 @@ import {
   type PhaseApproval,
 } from "@/features/phases/hooks/usePhaseApprovals";
 import { GATED_PHASES } from "@/features/phases/components/PhaseApprovalStrip";
+import { ApprovalsTimeline } from "@/features/phases/components/ApprovalsTimeline";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
@@ -152,6 +153,8 @@ export function PhaseHub({
           </Button>
         </div>
       </div>
+
+      <ApprovalsTimeline solicitationId={solicitationId} />
     </div>
   );
 }
