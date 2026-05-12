@@ -107,16 +107,17 @@ interface Props {
   } | null;
 }
 
-function StateDot({ state }: { state: StepState }) {
+function StateDot({ state, phase }: { state: StepState; phase?: PhaseType }) {
+  const colors = phase ? PHASE_COLORS[phase] : null;
   if (state === "done") {
     return (
-      <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-accent text-accent-foreground">
+      <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded-full text-white", colors?.bg ?? "bg-accent")}>
         <Check className="h-3 w-3" />
       </span>
     );
   }
   if (state === "active") {
-    return <span className="inline-flex h-3 w-3 rounded-full bg-primary animate-pulse" aria-label="In progress" />;
+    return <span className={cn("inline-flex h-3 w-3 rounded-full animate-pulse", colors?.bg ?? "bg-primary")} aria-label="In progress" />;
   }
   return <CircleDashed className="h-3.5 w-3.5 text-muted-foreground" aria-label="Not started" />;
 }
