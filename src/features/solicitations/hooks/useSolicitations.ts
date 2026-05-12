@@ -235,3 +235,20 @@ export function useDeleteSolicitation() {
     },
   });
 }
+
+export function useRestoreSolicitation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("solicitations")
+        .update({ deleted_at: null })
+        .eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["solicitations"] });
+    },
+  });
+}
