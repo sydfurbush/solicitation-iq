@@ -19,6 +19,7 @@ export interface SolicitationFilters {
   phases?: string[];
   dueFrom?: string;
   dueTo?: string;
+  includeDeleted?: boolean;
 }
 
 const LIST_KEY = (f: SolicitationFilters) => ["solicitations", f] as const;
