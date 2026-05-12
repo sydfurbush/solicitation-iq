@@ -202,6 +202,7 @@ export default function Solicitations() {
               solicitation={s}
               onArchive={archive}
               onDelete={setPendingDelete}
+              onRestore={restore}
             />
           ))}
         </div>
@@ -212,6 +213,7 @@ export default function Solicitations() {
           onSelectChange={setSelected}
           onArchive={archive}
           onDelete={setPendingDelete}
+          onRestore={restore}
           onBulkArchive={bulkArchive}
           onBulkExport={bulkExport}
         />
