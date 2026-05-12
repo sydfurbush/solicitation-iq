@@ -13,10 +13,34 @@ import {
   WidthType,
   AlignmentType,
   PageBreak,
+  Header,
+  Footer,
+  PageNumber,
+  ImageRun,
+  BorderStyle,
 } from "docx";
 
 export type ExportFormat = "pdf" | "docx";
 export type ExportPageSize = "letter" | "a4";
+
+/** Brand template applied at export time (resolved by the caller). */
+export interface BrandOptions {
+  primaryColor?: string;
+  accentColor?: string;
+  firmName?: string;
+  headerText?: string;
+  footerText?: string;
+  showPageNumbers?: boolean;
+  showLogoOnCover?: boolean;
+  /** Pre-fetched logo (caller is responsible for downloading and converting). */
+  logo?: {
+    dataUrl: string;
+    mime: string;
+    /** Natural width/height in px — used to preserve aspect ratio. */
+    widthPx: number;
+    heightPx: number;
+  };
+}
 
 export interface ExportOptions {
   pageSize?: ExportPageSize;
@@ -26,6 +50,8 @@ export interface ExportOptions {
   version?: string;
   /** Suppress the cover page (defaults to false). */
   noCover?: boolean;
+  /** Resolved brand template — falls back to neutral defaults. */
+  brand?: BrandOptions;
 }
 
 export interface ExportCover {
@@ -84,18 +110,52 @@ function phaseLabel(p?: string) {
   return PHASE_LABELS[p] ?? p.replace(/_/g, " ");
 }
 
+/* -------------------- Color & image helpers -------------------- */
+function normalizeHex(hex?: string): string | null {
+  if (!hex) return null;
+  const m = hex.replace("#", "").trim();
+  if (/^[0-9a-fA-F]{3}$/.test(m)) return m.split("").map((c) => c + c).join("").toUpperCase();
+  if (/^[0-9a-fA-F]{6}$/.test(m)) return m.toUpperCase();
+  return null;
+}
+
+function hexToRgb(hex: string | undefined, fallback: [number, number, number]): [number, number, number] {
+  const n = normalizeHex(hex);
+  if (!n) return fallback;
+  return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+}
+
+function hexNoHash(hex: string | undefined, fallback = "283C5A"): string {
+  return normalizeHex(hex) ?? fallback;
+}
+
+function pdfImageFormat(mime: string): "PNG" | "JPEG" | null {
+  if (mime.includes("png")) return "PNG";
+  if (mime.includes("jpeg") || mime.includes("jpg")) return "JPEG";
+  return null;
+}
+
 /* -------------------- PDF -------------------- */
 function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
+  const brand = opts.brand ?? {};
+  const primary = hexToRgb(brand.primaryColor, [40, 60, 90]);
+  const onPrimary = hexToRgb(brand.accentColor, [255, 255, 255]);
+
   const pdf = new jsPDF({ unit: "pt", format: opts.pageSize ?? "letter" });
   const margin = 48;
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  let y = margin;
+  // Reserve a little extra space at top/bottom of body pages for header/footer
+  const bodyTop = margin + (brand.headerText ? 18 : 0);
+  const bodyBottom = pageH - margin - (brand.footerText || brand.showPageNumbers ? 18 : 0);
+  let y = bodyTop;
+  // Track which page index is the cover (so we can skip header/footer on it)
+  let coverPageIndex: number | null = null;
 
   const ensureSpace = (h: number) => {
-    if (y + h > pageH - margin) {
+    if (y + h > bodyBottom) {
       pdf.addPage();
-      y = margin;
+      y = bodyTop;
     }
   };
 
@@ -114,42 +174,93 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
 
   // ---- Cover page ----
   if (!opts.noCover) {
+    coverPageIndex = pdf.getCurrentPageInfo().pageNumber;
     const cover = doc.cover ?? {};
-    const centerY = pageH / 2 - 80;
-    const drawCenter = (text: string, size: number, weight: "bold" | "normal", color: [number, number, number], offset: number) => {
-      pdf.setFont("helvetica", weight);
-      pdf.setFontSize(size);
-      pdf.setTextColor(...color);
-      const lines = pdf.splitTextToSize(text, pageW - margin * 2);
-      lines.forEach((line: string, idx: number) => {
-        pdf.text(line, pageW / 2, centerY + offset + idx * (size + 4), { align: "center" });
-      });
-      return lines.length * (size + 4);
-    };
 
-    // Top accent bar
-    pdf.setFillColor(40, 60, 90);
-    pdf.rect(0, 0, pageW, 8, "F");
+    // Top + bottom accent bars in primary color
+    pdf.setFillColor(...primary);
+    pdf.rect(0, 0, pageW, 14, "F");
+    pdf.rect(0, pageH - 14, pageW, 14, "F");
 
-    let coverY = 0;
-    if (cover.clientName) {
-      coverY += drawCenter(cover.clientName.toUpperCase(), 11, "bold", [40, 60, 90], coverY) + 8;
+    let coverY = margin + 30;
+
+    // Optional logo
+    const logo = brand.logo;
+    const logoFmt = logo ? pdfImageFormat(logo.mime) : null;
+    if (brand.showLogoOnCover !== false && logo && logoFmt) {
+      const maxW = 220;
+      const maxH = 90;
+      const ratio = logo.widthPx && logo.heightPx ? logo.widthPx / logo.heightPx : 1;
+      let lw = maxW;
+      let lh = lw / ratio;
+      if (lh > maxH) {
+        lh = maxH;
+        lw = lh * ratio;
+      }
+      try {
+        pdf.addImage(logo.dataUrl, logoFmt, (pageW - lw) / 2, coverY, lw, lh);
+        coverY += lh + 28;
+      } catch {
+        // ignore unsupported image
+      }
     }
-    coverY += drawCenter(doc.title, 28, "bold", [25, 25, 25], coverY) + 16;
+
+    // Firm name (small caps above title)
+    if (brand.firmName) {
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.setTextColor(...primary);
+      pdf.text(brand.firmName.toUpperCase(), pageW / 2, coverY, { align: "center" });
+      coverY += 18;
+    } else if (cover.clientName) {
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.setTextColor(...primary);
+      pdf.text(cover.clientName.toUpperCase(), pageW / 2, coverY, { align: "center" });
+      coverY += 18;
+    }
+
+    // Title (centered, large)
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(28);
+    pdf.setTextColor(25, 25, 25);
+    const titleLines = pdf.splitTextToSize(doc.title, pageW - margin * 2);
+    titleLines.forEach((line: string, idx: number) => {
+      pdf.text(line, pageW / 2, coverY + idx * 32, { align: "center" });
+    });
+    coverY += titleLines.length * 32 + 12;
+
+    // Solicitation title
     if (cover.solicitationTitle) {
-      coverY += drawCenter(cover.solicitationTitle, 14, "normal", [80, 80, 80], coverY) + 24;
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(14);
+      pdf.setTextColor(80, 80, 80);
+      const subLines = pdf.splitTextToSize(cover.solicitationTitle, pageW - margin * 2);
+      subLines.forEach((line: string, idx: number) => {
+        pdf.text(line, pageW / 2, coverY + idx * 18, { align: "center" });
+      });
+      coverY += subLines.length * 18 + 24;
     }
 
-    // Meta block
+    // Client name (only if not already shown via firmName branch)
+    if (brand.firmName && cover.clientName) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(11);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(`Prepared for ${cover.clientName}`, pageW / 2, coverY, { align: "center" });
+      coverY += 24;
+    }
+
+    // Meta block (anchored toward lower-third)
     const meta: [string, string][] = [];
     const phase = phaseLabel(cover.phase);
     if (phase) meta.push(["Phase", phase]);
     if (opts.version?.trim()) meta.push(["Version", opts.version.trim()]);
     meta.push(["Generated", fmtDateTime()]);
 
-    const metaTop = centerY + coverY + 40;
+    const metaTop = Math.max(coverY + 40, pageH * 0.7);
     pdf.setDrawColor(220, 220, 220);
-    pdf.line(pageW / 2 - 100, metaTop - 16, pageW / 2 + 100, metaTop - 16);
+    pdf.line(pageW / 2 - 110, metaTop - 16, pageW / 2 + 110, metaTop - 16);
     meta.forEach((row, i) => {
       const ry = metaTop + i * 18;
       pdf.setFont("helvetica", "bold");
@@ -162,10 +273,10 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
     });
 
     pdf.addPage();
-    y = margin;
+    y = bodyTop;
   }
 
-  // Title
+  // Title (body intro)
   writeWrapped(doc.title, { size: 20, bold: true });
   if (doc.subtitle) writeWrapped(doc.subtitle, { size: 11, color: [110, 110, 110] });
   writeWrapped(`Generated ${fmtDate()}`, { size: 9, color: [140, 140, 140] });
@@ -187,9 +298,9 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
         startY: y,
         head: [s.table.head],
         body: s.table.rows,
-        margin: { left: margin + depth * 12, right: margin },
+        margin: { left: margin + depth * 12, right: margin, top: bodyTop, bottom: pageH - bodyBottom },
         styles: { fontSize: 9, cellPadding: 4, overflow: "linebreak" },
-        headStyles: { fillColor: [40, 60, 90], textColor: 255 },
+        headStyles: { fillColor: primary, textColor: onPrimary },
         theme: "striped",
       });
       // @ts-expect-error lastAutoTable populated by plugin
@@ -201,11 +312,59 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
 
   doc.sections.forEach((s) => renderSection(s, 0));
 
+  // ---- Stamp header/footer on every body page ----
+  const totalPages = pdf.getNumberOfPages();
+  const showHeader = !!brand.headerText;
+  const showFooterText = !!brand.footerText;
+  const showFooterPageNo = brand.showPageNumbers !== false;
+  if (showHeader || showFooterText || showFooterPageNo) {
+    for (let p = 1; p <= totalPages; p++) {
+      if (coverPageIndex !== null && p === coverPageIndex) continue; // skip cover
+      pdf.setPage(p);
+
+      if (showHeader && brand.headerText) {
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(110, 110, 110);
+        pdf.text(brand.headerText, margin, margin / 2 + 4);
+        pdf.setDrawColor(...primary);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, margin / 2 + 8, pageW - margin, margin / 2 + 8);
+      }
+
+      const footerY = pageH - margin / 2 - 4;
+      if (showFooterText || showFooterPageNo) {
+        pdf.setDrawColor(...primary);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, footerY - 10, pageW - margin, footerY - 10);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(110, 110, 110);
+        if (showFooterText && brand.footerText) {
+          pdf.text(brand.footerText, margin, footerY);
+        }
+        if (showFooterPageNo) {
+          const bodyPages = coverPageIndex !== null ? totalPages - 1 : totalPages;
+          const bodyIndex = coverPageIndex !== null && p > coverPageIndex ? p - 1 : p;
+          pdf.text(`Page ${bodyIndex} of ${bodyPages}`, pageW - margin, footerY, { align: "right" });
+        }
+      }
+    }
+  }
+
   return pdf.output("blob");
 }
 
 /* -------------------- DOCX -------------------- */
-function renderDocxSection(s: ExportSection, depth = 0): (Paragraph | Table)[] {
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const b64 = dataUrl.split(",")[1] ?? "";
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function renderDocxSection(s: ExportSection, depth = 0, primaryHex = "283C5A", onPrimaryHex = "FFFFFF"): (Paragraph | Table)[] {
   const out: (Paragraph | Table)[] = [];
   const headingLevel =
     depth === 0 ? HeadingLevel.HEADING_1 :
@@ -225,8 +384,8 @@ function renderDocxSection(s: ExportSection, depth = 0): (Paragraph | Table)[] {
       tableHeader: true,
       children: s.table.head.map((h) =>
         new TableCell({
-          shading: { fill: "E5E7EB" },
-          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })],
+          shading: { fill: primaryHex },
+          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: onPrimaryHex })] })],
         }),
       ),
     });
@@ -248,24 +407,53 @@ function renderDocxSection(s: ExportSection, depth = 0): (Paragraph | Table)[] {
     out.push(new Paragraph({ children: [new TextRun("")] }));
   }
 
-  s.children?.forEach((c) => out.push(...renderDocxSection(c, depth + 1)));
+  s.children?.forEach((c) => out.push(...renderDocxSection(c, depth + 1, primaryHex, onPrimaryHex)));
   return out;
 }
 
 async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promise<Blob> {
+  const brand = opts.brand ?? {};
+  const primaryHex = hexNoHash(brand.primaryColor, "283C5A");
+  const onPrimaryHex = hexNoHash(brand.accentColor, "FFFFFF");
   const children: (Paragraph | Table)[] = [];
 
   // ---- Cover page ----
   if (!opts.noCover) {
     const cover = doc.cover ?? {};
-    // Spacer to push content down
-    for (let i = 0; i < 6; i++) {
-      children.push(new Paragraph({ children: [new TextRun("")] }));
+    for (let i = 0; i < 4; i++) children.push(new Paragraph({ children: [new TextRun("")] }));
+
+    // Logo
+    if (brand.showLogoOnCover !== false && brand.logo) {
+      try {
+        const ratio = brand.logo.widthPx && brand.logo.heightPx ? brand.logo.widthPx / brand.logo.heightPx : 1;
+        let w = 220;
+        let h = w / ratio;
+        if (h > 90) { h = 90; w = h * ratio; }
+        const fmt = brand.logo.mime.includes("png") ? "png" : brand.logo.mime.includes("jpeg") || brand.logo.mime.includes("jpg") ? "jpg" : null;
+        if (fmt) {
+          children.push(new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [new ImageRun({
+              type: fmt as "png" | "jpg",
+              data: dataUrlToBytes(brand.logo.dataUrl),
+              transformation: { width: w, height: h },
+              altText: { title: "Logo", description: "Brand logo", name: "logo" },
+            })],
+          }));
+          children.push(new Paragraph({ children: [new TextRun("")] }));
+        }
+      } catch { /* ignore */ }
     }
-    if (cover.clientName) {
+
+    if (brand.firmName) {
       children.push(new Paragraph({
         alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: cover.clientName.toUpperCase(), bold: true, color: "283C5A", size: 22 })],
+        children: [new TextRun({ text: brand.firmName.toUpperCase(), bold: true, color: primaryHex, size: 22 })],
+      }));
+    } else if (cover.clientName) {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: cover.clientName.toUpperCase(), bold: true, color: primaryHex, size: 22 })],
       }));
     }
     children.push(new Paragraph({
@@ -276,8 +464,15 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
     if (cover.solicitationTitle) {
       children.push(new Paragraph({
         alignment: AlignmentType.CENTER,
-        spacing: { after: 480 },
+        spacing: { after: 240 },
         children: [new TextRun({ text: cover.solicitationTitle, color: "555555", size: 28 })],
+      }));
+    }
+    if (brand.firmName && cover.clientName) {
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 360 },
+        children: [new TextRun({ text: `Prepared for ${cover.clientName}`, color: "777777", size: 22 })],
       }));
     }
 
@@ -286,7 +481,6 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
     if (phase) meta.push(["Phase", phase]);
     if (opts.version?.trim()) meta.push(["Version", opts.version.trim()]);
     meta.push(["Generated", fmtDateTime()]);
-
     meta.forEach(([k, v]) => {
       children.push(new Paragraph({
         alignment: AlignmentType.CENTER,
@@ -298,7 +492,6 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
       }));
     });
 
-    // Page break to start content on a new page
     children.push(new Paragraph({ children: [new PageBreak()] }));
   }
 
@@ -311,19 +504,51 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
   if (doc.subtitle) children.push(new Paragraph({ children: [new TextRun({ text: doc.subtitle, italics: true })] }));
   children.push(new Paragraph({ children: [new TextRun({ text: `Generated ${fmtDate()}`, color: "888888", size: 18 })] }));
 
-  doc.sections.forEach((s) => children.push(...renderDocxSection(s, 0)));
+  doc.sections.forEach((s) => children.push(...renderDocxSection(s, 0, primaryHex, onPrimaryHex)));
 
-  // US Letter: 12240 x 15840 DXA. A4: 11906 x 16838 DXA.
   const size = opts.pageSize === "a4"
     ? { width: 11906, height: 16838 }
     : { width: 12240, height: 15840 };
 
+  // Header / Footer
+  const headerPara = brand.headerText
+    ? new Paragraph({
+        alignment: AlignmentType.LEFT,
+        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: primaryHex, space: 1 } },
+        children: [new TextRun({ text: brand.headerText, color: "777777", size: 16 })],
+      })
+    : new Paragraph({ children: [new TextRun("")] });
+
+  const footerChildren: TextRun[] = [];
+  if (brand.footerText) footerChildren.push(new TextRun({ text: brand.footerText, color: "777777", size: 16 }));
+  if (brand.showPageNumbers !== false) {
+    footerChildren.push(new TextRun({ text: "\t\tPage ", color: "777777", size: 16 }));
+    footerChildren.push(new TextRun({ children: [PageNumber.CURRENT], color: "777777", size: 16 }));
+    footerChildren.push(new TextRun({ text: " of ", color: "777777", size: 16 }));
+    footerChildren.push(new TextRun({ children: [PageNumber.TOTAL_PAGES], color: "777777", size: 16 }));
+  }
+  const footerPara = footerChildren.length
+    ? new Paragraph({
+        border: { top: { style: BorderStyle.SINGLE, size: 6, color: primaryHex, space: 1 } },
+        children: footerChildren,
+      })
+    : new Paragraph({ children: [new TextRun("")] });
+
   const docx = new Document({
     sections: [{
       properties: {
-        page: {
-          size,
-          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+        page: { size, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } },
+      },
+      headers: brand.headerText ? { default: new Header({ children: [headerPara] }) } : undefined,
+      footers: (brand.footerText || brand.showPageNumbers !== false)
+        ? { default: new Footer({ children: [footerPara] }) }
+        : undefined,
+      children,
+    }],
+  });
+  const blob = await Packer.toBlob(docx);
+  return blob;
+}
         },
       },
       children,
