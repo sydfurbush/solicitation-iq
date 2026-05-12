@@ -101,6 +101,28 @@ export default function SolicitationDetail() {
   const updateStatus = useUpdateSolicitationStatus();
   const deleteMut = useDeleteSolicitation();
 
+  // Realtime watch: notify when every document for this solicitation hits "analyzed".
+  useDocumentsReadiness(solicitationId, (r) => {
+    toast({
+      title: "All documents ready",
+      description: `${r.analyzed} of ${r.total} analyzed. You can now generate strategic questions.`,
+      action: (
+        <ToastAction
+          altText="Generate questions"
+          onClick={() => {
+            const next = new URLSearchParams();
+            next.set("tab", "phase-1");
+            next.set("step", "questions");
+            next.set("autoOpenGenerate", "1");
+            setSearchParams(next);
+          }}
+        >
+          Generate questions
+        </ToastAction>
+      ),
+    });
+  });
+
   const urgency = useMemo(() => dueUrgency(s?.proposal_due_date), [s?.proposal_due_date]);
   const days = useMemo(() => daysUntil(s?.proposal_due_date), [s?.proposal_due_date]);
 
