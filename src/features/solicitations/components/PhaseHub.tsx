@@ -46,6 +46,45 @@ const PHASE_LABELS: Record<PhaseType, string> = {
   phase_4_win_themes: "Win Themes",
 };
 
+const PHASE_COLORS: Record<PhaseType, { bg: string; bgSoft: string; text: string; border: string; ring: string; badge: string; button: string }> = {
+  phase_1_initial: {
+    bg: "bg-[hsl(var(--phase-1))]",
+    bgSoft: "bg-[hsl(var(--phase-1)/0.15)]",
+    text: "text-[hsl(var(--phase-1))]",
+    border: "border-[hsl(var(--phase-1)/0.6)]",
+    ring: "ring-[hsl(var(--phase-1)/0.3)]",
+    badge: "bg-[hsl(var(--phase-1)/0.15)] text-[hsl(var(--phase-1))] border-[hsl(var(--phase-1)/0.3)]",
+    button: "bg-[hsl(var(--phase-1))] hover:bg-[hsl(var(--phase-1)/0.9)] text-white",
+  },
+  phase_2_deep_dive: {
+    bg: "bg-[hsl(var(--phase-2))]",
+    bgSoft: "bg-[hsl(var(--phase-2)/0.15)]",
+    text: "text-[hsl(var(--phase-2))]",
+    border: "border-[hsl(var(--phase-2)/0.6)]",
+    ring: "ring-[hsl(var(--phase-2)/0.3)]",
+    badge: "bg-[hsl(var(--phase-2)/0.15)] text-[hsl(var(--phase-2))] border-[hsl(var(--phase-2)/0.3)]",
+    button: "bg-[hsl(var(--phase-2))] hover:bg-[hsl(var(--phase-2)/0.9)] text-white",
+  },
+  phase_3_outline: {
+    bg: "bg-[hsl(var(--phase-3))]",
+    bgSoft: "bg-[hsl(var(--phase-3)/0.15)]",
+    text: "text-[hsl(var(--phase-3))]",
+    border: "border-[hsl(var(--phase-3)/0.6)]",
+    ring: "ring-[hsl(var(--phase-3)/0.3)]",
+    badge: "bg-[hsl(var(--phase-3)/0.15)] text-[hsl(var(--phase-3))] border-[hsl(var(--phase-3)/0.3)]",
+    button: "bg-[hsl(var(--phase-3))] hover:bg-[hsl(var(--phase-3)/0.9)] text-white",
+  },
+  phase_4_win_themes: {
+    bg: "bg-[hsl(var(--phase-4))]",
+    bgSoft: "bg-[hsl(var(--phase-4)/0.15)]",
+    text: "text-[hsl(var(--phase-4))]",
+    border: "border-[hsl(var(--phase-4)/0.6)]",
+    ring: "ring-[hsl(var(--phase-4)/0.3)]",
+    badge: "bg-[hsl(var(--phase-4)/0.15)] text-[hsl(var(--phase-4))] border-[hsl(var(--phase-4)/0.3)]",
+    button: "bg-[hsl(var(--phase-4))] hover:bg-[hsl(var(--phase-4)/0.9)] text-white",
+  },
+};
+
 const PHASE_BLURBS: Record<PhaseType, string> = {
   phase_1_initial: "Set up the file: docs, analysis, questions, risks.",
   phase_2_deep_dive: "Build the RTM, section analysis, and capability gaps.",
@@ -214,11 +253,12 @@ function PhaseCard({
   onResetApproval?: (id: string) => void;
   isMutating?: boolean;
 }) {
+  const colors = PHASE_COLORS[phase.phase];
   const stateBadge =
     phase.state === "done" ? (
-      <Badge variant="outline" className="bg-accent/15 text-accent border-accent/30">Done</Badge>
+      <Badge variant="outline" className={colors.badge}>Done</Badge>
     ) : phase.state === "active" ? (
-      <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30">In progress</Badge>
+      <Badge variant="outline" className={colors.badge}>In progress</Badge>
     ) : (
       <Badge variant="outline" className="text-muted-foreground">Not started</Badge>
     );
@@ -248,7 +288,7 @@ function PhaseCard({
     <Card
       className={cn(
         "transition-shadow hover:shadow-md",
-        highlighted && "border-primary/60 ring-1 ring-primary/30",
+        highlighted && cn(colors.border, "ring-1", colors.ring),
       )}
     >
       <CardContent className="p-5 space-y-4">
@@ -257,11 +297,9 @@ function PhaseCard({
             <div
               className={cn(
                 "h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold",
-                phase.state === "done"
-                  ? "bg-accent/15 text-accent"
-                  : phase.state === "active"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
+                phase.state === "done" || phase.state === "active"
+                  ? cn(colors.bg, "text-white")
+                  : "bg-muted text-muted-foreground",
               )}
             >
               {phase.state === "done" ? <Check className="h-4 w-4" /> : phase.index}
@@ -338,7 +376,7 @@ function PhaseCard({
             variant={phase.state === "active" ? "default" : "outline"}
             size="sm"
             onClick={phase.onOpen}
-            className="w-full"
+            className={cn("w-full", phase.state === "active" && colors.button)}
           >
             Open Phase {phase.index}
             <ArrowRight className="h-4 w-4 ml-2" />
