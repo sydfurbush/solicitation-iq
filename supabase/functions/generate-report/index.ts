@@ -258,34 +258,122 @@ Deno.serve(async (req) => {
         );
       }
 
-      const sectionDef: Array<{ key: keyof typeof groups; heading: string; intro: (n: number) => string }> = [
-        { key: "ask", heading: "Submitted Questions", intro: (n) => `${n} question${n === 1 ? "" : "s"} recommended for submission to the agency.` },
-        { key: "hold", heading: "Strategic Hold Questions", intro: (n) => `${n} question${n === 1 ? "" : "s"} held for strategic advantage — do not submit.` },
-        { key: "internal", heading: "Internal Discussion Items", intro: (n) => `${n} item${n === 1 ? "" : "s"} for internal review and capture planning.` },
+      // Category normalization (mirrors theme.ts normalizeCategoryTone)
+      type Tone = "contradiction" | "risk_concern" | "quantitative_gap" | "compliance" | "drafting_error" | "clarification" | "scope_expansion" | "strategic" | "internal" | "neutral";
+      const TONE_LABEL: Record<Tone, string> = {
+        contradiction: "CONTRADICTION", risk_concern: "RISK CONCERN", quantitative_gap: "QUANTITATIVE GAP",
+        compliance: "COMPLIANCE", drafting_error: "DRAFTING ERROR", clarification: "CLARIFICATION",
+        scope_expansion: "SCOPE EXPANSION", strategic: "STRATEGIC", internal: "INTERNAL", neutral: "QUESTION",
+      };
+      const TONE_TITLE: Record<Tone, string> = {
+        contradiction: "Contradictions", risk_concern: "Risk Concerns", quantitative_gap: "Quantitative Gaps",
+        compliance: "Compliance Questions", drafting_error: "Drafting Errors", clarification: "Clarifications",
+        scope_expansion: "Scope Expansion", strategic: "Strategic", internal: "Internal", neutral: "Questions",
+      };
+      const TONE_ORDER: Tone[] = ["contradiction", "risk_concern", "quantitative_gap", "compliance", "drafting_error", "clarification", "scope_expansion", "strategic", "internal", "neutral"];
+      const toneOf = (cat: string | null | undefined): Tone => {
+        const k = (cat ?? "").toLowerCase();
+        if (k.includes("contradict")) return "contradiction";
+        if (k.includes("risk")) return "risk_concern";
+        if (k.includes("quant") || k.includes("gap")) return "quantitative_gap";
+        if (k.includes("compli")) return "compliance";
+        if (k.includes("draft") || k.includes("error")) return "drafting_error";
+        if (k.includes("clarif")) return "clarification";
+        if (k.includes("scope")) return "scope_expansion";
+        if (k.includes("strateg") || k.includes("hold")) return "strategic";
+        if (k.includes("internal") || k.includes("monitor")) return "internal";
+        return "neutral";
+      };
+
+      const sectionDef: Array<{ key: keyof typeof groups; heading: string; intro: (n: number) => string; subgroup: boolean }> = [
+        { key: "ask",      heading: "Submitted Questions",         intro: (n) => `${n} question${n === 1 ? "" : "s"} recommended for submission to the agency, organized by category.`, subgroup: true },
+        { key: "hold",     heading: "Strategic Hold Questions",    intro: (n) => `${n} question${n === 1 ? "" : "s"} held for strategic advantage — do not submit.`, subgroup: false },
+        { key: "internal", heading: "Internal Discussion Items",   intro: (n) => `${n} item${n === 1 ? "" : "s"} for internal review and capture planning.`, subgroup: false },
       ];
 
-      const sections = sectionDef
-        .filter((s) => groups[s.key].length > 0)
-        .map((s) => {
-          const rows = groups[s.key];
-          const items = rows.map((q, i) => {
-            const cat = q.category ? `[${q.category}] ` : "";
-            const lines: string[] = [`Q${i + 1}. ${cat}${q.question_text}`];
-            if (q.question_rationale) lines.push(`   Rationale: ${q.question_rationale}`);
-            if (q.source_citation) lines.push(`   Source: ${q.source_citation}`);
-            if (q.agency_response) lines.push(`   Agency response: ${q.agency_response}`);
-            return lines.join("\n");
-          });
-          return {
-            id: s.key,
-            heading: s.heading,
-            level: 1,
-            blocks: [
-              { kind: "paragraph", text: s.intro(rows.length) },
-              { kind: "bullets", items },
-            ],
-          };
-        });
+      // Build category counts for stats strip
+      const catCounts: Record<Tone, number> = {
+        contradiction: 0, risk_concern: 0, quantitative_gap: 0, compliance: 0, drafting_error: 0,
+        clarification: 0, scope_expansion: 0, strategic: 0, internal: 0, neutral: 0,
+      };
+      for (const q of all) catCounts[toneOf(q.category)]++;
+      const groupCount = (k: "ask" | "hold" | "internal") => groups[k].length;
+
+      const statsTiles: Array<{ label: string; value: number | string }> = [
+        { label: "Total Questions", value: all.length },
+        { label: "Contradictions", value: catCounts.contradiction },
+        { label: "Risk Concerns", value: catCounts.risk_concern },
+        { label: "Quantitative Gaps", value: catCounts.quantitative_gap },
+        { label: "Drafting Errors", value: catCounts.drafting_error },
+        { label: "Compliance", value: catCounts.compliance },
+        { label: "Clarifications", value: catCounts.clarification },
+        { label: "Scope Expansion", value: catCounts.scope_expansion },
+        { label: "Strategic Hold", value: groupCount("hold") },
+        { label: "Internal Items", value: groupCount("internal") },
+      ];
+
+      const sections: any[] = [
+        {
+          id: "overview",
+          heading: "Report Overview",
+          level: 1,
+          blocks: [{ kind: "statsStrip", tiles: statsTiles }],
+        },
+      ];
+
+      let qCounter = 0;
+      for (const def of sectionDef) {
+        const rows = groups[def.key];
+        if (!rows.length) continue;
+        const blocks: any[] = [{ kind: "paragraph", text: def.intro(rows.length) }];
+
+        if (def.subgroup) {
+          // group rows by tone, in TONE_ORDER
+          const byTone = new Map<Tone, typeof rows>();
+          for (const r of rows) {
+            const t = toneOf(r.category);
+            if (!byTone.has(t)) byTone.set(t, [] as any);
+            (byTone.get(t) as any).push(r);
+          }
+          for (const tone of TONE_ORDER) {
+            const subset = byTone.get(tone);
+            if (!subset || !subset.length) continue;
+            blocks.push({ kind: "categoryBand", title: TONE_TITLE[tone], count: subset.length, tone });
+            for (const q of subset) {
+              qCounter++;
+              blocks.push({
+                kind: "questionCard",
+                index: qCounter,
+                tone,
+                categoryLabel: TONE_LABEL[tone],
+                question: q.question_text,
+                rationale: q.question_rationale ?? undefined,
+                source: q.source_citation ?? undefined,
+                agencyResponse: q.agency_response ?? undefined,
+              });
+            }
+          }
+        } else {
+          // hold/internal: cards only, restart numbering for each section
+          let idx = 0;
+          for (const q of rows) {
+            idx++;
+            const tone = def.key === "hold" ? "strategic" : "internal";
+            blocks.push({
+              kind: "questionCard",
+              index: idx,
+              tone,
+              categoryLabel: TONE_LABEL[tone],
+              question: q.question_text,
+              rationale: q.question_rationale ?? undefined,
+              source: q.source_citation ?? undefined,
+              agencyResponse: q.agency_response ?? undefined,
+            });
+          }
+        }
+
+        sections.push({ id: def.key, heading: def.heading, level: 1, blocks });
+      }
 
       const includeCitationsQ = options?.includeCitations !== false;
       let citationsQ: any[] = [];

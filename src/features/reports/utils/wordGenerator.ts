@@ -1,11 +1,11 @@
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType,
-  HeadingLevel, PageNumber, VerticalAlign, LevelFormat,
+  HeadingLevel, PageNumber, VerticalAlign, LevelFormat, TabStopType,
 } from "docx";
 import type { ReportContent } from "../templates/types";
 import { sectionBlocks, type Block } from "../templates/blocks";
-import { HEX, FONT_DOCX, DEFAULT_FOOTER_TEXT } from "../templates/theme";
+import { HEX, FONT_DOCX, DEFAULT_FOOTER_TEXT, CATEGORY_HEX, type CategoryTone } from "../templates/theme";
 
 function fmt(d: string) {
   try { return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }); }
@@ -230,6 +230,145 @@ function coverBand(content: ReportContent) {
   });
 }
 
+function statsStripTable(tiles: Array<{ label: string; value: number | string }>) {
+  if (!tiles.length) return [] as Array<Paragraph | Table>;
+  const perRow = 5;
+  const tileW = Math.floor(CONTENT_W / perRow);
+  const tables: Array<Paragraph | Table> = [];
+  for (let i = 0; i < tiles.length; i += perRow) {
+    const row = tiles.slice(i, i + perRow);
+    while (row.length < perRow) row.push({ label: "", value: "" });
+    const valueCells = row.map((t) => new TableCell({
+      width: { size: tileW, type: WidthType.DXA },
+      shading: { fill: t.label ? "EDEFF4" : "FFFFFF", type: ShadingType.CLEAR, color: "auto" },
+      margins: { top: 140, bottom: 140, left: 80, right: 80 },
+      verticalAlign: VerticalAlign.CENTER,
+      children: [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: t.label ? String(t.value) : "", bold: true, size: 32, color: HEX.navy, font: FONT_DOCX })],
+      })],
+    }));
+    const labelCells = row.map((t) => new TableCell({
+      width: { size: tileW, type: WidthType.DXA },
+      shading: { fill: t.label ? HEX.navy : "FFFFFF", type: ShadingType.CLEAR, color: "auto" },
+      margins: { top: 80, bottom: 80, left: 60, right: 60 },
+      verticalAlign: VerticalAlign.CENTER,
+      children: [new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: t.label.toUpperCase(), bold: true, size: 14, color: HEX.white, font: FONT_DOCX })],
+      })],
+    }));
+    tables.push(new Table({
+      width: { size: CONTENT_W, type: WidthType.DXA },
+      columnWidths: Array(perRow).fill(tileW),
+      borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
+      rows: [new TableRow({ children: valueCells }), new TableRow({ children: labelCells })],
+    }));
+    tables.push(new Paragraph({ children: [new TextRun("")], spacing: { after: 80 } }));
+  }
+  return tables;
+}
+
+function categoryBandTable(title: string, count: number, tone: CategoryTone) {
+  const t = CATEGORY_HEX[tone] ?? CATEGORY_HEX.neutral;
+  const barW = 120;
+  return new Table({
+    width: { size: CONTENT_W, type: WidthType.DXA },
+    columnWidths: [barW, CONTENT_W - barW],
+    borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
+    rows: [new TableRow({
+      children: [
+        new TableCell({
+          width: { size: barW, type: WidthType.DXA },
+          shading: { fill: t.solid, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 100, bottom: 100, left: 0, right: 0 },
+          children: [new Paragraph({ children: [new TextRun("")] })],
+        }),
+        new TableCell({
+          width: { size: CONTENT_W - barW, type: WidthType.DXA },
+          shading: { fill: "E4E6EA", type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 100, bottom: 100, left: 200, right: 160 },
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({
+            children: [
+              new TextRun({ text: title.toUpperCase(), bold: true, size: 22, color: HEX.navy, font: FONT_DOCX }),
+              new TextRun({ text: `   (${count} question${count === 1 ? "" : "s"})`, size: 18, color: HEX.textMuted, font: FONT_DOCX }),
+            ],
+          })],
+        }),
+      ],
+    })],
+  });
+}
+
+function questionCardTable(card: Extract<Block, { kind: "questionCard" }>) {
+  const t = CATEGORY_HEX[card.tone] ?? CATEGORY_HEX.neutral;
+  const accentW = 80;
+  const labelW = 1100;
+  const bodyW = CONTENT_W - accentW - labelW;
+  return new Table({
+    width: { size: CONTENT_W, type: WidthType.DXA },
+    columnWidths: [accentW, labelW, bodyW],
+    borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
+    rows: [new TableRow({
+      children: [
+        new TableCell({
+          width: { size: accentW, type: WidthType.DXA },
+          shading: { fill: HEX.amber, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 160, bottom: 160, left: 0, right: 0 },
+          children: [new Paragraph({ children: [new TextRun("")] })],
+        }),
+        new TableCell({
+          width: { size: labelW, type: WidthType.DXA },
+          shading: { fill: HEX.white, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 160, bottom: 160, left: 160, right: 120 },
+          children: [
+            new Paragraph({
+              spacing: { after: 80 },
+              children: [new TextRun({ text: `Q${card.index}`, bold: true, size: 26, color: HEX.navy, font: FONT_DOCX })],
+            }),
+            new Paragraph({
+              shading: { fill: t.tint, type: ShadingType.CLEAR, color: "auto" },
+              children: [new TextRun({ text: card.categoryLabel.toUpperCase(), bold: true, size: 14, color: t.solid, font: FONT_DOCX })],
+            }),
+          ],
+        }),
+        new TableCell({
+          width: { size: bodyW, type: WidthType.DXA },
+          shading: { fill: HEX.rowAlt, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 160, bottom: 160, left: 200, right: 200 },
+          children: [
+            new Paragraph({
+              spacing: { after: 80 },
+              children: [new TextRun({ text: stripMd(card.question), size: 22, color: HEX.text, font: FONT_DOCX })],
+            }),
+            ...(card.rationale ? [new Paragraph({
+              spacing: { after: 60 },
+              children: [
+                new TextRun({ text: "Rationale: ", bold: true, italics: true, size: 18, color: HEX.textMuted, font: FONT_DOCX }),
+                new TextRun({ text: stripMd(card.rationale), italics: true, size: 18, color: HEX.textMuted, font: FONT_DOCX }),
+              ],
+            })] : []),
+            ...(card.source ? [new Paragraph({
+              spacing: { after: 40 },
+              children: [
+                new TextRun({ text: "Source: ", bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
+                new TextRun({ text: stripMd(card.source), bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
+              ],
+            })] : []),
+            ...(card.agencyResponse ? [new Paragraph({
+              children: [
+                new TextRun({ text: "Agency response: ", bold: true, italics: true, size: 18, color: HEX.text, font: FONT_DOCX }),
+                new TextRun({ text: stripMd(card.agencyResponse), italics: true, size: 18, color: HEX.text, font: FONT_DOCX }),
+              ],
+            })] : []),
+          ],
+        }),
+      ],
+    })],
+  });
+}
+
 // ---------- Block dispatch ----------
 
 function blockToElements(b: Block): Array<Paragraph | Table> {
@@ -246,6 +385,12 @@ function blockToElements(b: Block): Array<Paragraph | Table> {
       return [recommendationTable(b.verdict, b.rationale), new Paragraph({ children: [new TextRun("")] })];
     case "steps":
       return [stepsTable(b.items), new Paragraph({ children: [new TextRun("")] })];
+    case "statsStrip":
+      return statsStripTable(b.tiles);
+    case "categoryBand":
+      return [categoryBandTable(b.title, b.count, b.tone), new Paragraph({ children: [new TextRun("")], spacing: { after: 80 } })];
+    case "questionCard":
+      return [questionCardTable(b), new Paragraph({ children: [new TextRun("")], spacing: { after: 80 } })];
   }
 }
 
@@ -262,19 +407,28 @@ export async function generateDocx(report: ReportContent): Promise<Blob> {
     border: {
       bottom: { style: BorderStyle.SINGLE, size: 6, color: HEX.amber, space: 2 },
     },
+    tabStops: [{ type: TabStopType.RIGHT, position: 9360 }],
     children: [
       new TextRun({ text: headerLeft.toUpperCase(), bold: true, size: 18, color: HEX.navy, font: FONT_DOCX }),
       new TextRun({ text: "   |   ", bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
-      new TextRun({ text: headerRight.toUpperCase(), size: 18, color: HEX.amber, font: FONT_DOCX }),
+      new TextRun({ text: headerRight.toUpperCase(), size: 18, color: HEX.navy, font: FONT_DOCX }),
+      new TextRun({ text: "\tCONFIDENTIAL", bold: true, size: 16, color: HEX.textMuted, font: FONT_DOCX }),
     ],
   });
 
   const footerPara = new Paragraph({
     border: { top: { style: BorderStyle.SINGLE, size: 4, color: HEX.amber, space: 2 } },
+    tabStops: [
+      { type: TabStopType.CENTER, position: 4680 },
+      { type: TabStopType.RIGHT, position: 9360 },
+    ],
     children: [
       new TextRun({ text: footerLeft, size: 16, color: HEX.textMuted, font: FONT_DOCX }),
-      new TextRun({ text: "\t\tPage ", size: 16, color: HEX.textMuted, font: FONT_DOCX }),
+      new TextRun({ text: `\t${report.title}`, italics: true, size: 16, color: HEX.textMuted, font: FONT_DOCX }),
+      new TextRun({ text: "\tPage ", size: 16, color: HEX.textMuted, font: FONT_DOCX }),
       new TextRun({ children: [PageNumber.CURRENT], size: 16, color: HEX.textMuted, font: FONT_DOCX }),
+      new TextRun({ text: " of ", size: 16, color: HEX.textMuted, font: FONT_DOCX }),
+      new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, color: HEX.textMuted, font: FONT_DOCX }),
     ],
   });
 

@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import type { ReportContent } from "../templates/types";
 import { sectionBlocks, type Block } from "../templates/blocks";
-import { RGB, FONT_PDF, DEFAULT_FOOTER_TEXT } from "../templates/theme";
+import { RGB, FONT_PDF, DEFAULT_FOOTER_TEXT, CATEGORY_RGB } from "../templates/theme";
 
 const PAGE = { w: 612, h: 792 }; // US Letter pt
 const MARGIN = { top: 36, right: 56, bottom: 56, left: 56 };
@@ -22,7 +22,9 @@ type Ctx = {
   page: number;
   headerLeft: string;
   headerRight: string;
+  headerExtra?: string;
   footerLeft: string;
+  footerTitle?: string;
 };
 
 function setFill(doc: jsPDF, c: [number, number, number]) { doc.setFillColor(c[0], c[1], c[2]); }
@@ -30,17 +32,21 @@ function setText(doc: jsPDF, c: [number, number, number]) { doc.setTextColor(c[0
 function setDraw(doc: jsPDF, c: [number, number, number]) { doc.setDrawColor(c[0], c[1], c[2]); }
 
 function drawHeader(ctx: Ctx) {
-  const { doc, headerLeft, headerRight } = ctx;
+  const { doc, headerLeft, headerRight, headerExtra } = ctx;
   doc.setFont(FONT_PDF, "bold");
   doc.setFontSize(9);
   setText(doc, RGB.navy);
   doc.text(headerLeft.toUpperCase(), MARGIN.left, MARGIN.top);
-  // pipe + solicitation #
   const leftW = doc.getTextWidth(headerLeft.toUpperCase());
   setText(doc, RGB.amber);
   doc.text(" |", MARGIN.left + leftW, MARGIN.top);
+  setText(doc, RGB.navy);
   doc.text(headerRight.toUpperCase(), MARGIN.left + leftW + 14, MARGIN.top);
-  // double rule
+  if (headerExtra) {
+    setText(doc, RGB.textMuted);
+    doc.setFont(FONT_PDF, "bold");
+    doc.text(headerExtra.toUpperCase(), PAGE.w - MARGIN.right, MARGIN.top, { align: "right" });
+  }
   setDraw(doc, RGB.navy);
   doc.setLineWidth(0.6);
   doc.line(MARGIN.left, MARGIN.top + 6, PAGE.w - MARGIN.right, MARGIN.top + 6);
@@ -50,7 +56,7 @@ function drawHeader(ctx: Ctx) {
 }
 
 function drawFooter(ctx: Ctx) {
-  const { doc, footerLeft } = ctx;
+  const { doc, footerLeft, footerTitle } = ctx;
   const y = PAGE.h - MARGIN.bottom;
   setDraw(doc, RGB.amber);
   doc.setLineWidth(0.4);
@@ -58,8 +64,12 @@ function drawFooter(ctx: Ctx) {
   doc.setFont(FONT_PDF, "normal");
   doc.setFontSize(8);
   setText(doc, RGB.textMuted);
+  if (footerTitle) {
+    doc.text(footerTitle, PAGE.w / 2, y - 4, { align: "center" });
+  }
   doc.text(footerLeft, MARGIN.left, y - 4);
   doc.setFont(FONT_PDF, "italic");
+  // Total page placeholder; stamped after layout.
   doc.text(`Page ${ctx.page}`, PAGE.w - MARGIN.right, y - 4, { align: "right" });
 }
 
@@ -89,6 +99,9 @@ function drawCoverBand(ctx: Ctx, content: ReportContent) {
   const h = 110;
   setFill(doc, RGB.navy);
   doc.rect(x, y, w, h, "F");
+  // amber accent rule on the left
+  setFill(doc, RGB.amber);
+  doc.rect(x, y, 4, h, "F");
 
   // eyebrow
   doc.setFont(FONT_PDF, "bold");
@@ -115,6 +128,150 @@ function drawCoverBand(ctx: Ctx, content: ReportContent) {
   doc.text(meta, x + 18, y + h - 16);
 
   ctx.y = y + h + 22;
+}
+
+function drawStatsStrip(ctx: Ctx, tiles: Array<{ label: string; value: number | string }>) {
+  if (!tiles.length) return;
+  const { doc } = ctx;
+  const perRow = 5;
+  const gap = 8;
+  const tileW = (CONTENT_W - gap * (perRow - 1)) / perRow;
+  const valueH = 30;
+  const labelH = 22;
+  const tileH = valueH + labelH;
+  for (let i = 0; i < tiles.length; i += perRow) {
+    const row = tiles.slice(i, i + perRow);
+    ensureSpace(ctx, tileH + 8);
+    row.forEach((t, j) => {
+      const x = MARGIN.left + j * (tileW + gap);
+      // value cell (light grey)
+      setFill(doc, RGB.tileGrey);
+      doc.rect(x, ctx.y, tileW, valueH, "F");
+      doc.setFont(FONT_PDF, "bold");
+      doc.setFontSize(16);
+      setText(doc, RGB.navy);
+      doc.text(String(t.value), x + tileW / 2, ctx.y + valueH - 9, { align: "center" });
+      // label cell (navy)
+      setFill(doc, RGB.navy);
+      doc.rect(x, ctx.y + valueH, tileW, labelH, "F");
+      doc.setFont(FONT_PDF, "bold");
+      doc.setFontSize(8);
+      setText(doc, RGB.white);
+      const lbl = wrap(doc, t.label.toUpperCase(), tileW - 8, "bold", 8).slice(0, 2);
+      let ly = ctx.y + valueH + (lbl.length === 1 ? 14 : 11);
+      for (const line of lbl) { doc.text(line, x + tileW / 2, ly, { align: "center" }); ly += 9; }
+    });
+    ctx.y += tileH + 8;
+  }
+  ctx.y += 6;
+}
+
+function drawCategoryBand(ctx: Ctx, title: string, count: number, tone: keyof typeof CATEGORY_RGB) {
+  const t = CATEGORY_RGB[tone];
+  const h = 22;
+  ensureSpace(ctx, h + 12);
+  // grey band background
+  setFill(ctx.doc, RGB.bandGrey);
+  ctx.doc.rect(MARGIN.left, ctx.y, CONTENT_W, h, "F");
+  // colored left bar
+  setFill(ctx.doc, t.solid);
+  ctx.doc.rect(MARGIN.left, ctx.y, 4, h, "F");
+  ctx.doc.setFont(FONT_PDF, "bold");
+  ctx.doc.setFontSize(10);
+  setText(ctx.doc, RGB.navy);
+  ctx.doc.text(title.toUpperCase(), MARGIN.left + 14, ctx.y + 14);
+  ctx.doc.setFont(FONT_PDF, "normal");
+  ctx.doc.setFontSize(9);
+  setText(ctx.doc, RGB.textMuted);
+  const countText = `(${count} question${count === 1 ? "" : "s"})`;
+  const titleW = ctx.doc.getTextWidth(title.toUpperCase());
+  ctx.doc.text(countText, MARGIN.left + 14 + titleW + 8, ctx.y + 14);
+  ctx.y += h + 8;
+}
+
+function drawQuestionCard(
+  ctx: Ctx,
+  card: Extract<Block, { kind: "questionCard" }>,
+) {
+  const { doc } = ctx;
+  const t = CATEGORY_RGB[card.tone] ?? CATEGORY_RGB.neutral;
+  const labelW = 70;
+  const accentW = 4;
+  const bodyX = MARGIN.left + accentW + labelW;
+  const bodyW = CONTENT_W - accentW - labelW;
+  const innerPad = 10;
+
+  // measure body
+  const qLines = wrap(doc, card.question, bodyW - innerPad * 2, "normal", 10);
+  const ratLines = card.rationale ? wrap(doc, `Rationale: ${card.rationale}`, bodyW - innerPad * 2, "italic", 9) : [];
+  const srcLines = card.source ? wrap(doc, `Source: ${card.source}`, bodyW - innerPad * 2, "bold", 9) : [];
+  const respLines = card.agencyResponse ? wrap(doc, `Agency response: ${card.agencyResponse}`, bodyW - innerPad * 2, "italic", 9) : [];
+  const bodyTextH =
+    qLines.length * 13 +
+    (ratLines.length ? 6 + ratLines.length * 12 : 0) +
+    (srcLines.length ? 6 + srcLines.length * 12 : 0) +
+    (respLines.length ? 6 + respLines.length * 12 : 0);
+  const cardH = Math.max(64, bodyTextH + innerPad * 2);
+
+  ensureSpace(ctx, cardH + 6);
+
+  // Card background
+  setFill(doc, RGB.rowAlt);
+  doc.rect(MARGIN.left, ctx.y, CONTENT_W, cardH, "F");
+  // Amber accent left bar
+  setFill(doc, RGB.amber);
+  doc.rect(MARGIN.left, ctx.y, accentW, cardH, "F");
+  // Q label cell (white)
+  setFill(doc, RGB.white);
+  doc.rect(MARGIN.left + accentW, ctx.y, labelW, cardH, "F");
+
+  // Q number
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(13);
+  setText(doc, RGB.navy);
+  doc.text(`Q${card.index}`, MARGIN.left + accentW + 10, ctx.y + 22);
+
+  // Category badge (under Q#)
+  const badgeText = card.categoryLabel.toUpperCase();
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(7);
+  const badgeLines = doc.splitTextToSize(badgeText, labelW - 12);
+  const badgeH = badgeLines.length * 9 + 6;
+  setFill(doc, t.tint);
+  doc.rect(MARGIN.left + accentW + 6, ctx.y + 30, labelW - 12, badgeH, "F");
+  setText(doc, t.solid);
+  let by = ctx.y + 30 + 8;
+  for (const line of badgeLines) { doc.text(line, MARGIN.left + accentW + 6 + (labelW - 12) / 2, by, { align: "center" }); by += 9; }
+
+  // Body text
+  let y = ctx.y + innerPad + 4;
+  doc.setFont(FONT_PDF, "normal");
+  doc.setFontSize(10);
+  setText(doc, RGB.text);
+  for (const line of qLines) { doc.text(line, bodyX + innerPad, y); y += 13; }
+  if (ratLines.length) {
+    y += 6;
+    doc.setFont(FONT_PDF, "italic");
+    doc.setFontSize(9);
+    setText(doc, RGB.textMuted);
+    for (const line of ratLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
+  }
+  if (srcLines.length) {
+    y += 6;
+    doc.setFont(FONT_PDF, "bold");
+    doc.setFontSize(9);
+    setText(doc, RGB.amber);
+    for (const line of srcLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
+  }
+  if (respLines.length) {
+    y += 6;
+    doc.setFont(FONT_PDF, "italic");
+    doc.setFontSize(9);
+    setText(doc, RGB.text);
+    for (const line of respLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
+  }
+
+  ctx.y += cardH + 6;
 }
 
 function drawSectionHeading(ctx: Ctx, text: string) {
@@ -348,6 +505,24 @@ function drawBlock(ctx: Ctx, b: Block) {
     case "category": return drawCategoryTable(ctx, b);
     case "recommendation": return drawRecommendation(ctx, b.verdict, b.rationale);
     case "steps": return drawSteps(ctx, b.items);
+    case "statsStrip": return drawStatsStrip(ctx, b.tiles);
+    case "categoryBand": return drawCategoryBand(ctx, b.title, b.count, b.tone);
+    case "questionCard": return drawQuestionCard(ctx, b);
+  }
+}
+
+function stampPageTotals(ctx: Ctx) {
+  const total = ctx.doc.getNumberOfPages();
+  const y = PAGE.h - MARGIN.bottom;
+  for (let i = 1; i <= total; i++) {
+    ctx.doc.setPage(i);
+    // overpaint right side of footer to clear "Page N"
+    setFill(ctx.doc, RGB.white);
+    ctx.doc.rect(PAGE.w - MARGIN.right - 90, y - 12, 90, 12, "F");
+    ctx.doc.setFont(FONT_PDF, "italic");
+    ctx.doc.setFontSize(8);
+    setText(ctx.doc, RGB.textMuted);
+    ctx.doc.text(`Page ${i} of ${total}`, PAGE.w - MARGIN.right, y - 4, { align: "right" });
   }
 }
 
@@ -358,8 +533,10 @@ export function generatePdf(report: ReportContent): Blob {
     || report.title;
   const headerRight = (report.subtitle || report.meta?.solicitation_number || "") as string;
   const footerLeft = report.branding?.footerText || DEFAULT_FOOTER_TEXT;
+  const headerExtra = "CONFIDENTIAL";
+  const footerTitle = report.title;
 
-  const ctx: Ctx = { doc, y: CONTENT_TOP, page: 1, headerLeft, headerRight, footerLeft };
+  const ctx: Ctx = { doc, y: CONTENT_TOP, page: 1, headerLeft, headerRight, headerExtra, footerLeft, footerTitle };
   drawHeader(ctx);
   drawFooter(ctx);
 
@@ -375,6 +552,8 @@ export function generatePdf(report: ReportContent): Blob {
   if (report.citations?.length) {
     drawCitations(ctx, report.citations);
   }
+
+  stampPageTotals(ctx);
 
   return doc.output("blob");
 }

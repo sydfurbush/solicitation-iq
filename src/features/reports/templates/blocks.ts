@@ -1,5 +1,7 @@
 // Structured content blocks rendered by both PDF and Word generators.
 
+import type { CategoryTone } from "./theme";
+
 export type Block =
   | { kind: "paragraph"; text: string }
   | { kind: "bullets"; items: string[] }
@@ -11,7 +13,19 @@ export type Block =
       rows: Array<[string, string]>;
     }
   | { kind: "recommendation"; verdict: string; rationale: string }
-  | { kind: "steps"; items: Array<{ title: string; detail: string }> };
+  | { kind: "steps"; items: Array<{ title: string; detail: string }> }
+  | { kind: "statsStrip"; tiles: Array<{ label: string; value: number | string }> }
+  | { kind: "categoryBand"; title: string; count: number; tone: CategoryTone }
+  | {
+      kind: "questionCard";
+      index: number;
+      tone: CategoryTone;
+      categoryLabel: string;
+      question: string;
+      rationale?: string;
+      source?: string;
+      agencyResponse?: string;
+    };
 
 function stripMd(line: string): string {
   return line
