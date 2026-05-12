@@ -1415,6 +1415,8 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          importance_rationale: string | null
+          importance_score: number | null
           is_ai_generated: boolean
           requirements_count: number | null
           risk_flags: Json
@@ -1425,10 +1427,13 @@ export type Database = {
           source_citations: Json
           summary: string | null
           updated_at: string
+          weight_source: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          importance_rationale?: string | null
+          importance_score?: number | null
           is_ai_generated?: boolean
           requirements_count?: number | null
           risk_flags?: Json
@@ -1439,10 +1444,13 @@ export type Database = {
           source_citations?: Json
           summary?: string | null
           updated_at?: string
+          weight_source?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          importance_rationale?: string | null
+          importance_score?: number | null
           is_ai_generated?: boolean
           requirements_count?: number | null
           risk_flags?: Json
@@ -1453,6 +1461,7 @@ export type Database = {
           source_citations?: Json
           summary?: string | null
           updated_at?: string
+          weight_source?: string | null
         }
         Relationships: []
       }
