@@ -747,6 +747,54 @@ export type Database = {
           },
         ]
       }
+      export_history: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          file_path: string
+          file_size: number | null
+          filename: string
+          format: string
+          id: string
+          kind: string
+          organization_id: string
+          page_size: string | null
+          sections: Json
+          solicitation_id: string
+          version: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          file_path: string
+          file_size?: number | null
+          filename: string
+          format: string
+          id?: string
+          kind: string
+          organization_id: string
+          page_size?: string | null
+          sections?: Json
+          solicitation_id: string
+          version?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          file_path?: string
+          file_size?: number | null
+          filename?: string
+          format?: string
+          id?: string
+          kind?: string
+          organization_id?: string
+          page_size?: string | null
+          sections?: Json
+          solicitation_id?: string
+          version?: string | null
+        }
+        Relationships: []
+      }
       extracted_entities: {
         Row: {
           confidence_score: number | null
