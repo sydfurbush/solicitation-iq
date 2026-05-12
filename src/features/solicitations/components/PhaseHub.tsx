@@ -105,21 +105,26 @@ export function PhaseHub({
     };
   });
 
-  const handleRequest = async (p: PhaseType) => {
+  const [requestPhase, setRequestPhase] = useState<PhaseType | null>(null);
+  const [resetApprovalId, setResetApprovalId] = useState<string | null>(null);
+
+  const handleRequest = async (phase: PhaseType, note: string) => {
     try {
-      await requestApproval.mutateAsync(p);
-      toast({ title: "Sent for client approval", description: PHASE_LABELS[p] });
+      await requestApproval.mutateAsync({ phase, note: note || undefined });
+      toast({ title: "Sent for client approval", description: PHASE_LABELS[phase] });
+      setRequestPhase(null);
     } catch (e) {
-      toast({ title: "Failed", description: String(e), variant: "destructive" });
+      toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
-  const handleReset = async (id: string) => {
+  const handleReset = async (approvalId: string, note: string) => {
     try {
-      await resetApproval.mutateAsync(id);
+      await resetApproval.mutateAsync({ approvalId, note: note || undefined });
       toast({ title: "Reopened for review" });
+      setResetApprovalId(null);
     } catch (e) {
-      toast({ title: "Failed", description: String(e), variant: "destructive" });
+      toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -132,8 +137,8 @@ export function PhaseHub({
             phase={p}
             highlighted={p.phase === currentPhase}
             approval={byPhase[p.phase]}
-            onRequestApproval={() => handleRequest(p.phase)}
-            onResetApproval={handleReset}
+            onRequestApproval={() => setRequestPhase(p.phase)}
+            onResetApproval={(id) => setResetApprovalId(id)}
             isMutating={requestApproval.isPending || resetApproval.isPending}
           />
         ))}
@@ -157,6 +162,26 @@ export function PhaseHub({
       </div>
 
       <ApprovalsTimeline solicitationId={solicitationId} />
+
+      <ApprovalNoteDialog
+        open={!!requestPhase}
+        onOpenChange={(o) => !o && setRequestPhase(null)}
+        title={requestPhase ? `Request approval — ${PHASE_LABELS[requestPhase]}` : "Request approval"}
+        description="Send this phase to the client for approval. Add a note to explain what they're reviewing."
+        confirmLabel="Send request"
+        isSubmitting={requestApproval.isPending}
+        onConfirm={(note) => requestPhase && handleRequest(requestPhase, note)}
+      />
+
+      <ApprovalNoteDialog
+        open={!!resetApprovalId}
+        onOpenChange={(o) => !o && setResetApprovalId(null)}
+        title="Reopen for review"
+        description="Send this phase back to the client for another review."
+        confirmLabel="Reopen"
+        isSubmitting={resetApproval.isPending}
+        onConfirm={(note) => resetApprovalId && handleReset(resetApprovalId, note)}
+      />
     </div>
   );
 }
