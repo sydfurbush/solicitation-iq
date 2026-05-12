@@ -40,6 +40,7 @@ interface Props {
   onSelectChange: (ids: string[]) => void;
   onArchive: (s: SolicitationWithClient) => void;
   onDelete: (s: SolicitationWithClient) => void;
+  onRestore?: (s: SolicitationWithClient) => void;
   onBulkArchive: () => void;
   onBulkExport: () => void;
 }
@@ -50,6 +51,7 @@ export function SolicitationsTable({
   onSelectChange,
   onArchive,
   onDelete,
+  onRestore,
   onBulkArchive,
   onBulkExport,
 }: Props) {
