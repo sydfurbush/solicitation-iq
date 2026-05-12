@@ -1,7 +1,7 @@
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType,
-  HeadingLevel, PageNumber, VerticalAlign, LevelFormat,
+  HeadingLevel, PageNumber, VerticalAlign, LevelFormat, TabStopType,
 } from "docx";
 import type { ReportContent } from "../templates/types";
 import { sectionBlocks, type Block } from "../templates/blocks";
