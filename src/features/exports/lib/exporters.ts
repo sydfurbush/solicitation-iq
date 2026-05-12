@@ -137,16 +137,25 @@ function pdfImageFormat(mime: string): "PNG" | "JPEG" | null {
 
 /* -------------------- PDF -------------------- */
 function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
+  const brand = opts.brand ?? {};
+  const primary = hexToRgb(brand.primaryColor, [40, 60, 90]);
+  const onPrimary = hexToRgb(brand.accentColor, [255, 255, 255]);
+
   const pdf = new jsPDF({ unit: "pt", format: opts.pageSize ?? "letter" });
   const margin = 48;
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  let y = margin;
+  // Reserve a little extra space at top/bottom of body pages for header/footer
+  const bodyTop = margin + (brand.headerText ? 18 : 0);
+  const bodyBottom = pageH - margin - (brand.footerText || brand.showPageNumbers ? 18 : 0);
+  let y = bodyTop;
+  // Track which page index is the cover (so we can skip header/footer on it)
+  let coverPageIndex: number | null = null;
 
   const ensureSpace = (h: number) => {
-    if (y + h > pageH - margin) {
+    if (y + h > bodyBottom) {
       pdf.addPage();
-      y = margin;
+      y = bodyTop;
     }
   };
 
@@ -165,42 +174,93 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
 
   // ---- Cover page ----
   if (!opts.noCover) {
+    coverPageIndex = pdf.getCurrentPageInfo().pageNumber;
     const cover = doc.cover ?? {};
-    const centerY = pageH / 2 - 80;
-    const drawCenter = (text: string, size: number, weight: "bold" | "normal", color: [number, number, number], offset: number) => {
-      pdf.setFont("helvetica", weight);
-      pdf.setFontSize(size);
-      pdf.setTextColor(...color);
-      const lines = pdf.splitTextToSize(text, pageW - margin * 2);
-      lines.forEach((line: string, idx: number) => {
-        pdf.text(line, pageW / 2, centerY + offset + idx * (size + 4), { align: "center" });
-      });
-      return lines.length * (size + 4);
-    };
 
-    // Top accent bar
-    pdf.setFillColor(40, 60, 90);
-    pdf.rect(0, 0, pageW, 8, "F");
+    // Top + bottom accent bars in primary color
+    pdf.setFillColor(...primary);
+    pdf.rect(0, 0, pageW, 14, "F");
+    pdf.rect(0, pageH - 14, pageW, 14, "F");
 
-    let coverY = 0;
-    if (cover.clientName) {
-      coverY += drawCenter(cover.clientName.toUpperCase(), 11, "bold", [40, 60, 90], coverY) + 8;
+    let coverY = margin + 30;
+
+    // Optional logo
+    const logo = brand.logo;
+    const logoFmt = logo ? pdfImageFormat(logo.mime) : null;
+    if (brand.showLogoOnCover !== false && logo && logoFmt) {
+      const maxW = 220;
+      const maxH = 90;
+      const ratio = logo.widthPx && logo.heightPx ? logo.widthPx / logo.heightPx : 1;
+      let lw = maxW;
+      let lh = lw / ratio;
+      if (lh > maxH) {
+        lh = maxH;
+        lw = lh * ratio;
+      }
+      try {
+        pdf.addImage(logo.dataUrl, logoFmt, (pageW - lw) / 2, coverY, lw, lh);
+        coverY += lh + 28;
+      } catch {
+        // ignore unsupported image
+      }
     }
-    coverY += drawCenter(doc.title, 28, "bold", [25, 25, 25], coverY) + 16;
+
+    // Firm name (small caps above title)
+    if (brand.firmName) {
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.setTextColor(...primary);
+      pdf.text(brand.firmName.toUpperCase(), pageW / 2, coverY, { align: "center" });
+      coverY += 18;
+    } else if (cover.clientName) {
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(11);
+      pdf.setTextColor(...primary);
+      pdf.text(cover.clientName.toUpperCase(), pageW / 2, coverY, { align: "center" });
+      coverY += 18;
+    }
+
+    // Title (centered, large)
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(28);
+    pdf.setTextColor(25, 25, 25);
+    const titleLines = pdf.splitTextToSize(doc.title, pageW - margin * 2);
+    titleLines.forEach((line: string, idx: number) => {
+      pdf.text(line, pageW / 2, coverY + idx * 32, { align: "center" });
+    });
+    coverY += titleLines.length * 32 + 12;
+
+    // Solicitation title
     if (cover.solicitationTitle) {
-      coverY += drawCenter(cover.solicitationTitle, 14, "normal", [80, 80, 80], coverY) + 24;
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(14);
+      pdf.setTextColor(80, 80, 80);
+      const subLines = pdf.splitTextToSize(cover.solicitationTitle, pageW - margin * 2);
+      subLines.forEach((line: string, idx: number) => {
+        pdf.text(line, pageW / 2, coverY + idx * 18, { align: "center" });
+      });
+      coverY += subLines.length * 18 + 24;
     }
 
-    // Meta block
+    // Client name (only if not already shown via firmName branch)
+    if (brand.firmName && cover.clientName) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(11);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(`Prepared for ${cover.clientName}`, pageW / 2, coverY, { align: "center" });
+      coverY += 24;
+    }
+
+    // Meta block (anchored toward lower-third)
     const meta: [string, string][] = [];
     const phase = phaseLabel(cover.phase);
     if (phase) meta.push(["Phase", phase]);
     if (opts.version?.trim()) meta.push(["Version", opts.version.trim()]);
     meta.push(["Generated", fmtDateTime()]);
 
-    const metaTop = centerY + coverY + 40;
+    const metaTop = Math.max(coverY + 40, pageH * 0.7);
     pdf.setDrawColor(220, 220, 220);
-    pdf.line(pageW / 2 - 100, metaTop - 16, pageW / 2 + 100, metaTop - 16);
+    pdf.line(pageW / 2 - 110, metaTop - 16, pageW / 2 + 110, metaTop - 16);
     meta.forEach((row, i) => {
       const ry = metaTop + i * 18;
       pdf.setFont("helvetica", "bold");
@@ -213,10 +273,10 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
     });
 
     pdf.addPage();
-    y = margin;
+    y = bodyTop;
   }
 
-  // Title
+  // Title (body intro)
   writeWrapped(doc.title, { size: 20, bold: true });
   if (doc.subtitle) writeWrapped(doc.subtitle, { size: 11, color: [110, 110, 110] });
   writeWrapped(`Generated ${fmtDate()}`, { size: 9, color: [140, 140, 140] });
@@ -238,9 +298,9 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
         startY: y,
         head: [s.table.head],
         body: s.table.rows,
-        margin: { left: margin + depth * 12, right: margin },
+        margin: { left: margin + depth * 12, right: margin, top: bodyTop, bottom: pageH - bodyBottom },
         styles: { fontSize: 9, cellPadding: 4, overflow: "linebreak" },
-        headStyles: { fillColor: [40, 60, 90], textColor: 255 },
+        headStyles: { fillColor: primary, textColor: onPrimary },
         theme: "striped",
       });
       // @ts-expect-error lastAutoTable populated by plugin
@@ -251,6 +311,46 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
   };
 
   doc.sections.forEach((s) => renderSection(s, 0));
+
+  // ---- Stamp header/footer on every body page ----
+  const totalPages = pdf.getNumberOfPages();
+  const showHeader = !!brand.headerText;
+  const showFooterText = !!brand.footerText;
+  const showFooterPageNo = brand.showPageNumbers !== false;
+  if (showHeader || showFooterText || showFooterPageNo) {
+    for (let p = 1; p <= totalPages; p++) {
+      if (coverPageIndex !== null && p === coverPageIndex) continue; // skip cover
+      pdf.setPage(p);
+
+      if (showHeader && brand.headerText) {
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(110, 110, 110);
+        pdf.text(brand.headerText, margin, margin / 2 + 4);
+        pdf.setDrawColor(...primary);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, margin / 2 + 8, pageW - margin, margin / 2 + 8);
+      }
+
+      const footerY = pageH - margin / 2 - 4;
+      if (showFooterText || showFooterPageNo) {
+        pdf.setDrawColor(...primary);
+        pdf.setLineWidth(0.5);
+        pdf.line(margin, footerY - 10, pageW - margin, footerY - 10);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(110, 110, 110);
+        if (showFooterText && brand.footerText) {
+          pdf.text(brand.footerText, margin, footerY);
+        }
+        if (showFooterPageNo) {
+          const bodyPages = coverPageIndex !== null ? totalPages - 1 : totalPages;
+          const bodyIndex = coverPageIndex !== null && p > coverPageIndex ? p - 1 : p;
+          pdf.text(`Page ${bodyIndex} of ${bodyPages}`, pageW - margin, footerY, { align: "right" });
+        }
+      }
+    }
+  }
 
   return pdf.output("blob");
 }
