@@ -526,16 +526,7 @@ Deno.serve(async (req) => {
           const rows = mapRows(questions, solicitationId, docByName);
           console.log(`[generate-questions] batch=${batchLabel} got ${rows.length} questions`);
 
-          // Delete prior AI rows once, before inserting the FIRST successful batch.
-          if (regenerate && !didRegenDelete && rows.length > 0) {
-            const { error: delErr } = await supabase
-              .from("strategic_questions")
-              .delete()
-              .eq("solicitation_id", solicitationId)
-              .eq("is_ai_generated", true);
-            if (delErr) console.error("[generate-questions] delete error", delErr);
-            didRegenDelete = true;
-          }
+          // Note: prior AI rows were already wiped up-front for fresh runs.
 
           if (rows.length > 0) {
             const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
