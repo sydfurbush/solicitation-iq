@@ -726,13 +726,15 @@ export function generatePdf(report: ReportContent): Blob {
   const footerTitle = report.title;
 
   const ctx: Ctx = { doc, y: CONTENT_TOP, page: 1, headerLeft, headerRight, headerExtra, footerLeft, footerTitle };
-  drawHeader(ctx);
-  drawFooter(ctx);
 
   // Skip the default cover band when the report supplies its own coverHero block.
   const firstBlock = report.sections?.[0]?.blocks?.[0];
   const hasOwnCover = firstBlock?.kind === "coverHero";
-  if (!hasOwnCover) drawCoverBand(ctx, report);
+  if (!hasOwnCover) {
+    drawHeader(ctx);
+    drawFooter(ctx);
+    drawCoverBand(ctx, report);
+  }
 
   for (const section of report.sections ?? []) {
     const blocks = sectionBlocks(section);
