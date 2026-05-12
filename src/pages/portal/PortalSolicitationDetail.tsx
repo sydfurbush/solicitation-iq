@@ -14,6 +14,7 @@ import { usePhaseApprovals, APPROVAL_LABEL, type PhaseApproval } from "@/feature
 import { PhaseApprovalStrip } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalActionBanner } from "@/features/phases/components/ApprovalActionBanner";
 import { ApprovalsTimeline } from "@/features/phases/components/ApprovalsTimeline";
+import { ExportApprovalsButton } from "@/features/phases/components/ExportApprovalsButton";
 import { type PhaseType } from "@/lib/validators/solicitation";
 
 const PHASE_LABELS: Record<PhaseType, string> = {
@@ -88,7 +89,20 @@ export default function PortalSolicitationDetail() {
 
         <TabsContent value="overview" className="space-y-4 mt-4">
           {canApprove && (
-            <ApprovalsCard approvals={approvals} />
+            <>
+              <div className="flex justify-end">
+                <ExportApprovalsButton
+                  solicitationId={id}
+                  solicitation={{
+                    title: sol.title,
+                    solicitation_number: sol.solicitation_number,
+                    issuing_agency: sol.issuing_agency,
+                    client: { name: client?.name ?? null },
+                  }}
+                />
+              </div>
+              <ApprovalsCard approvals={approvals} />
+            </>
           )}
 
           {canApprove && <ApprovalsTimeline solicitationId={id} />}

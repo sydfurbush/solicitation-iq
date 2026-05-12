@@ -14,6 +14,7 @@ import {
 import { GATED_PHASES } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalsTimeline } from "@/features/phases/components/ApprovalsTimeline";
 import { ApprovalNoteDialog } from "@/features/phases/components/ApprovalNoteDialog";
+import { ExportApprovalsButton } from "@/features/phases/components/ExportApprovalsButton";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -59,6 +60,12 @@ interface Props {
   onOpenPhase: (phase: PhaseType) => void;
   onWorkspace: (key: "reports" | "comparison" | "activity") => void;
   solicitationId?: string;
+  solicitation?: {
+    title: string | null;
+    solicitation_number?: string | null;
+    issuing_agency?: string | null;
+    client?: { name?: string | null } | null;
+  } | null;
 }
 
 function StateDot({ state }: { state: StepState }) {
@@ -82,6 +89,7 @@ export function PhaseHub({
   onOpenPhase,
   onWorkspace,
   solicitationId,
+  solicitation,
 }: Props) {
   const { byPhase } = usePhaseApprovals(solicitationId);
   const requestApproval = useRequestApproval(solicitationId);
@@ -159,6 +167,11 @@ export function PhaseHub({
             Activity
           </Button>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Approvals</h3>
+        <ExportApprovalsButton solicitationId={solicitationId} solicitation={solicitation} />
       </div>
 
       <ApprovalsTimeline solicitationId={solicitationId} />
