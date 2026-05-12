@@ -356,7 +356,15 @@ function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
 }
 
 /* -------------------- DOCX -------------------- */
-function renderDocxSection(s: ExportSection, depth = 0): (Paragraph | Table)[] {
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const b64 = dataUrl.split(",")[1] ?? "";
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function renderDocxSection(s: ExportSection, depth = 0, primaryHex = "283C5A", onPrimaryHex = "FFFFFF"): (Paragraph | Table)[] {
   const out: (Paragraph | Table)[] = [];
   const headingLevel =
     depth === 0 ? HeadingLevel.HEADING_1 :
