@@ -156,7 +156,21 @@ export function PhaseHub({
   );
 }
 
-function PhaseCard({ phase, highlighted }: { phase: HubPhase; highlighted: boolean }) {
+function PhaseCard({
+  phase,
+  highlighted,
+  approval,
+  onRequestApproval,
+  onResetApproval,
+  isMutating,
+}: {
+  phase: HubPhase;
+  highlighted: boolean;
+  approval?: PhaseApproval;
+  onRequestApproval?: () => void;
+  onResetApproval?: (id: string) => void;
+  isMutating?: boolean;
+}) {
   const stateBadge =
     phase.state === "done" ? (
       <Badge variant="outline" className="bg-accent/15 text-accent border-accent/30">Done</Badge>
@@ -165,6 +179,27 @@ function PhaseCard({ phase, highlighted }: { phase: HubPhase; highlighted: boole
     ) : (
       <Badge variant="outline" className="text-muted-foreground">Not started</Badge>
     );
+
+  const isGated = GATED_PHASES.includes(phase.phase);
+  const status = approval?.status ?? "not_ready";
+  const approvalBadge = isGated ? (
+    status === "approved" ? (
+      <Badge variant="outline" className="bg-accent/15 text-accent border-accent/30 gap-1">
+        <Check className="h-3 w-3" /> Client approved
+      </Badge>
+    ) : status === "pending_review" ? (
+      <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1">
+        <Clock className="h-3 w-3" /> Awaiting client
+      </Badge>
+    ) : status === "changes_requested" ? (
+      <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30 gap-1">
+        <AlertCircle className="h-3 w-3" /> Changes requested
+      </Badge>
+    ) : (
+      <Badge variant="outline" className="text-muted-foreground">Not requested</Badge>
+    )
+  ) : null;
+
 
   return (
     <Card
