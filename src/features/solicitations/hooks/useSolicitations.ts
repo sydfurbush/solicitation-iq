@@ -50,7 +50,7 @@ export function useSolicitations(filters: SolicitationFilters = {}) {
   return useQuery({
     queryKey: LIST_KEY(filters),
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("solicitations")
         .select(
           `*,
@@ -60,9 +60,12 @@ export function useSolicitations(filters: SolicitationFilters = {}) {
            risks(id),
            opportunities(id)`
         )
-        .is("deleted_at", null)
         .is("documents.deleted_at", null)
         .order("created_at", { ascending: false });
+      if (!filters.includeDeleted) {
+        query = query.is("deleted_at", null);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       const rows: SolicitationWithClient[] = (data ?? []).map((row) => {
         const r = row as unknown as SolicitationRow & {
