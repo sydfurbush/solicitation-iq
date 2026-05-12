@@ -25,10 +25,26 @@ export function nextPhase(current: PhaseType | null | undefined): PhaseType | nu
 export function useAdvancePhase(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { from: PhaseType; to: PhaseType }) => {
+    mutationFn: async (input: { from: PhaseType; to: PhaseType; override?: boolean }) => {
       if (!solicitationId) throw new Error("Missing solicitationId");
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id ?? null;
+
+      // Gate check: phase 4 has no gate; gated phases (1-3) require client approval
+      const GATED: PhaseType[] = ["phase_1_initial", "phase_2_deep_dive", "phase_3_outline"];
+      if (!input.override && GATED.includes(input.from)) {
+        const { data: ap } = await supabase
+          .from("phase_approvals")
+          .select("status")
+          .eq("solicitation_id", solicitationId)
+          .eq("phase", input.from)
+          .maybeSingle();
+        if (!ap || ap.status !== "approved") {
+          throw new Error(
+            "Client approval required for this phase. Request approval (or use admin override).",
+          );
+        }
+      }
 
       // Mark current phase complete
       const { error: phaseErr } = await supabase
