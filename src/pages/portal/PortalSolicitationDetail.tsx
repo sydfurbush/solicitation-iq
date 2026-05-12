@@ -91,6 +91,8 @@ export default function PortalSolicitationDetail() {
             <ApprovalsCard approvals={approvals} />
           )}
 
+          {canApprove && <ApprovalsTimeline solicitationId={id} />}
+
           <Card>
             <CardHeader><CardTitle className="text-base">Summary</CardTitle></CardHeader>
             <CardContent>
