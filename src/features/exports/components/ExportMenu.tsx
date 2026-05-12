@@ -16,20 +16,28 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import {
-  exportDocument,
+  buildExportBlob,
   type ExportDocument,
   type ExportFormat,
   type ExportPageSize,
 } from "@/features/exports/lib/exporters";
+import { saveAs } from "file-saver";
+import { useSaveExport } from "@/features/exports/hooks/useExportHistory";
 
 interface Props {
   /** Lazy builder so we only assemble the doc on click */
   build: () => ExportDocument | null;
   disabled?: boolean;
   label?: string;
+  /** When provided, each export is recorded in history. */
+  solicitationId?: string;
+  /** Logical export kind (e.g. "deep-dive", "outline", "win-themes"). */
+  kind?: string;
 }
 
-export function ExportMenu({ build, disabled, label = "Export" }: Props) {
+export function ExportMenu({ build, disabled, label = "Export", solicitationId, kind }: Props) {
+  const saveExport = useSaveExport();
+
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
