@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { useActiveOutline, useOutlineNodes, useGenerateOutline } from "@/features/outline/hooks/useProposalOutline";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument } from "@/features/exports/lib/exporters";
 
 export default function SolicitationOutline({ solicitationId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
