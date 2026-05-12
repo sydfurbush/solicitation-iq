@@ -41,7 +41,7 @@ export function usePhaseApprovals(solicitationId: string | undefined) {
   useEffect(() => {
     if (!solicitationId) return;
     const channel = supabase
-      .channel(`phase-approvals-${solicitationId}`)
+      .channel(`phase-approvals-${solicitationId}-${Math.random().toString(36).slice(2, 9)}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "phase_approvals", filter: `solicitation_id=eq.${solicitationId}` },
