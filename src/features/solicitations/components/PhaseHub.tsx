@@ -259,6 +259,37 @@ function PhaseCard({
           )}
         </ul>
 
+        {isGated && (
+          <div className="rounded-md border border-dashed p-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Client approval</span>
+              {approvalBadge}
+            </div>
+            {approval?.decided_at && (
+              <p className="text-xs text-muted-foreground">
+                {APPROVAL_LABEL[status]} by {approval.decided_by_name ?? "client"} on{" "}
+                {format(new Date(approval.decided_at), "PP")}
+              </p>
+            )}
+            {approval?.decision_note && (
+              <p className="text-xs italic text-muted-foreground">"{approval.decision_note}"</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {(status === "not_ready" || status === "approved") && onRequestApproval && (
+                <Button size="sm" variant="outline" onClick={onRequestApproval} disabled={isMutating}>
+                  <Send className="h-3.5 w-3.5 mr-1" />
+                  {status === "approved" ? "Re-request approval" : "Request client approval"}
+                </Button>
+              )}
+              {status === "changes_requested" && approval && onResetApproval && (
+                <Button size="sm" variant="outline" onClick={() => onResetApproval(approval.id)} disabled={isMutating}>
+                  <RotateCw className="h-3.5 w-3.5 mr-1" /> Reopen for review
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="pt-1">
           <Button
             variant={phase.state === "active" ? "default" : "outline"}
@@ -270,6 +301,7 @@ function PhaseCard({
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </div>
+
       </CardContent>
     </Card>
   );
