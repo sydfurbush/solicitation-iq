@@ -70,7 +70,7 @@ function drawFooter(ctx: Ctx) {
   doc.text(footerLeft, MARGIN.left, y - 4);
   doc.setFont(FONT_PDF, "italic");
   // Total page placeholder; stamped after layout.
-  doc.text(`Page ${ctx.page} of {{TOTAL}}`, PAGE.w - MARGIN.right, y - 4, { align: "right" });
+  doc.text(`Page ${ctx.page}`, PAGE.w - MARGIN.right, y - 4, { align: "right" });
 }
 
 function newPage(ctx: Ctx) {
