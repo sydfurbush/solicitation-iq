@@ -110,6 +110,31 @@ function phaseLabel(p?: string) {
   return PHASE_LABELS[p] ?? p.replace(/_/g, " ");
 }
 
+/* -------------------- Color & image helpers -------------------- */
+function normalizeHex(hex?: string): string | null {
+  if (!hex) return null;
+  const m = hex.replace("#", "").trim();
+  if (/^[0-9a-fA-F]{3}$/.test(m)) return m.split("").map((c) => c + c).join("").toUpperCase();
+  if (/^[0-9a-fA-F]{6}$/.test(m)) return m.toUpperCase();
+  return null;
+}
+
+function hexToRgb(hex: string | undefined, fallback: [number, number, number]): [number, number, number] {
+  const n = normalizeHex(hex);
+  if (!n) return fallback;
+  return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+}
+
+function hexNoHash(hex: string | undefined, fallback = "283C5A"): string {
+  return normalizeHex(hex) ?? fallback;
+}
+
+function pdfImageFormat(mime: string): "PNG" | "JPEG" | null {
+  if (mime.includes("png")) return "PNG";
+  if (mime.includes("jpeg") || mime.includes("jpg")) return "JPEG";
+  return null;
+}
+
 /* -------------------- PDF -------------------- */
 function renderPdf(doc: ExportDocument, opts: ExportOptions = {}): Blob {
   const pdf = new jsPDF({ unit: "pt", format: opts.pageSize ?? "letter" });
