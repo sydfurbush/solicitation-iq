@@ -63,7 +63,7 @@ export function useUpdateBrand() {
       });
       const { error } = await supabase
         .from("organizations")
-        .update({ settings: { ...settings, brand: cleaned } })
+        .update({ settings: { ...settings, brand: cleaned } as never })
         .eq("id", orgId);
       if (error) throw error;
     },
