@@ -672,13 +672,13 @@ function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeo
     for (const line of catLines) { doc.text(line, pillX + 5, cy); cy += 9; }
     // Source
     doc.setFont(FONT_PDF, "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     setText(doc, RGB.text);
-    let sy = ctx.y + padY + 10;
-    for (const line of srcLines) { doc.text(line, MARGIN.left + numW + catW + padX, sy); sy += 11; }
+    let sy = ctx.y + padY + 9;
+    for (const line of srcLines) { doc.text(line, MARGIN.left + numW + catW + padX, sy); sy += 10; }
     // Topic
-    let ty = ctx.y + padY + 10;
-    for (const line of topicLines) { doc.text(line, MARGIN.left + numW + catW + srcW + padX, ty); ty += 11; }
+    let ty = ctx.y + padY + 9;
+    for (const line of topicLines) { doc.text(line, MARGIN.left + numW + catW + srcW + padX, ty); ty += 10; }
     ctx.y += rowH;
   });
   ctx.y += 8;
