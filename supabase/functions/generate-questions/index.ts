@@ -459,7 +459,7 @@ Deno.serve(async (req) => {
     const runId = runRow?.id;
 
     console.log(
-      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} retry=${isRetry} crossDoc=${runCrossDoc} regenerate=${!!regenerate} runId=${runId} parentRunId=${parentRunId ?? "-"}`,
+      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} retry=${isRetry} crossDoc=${runCrossDoc} runId=${runId} parentRunId=${parentRunId ?? "-"}`,
     );
 
     const focusText = focusAreas?.length
