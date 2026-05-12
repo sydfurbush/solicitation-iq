@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, PlayCircle } from "lucide-react";
+import { Loader2, PlayCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useQueryClient } from "@tanstack/react-query";
