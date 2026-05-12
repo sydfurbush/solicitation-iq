@@ -40,6 +40,7 @@ interface Props {
   onSelectChange: (ids: string[]) => void;
   onArchive: (s: SolicitationWithClient) => void;
   onDelete: (s: SolicitationWithClient) => void;
+  onRestore?: (s: SolicitationWithClient) => void;
   onBulkArchive: () => void;
   onBulkExport: () => void;
 }
@@ -50,6 +51,7 @@ export function SolicitationsTable({
   onSelectChange,
   onArchive,
   onDelete,
+  onRestore,
   onBulkArchive,
   onBulkExport,
 }: Props) {
@@ -137,10 +139,11 @@ export function SolicitationsTable({
               const urgency = dueUrgency(s.proposal_due_date);
               const days = daysUntil(s.proposal_due_date);
               const checked = selectedIds.includes(s.id);
+              const isDeleted = !!s.deleted_at;
               return (
                 <TableRow
                   key={s.id}
-                  className="cursor-pointer"
+                  className={cn("cursor-pointer", isDeleted && "opacity-60")}
                   onClick={() => navigate(`/solicitations/${s.id}`)}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
@@ -172,9 +175,16 @@ export function SolicitationsTable({
                   <TableCell className="font-medium max-w-[280px] truncate">{s.title}</TableCell>
                   <TableCell className="text-muted-foreground">{s.issuing_agency ?? "—"}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={cn(STATUS_CLASSES[status])}>
-                      {STATUS_LABELS[status]}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className={cn(STATUS_CLASSES[status])}>
+                        {STATUS_LABELS[status]}
+                      </Badge>
+                      {isDeleted && (
+                        <Badge variant="outline" className="border-destructive/40 text-destructive">
+                          Deleted
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell
                     className={cn(
@@ -214,16 +224,24 @@ export function SolicitationsTable({
                         <DropdownMenuItem onClick={() => navigate(`/solicitations/${s.id}`)}>
                           Open
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onArchive(s)}>
-                          Archive
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => onDelete(s)}
-                        >
-                          Delete
-                        </DropdownMenuItem>
+                        {isDeleted && onRestore ? (
+                          <DropdownMenuItem onClick={() => onRestore(s)}>
+                            Restore
+                          </DropdownMenuItem>
+                        ) : (
+                          <>
+                            <DropdownMenuItem onClick={() => onArchive(s)}>
+                              Archive
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => onDelete(s)}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

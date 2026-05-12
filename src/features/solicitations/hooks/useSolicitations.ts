@@ -19,6 +19,7 @@ export interface SolicitationFilters {
   phases?: string[];
   dueFrom?: string;
   dueTo?: string;
+  includeDeleted?: boolean;
 }
 
 const LIST_KEY = (f: SolicitationFilters) => ["solicitations", f] as const;
@@ -49,7 +50,7 @@ export function useSolicitations(filters: SolicitationFilters = {}) {
   return useQuery({
     queryKey: LIST_KEY(filters),
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("solicitations")
         .select(
           `*,
@@ -59,9 +60,12 @@ export function useSolicitations(filters: SolicitationFilters = {}) {
            risks(id),
            opportunities(id)`
         )
-        .is("deleted_at", null)
         .is("documents.deleted_at", null)
         .order("created_at", { ascending: false });
+      if (!filters.includeDeleted) {
+        query = query.is("deleted_at", null);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       const rows: SolicitationWithClient[] = (data ?? []).map((row) => {
         const r = row as unknown as SolicitationRow & {
@@ -222,6 +226,23 @@ export function useDeleteSolicitation() {
       const { error } = await supabase
         .from("solicitations")
         .update({ deleted_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["solicitations"] });
+    },
+  });
+}
+
+export function useRestoreSolicitation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("solicitations")
+        .update({ deleted_at: null })
         .eq("id", id);
       if (error) throw error;
       return id;

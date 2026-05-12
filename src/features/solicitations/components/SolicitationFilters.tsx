@@ -154,6 +154,16 @@ export function SolicitationFilters({ value, onChange }: Props) {
           onChange={(v) => set({ dueTo: v })}
         />
 
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="h-3.5 w-3.5 accent-primary"
+            checked={!!value.includeDeleted}
+            onChange={(e) => set({ includeDeleted: e.target.checked })}
+          />
+          Show deleted
+        </label>
+
         {hasFilters && (
           <Button size="sm" variant="ghost" onClick={clear}>
             Clear all

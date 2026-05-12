@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { AlertTriangle, Archive, FileText, HelpCircle, MoreVertical, ShieldAlert, Clock, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, FileText, HelpCircle, MoreVertical, RotateCcw, ShieldAlert, Clock, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ interface Props {
   solicitation: SolicitationWithClient;
   onArchive?: (s: SolicitationWithClient) => void;
   onDelete?: (s: SolicitationWithClient) => void;
+  onRestore?: (s: SolicitationWithClient) => void;
 }
 
 function clientInitials(name: string) {
@@ -40,18 +41,22 @@ function clientInitials(name: string) {
     .toUpperCase();
 }
 
-export function SolicitationCard({ solicitation: s, onArchive, onDelete }: Props) {
+export function SolicitationCard({ solicitation: s, onArchive, onDelete, onRestore }: Props) {
   const navigate = useNavigate();
   const status = (s.status ?? "intake") as SolicitationStatus;
   const urgency = dueUrgency(s.proposal_due_date);
   const days = daysUntil(s.proposal_due_date);
   const setAside = (s as { set_aside?: string | null }).set_aside;
-  const hasMenu = !!(onArchive || onDelete);
+  const isDeleted = !!s.deleted_at;
+  const hasMenu = !!(onArchive || onDelete || onRestore);
 
   return (
     <Card
       onClick={() => navigate(`/solicitations/${s.id}`)}
-      className="cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
+      className={cn(
+        "cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5",
+        isDeleted && "opacity-60 border-dashed"
+      )}
     >
       <CardContent className="p-5 space-y-4">
         <div className="flex items-center gap-2">
@@ -69,6 +74,11 @@ export function SolicitationCard({ solicitation: s, onArchive, onDelete }: Props
           <Badge variant="outline" className={cn("ml-auto capitalize", STATUS_CLASSES[status])}>
             {STATUS_LABELS[status]}
           </Badge>
+          {isDeleted && (
+            <Badge variant="outline" className="border-destructive/40 text-destructive">
+              Deleted
+            </Badge>
+          )}
           {hasMenu && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -83,13 +93,18 @@ export function SolicitationCard({ solicitation: s, onArchive, onDelete }: Props
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                {onArchive && (
+                {isDeleted && onRestore && (
+                  <DropdownMenuItem onClick={() => onRestore(s)}>
+                    <RotateCcw className="mr-2 h-4 w-4" /> Restore
+                  </DropdownMenuItem>
+                )}
+                {!isDeleted && onArchive && (
                   <DropdownMenuItem onClick={() => onArchive(s)}>
                     <Archive className="mr-2 h-4 w-4" /> Archive
                   </DropdownMenuItem>
                 )}
-                {onArchive && onDelete && <DropdownMenuSeparator />}
-                {onDelete && (
+                {!isDeleted && onArchive && onDelete && <DropdownMenuSeparator />}
+                {!isDeleted && onDelete && (
                   <DropdownMenuItem
                     onClick={() => onDelete(s)}
                     className="text-destructive focus:text-destructive"

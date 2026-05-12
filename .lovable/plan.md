@@ -1,92 +1,34 @@
+# Why your data looks missing
 
-# Client Approval Gates — Full & Restricted Access
+Your account (sfurbush@emergenceconsultinggroup.com → org **Emergence CG**) has 4 solicitations under client **Inverness**, but the list filters them out:
 
-Add a lightweight client-approval workflow at the end of Phases 1, 2, and 3. Both Full and Restricted clients can approve; staff cannot advance the solicitation's `current_phase` until the gate is approved (or staff explicitly override).
+| Title | Status | Why hidden |
+|---|---|---|
+| Transition assistance program (TAP) | intake | soft-deleted May 10 |
+| Army Transition Assistance Program Services | intake | soft-deleted May 10 |
+| W9124D26RA001 | archived | not surfaced by default |
+| Army Transition Assistance Program Services | phase_1_complete | should be visible |
 
-## Access matrix
+The list query in `useSolicitations` excludes `deleted_at IS NOT NULL`, and there's currently no UI to view archived/deleted items.
 
-| Area | Full | Restricted | Summary |
-|---|---|---|---|
-| Overview (title, dates, summary, contract) | ✓ | ✓ | ✓ |
-| Reports (published + client_accessible) | ✓ | ✓ | ✓ |
-| Phase approval banner + Approve/Request Changes | ✓ | ✓ | — |
-| Analysis (key requirements) | ✓ | — | — |
-| Strategic Questions | ✓ | — | — |
-| Annotations (read + create) | ✓ | — | — |
+# Plan
 
-Restricted gains the approval UI on Overview; everything else stays as today.
+## 1. One-time data restore
+Run an UPDATE on `solicitations` to clear `deleted_at` for the two soft-deleted rows:
+- `8ef773ec-9d3f-4c4f-a630-dd9981c4decb`
+- `a86e3111-f505-4e85-8f82-7c74be52cf59`
 
-## Approval gates
+You can re-archive or re-delete them from the UI afterward if you don't want them.
 
-Three gates, one per phase end:
+## 2. Add "Include archived / deleted" controls to the Solicitations list
+- Extend `SolicitationFilters` with `includeArchived?: boolean` and `includeDeleted?: boolean` (both default `false` to preserve current behavior).
+- Update `useSolicitations` query: only apply `.is("deleted_at", null)` when `!includeDeleted`; filter out `status = 'archived'` client-side unless `includeArchived` is on.
+- Add two toggles (checkboxes) to `FiltersBar` next to the existing status filter.
+- In the row actions menu, when a deleted row is shown, swap the "Archive" action for **Restore** (clears `deleted_at`). When an archived row is shown, add **Unarchive** (sets status back to `phase_1_complete` or previous — simplest: set to `intake` with confirmation, or just expose the existing status dropdown).
+- Visually mark deleted rows (muted row + "Deleted" badge) and archived rows ("Archived" badge) so they're distinguishable.
 
-1. **Phase 1 → Phase 2** — approves initial summary, key dates, risks
-2. **Phase 2 → Phase 3** — approves RTM, section analysis, capability gaps
-3. **Phase 3 → Phase 4** — approves proposal outline
+## Scope guardrails
+- No RLS changes — your org already owns these rows, they were just hidden by client-side filters and soft-delete.
+- No changes to portal views or other pages.
 
-Any client portal user can approve. First decision wins; can be reset by staff.
-
-## Status model
-
-Each gate has one of: `pending_review` · `approved` · `changes_requested` · `not_ready` (staff hasn't requested review yet).
-
-Lifecycle:
-```
-not_ready  → (staff: "Request client approval")
-pending_review → (client: Approve)             → approved
-              → (client: Request changes + note) → changes_requested
-                                                 → (staff resets) → pending_review
-```
-
-Staff `Advance Phase` button is disabled while the current phase's gate is `pending_review`, `changes_requested`, or `not_ready` (with an override toggle for owners/admins).
-
-## UI
-
-**Client portal (`PortalSolicitationDetail`)**
-- Top action banner when a gate is `pending_review`: "Phase 2 deliverables are ready for your review" + **Approve** / **Request changes** buttons (textarea on request).
-- Per-phase status strip below the title: 4 pills (Initial · Deep Dive · Outline · Win Themes), each showing badge color:
-  - gray = not_ready
-  - amber pulse = pending_review
-  - red = changes_requested
-  - green check = approved
-- Overview tab: "Approvals" card listing each gate with status, approver name, timestamp, and any change-request note.
-
-**Staff (`SolicitationDetail` / `PhaseHub`)**
-- Each `PhaseCard` gets an approval row: status badge + "Request client approval" button (when `not_ready` and phase complete) or "Reopen for review" (when `changes_requested`).
-- `AdvancePhaseButton` blocked with tooltip if gate not approved; admin override checkbox.
-- Activity log entries on every state change.
-
-## Technical details
-
-**New table `phase_approvals`**
-- `id`, `solicitation_id`, `phase` (phase_type enum), `status` (text: not_ready/pending_review/approved/changes_requested), `requested_at`, `requested_by` (staff uuid), `decided_at`, `decided_by` (client_user uuid), `decided_by_name` (text snapshot), `decision_note` (text), `created_at`, `updated_at`
-- Unique on `(solicitation_id, phase)`
-- RLS:
-  - Staff in org: full ALL via `is_org_staff` + client/org join (mirror existing pattern)
-  - Client users: SELECT where `solicitation_id` belongs to `current_client_id()` (regardless of access_level so Restricted can see)
-  - Client users: UPDATE `status`, `decided_at`, `decided_by`, `decision_note` where same condition AND `status = 'pending_review'`
-- Trigger: on UPDATE log to `activity_log`
-
-**Hooks**
-- `usePhaseApprovals(solicitationId)` — list/subscribe (realtime publication add)
-- `useRequestApproval()` — staff sets `pending_review`
-- `useDecideApproval()` — client approve / request changes
-- `useResetApproval()` — staff move back to `pending_review`
-
-**Gate enforcement**
-- `useAdvancePhase` checks the row for `from` phase; throws if not `approved` unless `override=true` passed by admin.
-
-**Files to add/modify**
-- New migration: `phase_approvals` table + RLS + trigger + realtime
-- New `src/features/phases/hooks/usePhaseApprovals.ts`
-- New `src/features/phases/components/PhaseApprovalStrip.tsx` (shared by staff + portal)
-- New `src/features/phases/components/ApprovalActionBanner.tsx` (portal)
-- Edit `src/pages/portal/PortalSolicitationDetail.tsx` — banner + strip + Approvals card; remove the `hasFullAccess` gate around the approval UI
-- Edit `src/features/solicitations/components/PhaseHub.tsx` — render approval status row + request button
-- Edit `src/features/phases/components/AdvancePhaseButton.tsx` — block + override
-- Edit `src/features/solicitations/hooks/usePhaseProgression.ts` — validate gate
-
-## Out of scope (call out, not building)
-- Per-report or per-question approvals
-- Email/SMS notifications on gate state changes (in-app `client_notifications` row only)
-- Designated-approver restriction (any client user can approve for now)
+Approve and I'll run the data restore migration first, then implement the toggle + restore UI.
