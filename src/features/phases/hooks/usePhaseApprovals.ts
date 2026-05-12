@@ -95,6 +95,11 @@ export function useDecideApproval(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { approvalId: string; decision: "approved" | "changes_requested"; note?: string; deciderName?: string | null }) => {
+      const { validateNote } = await import("../validators");
+      const required = input.decision === "changes_requested";
+      const note = input.note?.trim() ?? "";
+      const err = validateNote(note, required);
+      if (err) throw new Error(err);
       const { data: u } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("phase_approvals")
@@ -103,7 +108,7 @@ export function useDecideApproval(solicitationId: string | undefined) {
           decided_at: new Date().toISOString(),
           decided_by: u.user?.id ?? null,
           decided_by_name: input.deciderName ?? null,
-          decision_note: input.note ?? null,
+          decision_note: note || null,
         })
         .eq("id", input.approvalId);
       if (error) throw error;
