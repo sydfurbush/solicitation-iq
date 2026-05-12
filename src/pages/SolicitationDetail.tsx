@@ -33,6 +33,10 @@ import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicat
 import { PhaseHub, type HubStep } from "@/features/solicitations/components/PhaseHub";
 import { PhaseShell } from "@/features/solicitations/components/PhaseShell";
 import { SolicitationActionsMenu } from "@/features/solicitations/components/SolicitationActionsMenu";
+import { StageBadge } from "@/features/solicitations/components/StageBadge";
+import { AddFinalSolicitationDialog } from "@/features/solicitations/components/AddFinalSolicitationDialog";
+import { useChildSolicitation } from "@/features/solicitations/hooks/useFinalFromPreSol";
+import type { SolicitationStage } from "@/features/solicitations/lib/stage";
 import { SolicitationOverview } from "@/features/solicitations/components/SolicitationOverview";
 import {
   STATUS_CLASSES,
@@ -296,6 +300,11 @@ export default function SolicitationDetail() {
                 {s.solicitation_number}
               </Badge>
             )}
+            <StageBadge stage={(s as { stage?: string }).stage} label={(s as { stage_label?: string | null }).stage_label} />
+            <ParentChildLinks
+              solId={s.id}
+              parentId={(s as { parent_solicitation_id?: string | null }).parent_solicitation_id ?? null}
+            />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
           <div className="flex items-center gap-3 flex-wrap">
