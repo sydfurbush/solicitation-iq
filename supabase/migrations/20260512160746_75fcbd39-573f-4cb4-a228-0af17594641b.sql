@@ -1,0 +1,2 @@
+REVOKE ALL ON FUNCTION public.clone_solicitation_for_stage(uuid, public.solicitation_stage, text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.clone_solicitation_for_stage(uuid, public.solicitation_stage, text, text) TO authenticated;
