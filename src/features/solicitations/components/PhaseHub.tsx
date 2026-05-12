@@ -328,7 +328,7 @@ function PhaseCard({
                   !s.onClick && "cursor-default",
                 )}
               >
-                <StateDot state={s.state ?? "todo"} />
+                <StateDot state={s.state ?? "todo"} phase={phase.phase} />
                 <span className="flex-1 truncate">{s.label}</span>
                 {typeof s.count === "number" && (
                   <span className="text-xs text-muted-foreground tabular-nums">{s.count}</span>
