@@ -13,6 +13,7 @@ import { ClientReportViewer } from "@/features/portal/components/ClientReportVie
 import { usePhaseApprovals, APPROVAL_LABEL, type PhaseApproval } from "@/features/phases/hooks/usePhaseApprovals";
 import { PhaseApprovalStrip } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalActionBanner } from "@/features/phases/components/ApprovalActionBanner";
+import { ApprovalsTimeline } from "@/features/phases/components/ApprovalsTimeline";
 import { type PhaseType } from "@/lib/validators/solicitation";
 
 const PHASE_LABELS: Record<PhaseType, string> = {
