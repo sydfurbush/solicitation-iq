@@ -26,10 +26,13 @@ export function useDocumentsReadiness(
   const { data: documents = [] } = useDocuments(solicitationId);
 
   // Realtime: invalidate the documents query whenever a doc row changes for this solicitation.
+  // Channel name must be unique per hook instance — multiple components may mount this hook
+  // for the same solicitation, and reusing a name re-subscribes to an already-open channel.
   useEffect(() => {
     if (!solicitationId) return;
+    const channelName = `docs-readiness-${solicitationId}-${Math.random().toString(36).slice(2, 10)}`;
     const channel = supabase
-      .channel(`docs-readiness-${solicitationId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
