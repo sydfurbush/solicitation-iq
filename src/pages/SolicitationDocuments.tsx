@@ -74,9 +74,7 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
           </div>
           <div>
             <h2 className="text-xl font-semibold">Documents</h2>
-            <p className="text-xs text-muted-foreground">
-              {stats.analyzed} of {stats.total} document{stats.total === 1 ? "" : "s"} analyzed
-            </p>
+            <DocumentReadinessBadge readiness={readiness} />
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
