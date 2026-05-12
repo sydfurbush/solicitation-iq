@@ -122,18 +122,49 @@ export function ExportMenu({ build, disabled, label = "Export", solicitationId, 
       await tick(20, "Building cover & sections…");
       await tick(45, format === "pdf" ? "Rendering PDF pages…" : "Rendering Word document…");
 
-      await exportDocument({ ...doc, sections }, format, {
-        pageSize,
-        filenameBase: filename || doc.filenameBase,
-        version,
-        noCover: !includeCover,
-      });
+      const { blob, filename: outName } = await buildExportBlob(
+        { ...doc, sections },
+        format,
+        {
+          pageSize,
+          filenameBase: filename || doc.filenameBase,
+          version,
+          noCover: !includeCover,
+        },
+      );
 
-      await tick(95, "Saving file…");
+      await tick(80, "Saving file…");
+      saveAs(blob, outName);
+
+      if (solicitationId && kind) {
+        try {
+          await tick(90, "Recording in history…");
+          await saveExport.mutateAsync({
+            solicitationId,
+            kind,
+            format,
+            filename: outName,
+            blob,
+            version: includeCover ? version : null,
+            pageSize,
+            sections: sections.map((s) => s.heading),
+          });
+        } catch (histErr) {
+          // Non-fatal: download succeeded
+          console.warn("Export history save failed", histErr);
+          toast({
+            title: "Saved locally, history not recorded",
+            description: histErr instanceof Error ? histErr.message : String(histErr),
+            variant: "destructive",
+          });
+        }
+      }
+
       await tick(100, "Done");
       toast({ title: "Export ready", description: `${format.toUpperCase()} downloaded.` });
       // brief pause so the user sees 100% before close
       setTimeout(() => setOpen(false), 350);
+
     } catch (e) {
       toast({
         title: "Export failed",
