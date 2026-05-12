@@ -13,10 +13,34 @@ import {
   WidthType,
   AlignmentType,
   PageBreak,
+  Header,
+  Footer,
+  PageNumber,
+  ImageRun,
+  BorderStyle,
 } from "docx";
 
 export type ExportFormat = "pdf" | "docx";
 export type ExportPageSize = "letter" | "a4";
+
+/** Brand template applied at export time (resolved by the caller). */
+export interface BrandOptions {
+  primaryColor?: string;
+  accentColor?: string;
+  firmName?: string;
+  headerText?: string;
+  footerText?: string;
+  showPageNumbers?: boolean;
+  showLogoOnCover?: boolean;
+  /** Pre-fetched logo (caller is responsible for downloading and converting). */
+  logo?: {
+    dataUrl: string;
+    mime: string;
+    /** Natural width/height in px — used to preserve aspect ratio. */
+    widthPx: number;
+    heightPx: number;
+  };
+}
 
 export interface ExportOptions {
   pageSize?: ExportPageSize;
@@ -26,6 +50,8 @@ export interface ExportOptions {
   version?: string;
   /** Suppress the cover page (defaults to false). */
   noCover?: boolean;
+  /** Resolved brand template — falls back to neutral defaults. */
+  brand?: BrandOptions;
 }
 
 export interface ExportCover {
