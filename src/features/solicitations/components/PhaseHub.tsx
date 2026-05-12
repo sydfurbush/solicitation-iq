@@ -88,6 +88,7 @@ export function PhaseHub({
   onOpenPhase,
   onWorkspace,
   solicitationId,
+  solicitation,
 }: Props) {
   const { byPhase } = usePhaseApprovals(solicitationId);
   const requestApproval = useRequestApproval(solicitationId);
