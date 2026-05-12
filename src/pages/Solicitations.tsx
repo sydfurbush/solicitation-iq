@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   useDeleteSolicitation,
+  useRestoreSolicitation,
   useSolicitations,
   useUpdateSolicitationStatus,
   type SolicitationFilters as Filters,
