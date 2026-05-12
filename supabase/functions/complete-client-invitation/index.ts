@@ -37,15 +37,7 @@ Deno.serve(async (req) => {
       return json({ error: 'Invitation expired' }, 410);
     }
 
-    // Check if a user with this email already exists
     let userId: string | null = null;
-    const { data: existing } = await admin.auth.admin.listUsers({ page: 1, perPage: 1 });
-    // listUsers doesn't filter by email; use getUserByEmail via REST workaround:
-    const { data: byEmail } = await admin
-      .rpc('noop_placeholder')
-      .then(() => ({ data: null }))
-      .catch(() => ({ data: null }));
-    void existing; void byEmail;
 
     // Try to create the auth user
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
