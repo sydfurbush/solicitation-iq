@@ -1,38 +1,36 @@
-# Fix Quick Reference Index Overflow
+# Show scoring weight on every section card
 
-## Root Cause
-The Quick Reference Index table renders overflow because the **Source** column contains long unbreakable filename tokens like `IB01_Draft+RFP+Solicitation+-+W9124D26RA041+Professional+Appearance+(20260508).pdf` joined by `+`, `_`, `/`, `.` with **no whitespace**. Both renderers wrap on whitespace only, so these tokens push the column past the right page edge.
+## Approach
+Keep the AI's existing **stated** `scoring_weight` (numeric % from Section M) and add an **AI-inferred importance score** (1–5) for every section. Display both, clearly labeled, so consultants always see a value.
 
-- `wordGenerator.ts` `indexTable()` — column widths sum correctly to `CONTENT_W` (9360 DXA), but Word can't break unbreakable strings, so the cell visually overruns.
-- `pdfGenerator.ts` `drawIndexTable()` — uses jsPDF `splitTextToSize` which only breaks on spaces; long tokens render past `srcW`.
+## Schema change
+Add to `section_analyses`:
+- `importance_score` smallint (1–5, AI-inferred relative importance)
+- `weight_source` text — `'stated'` when the source supplies a numeric weight, `'inferred'` otherwise, `null` when neither set
 
-## Fix (presentation-only, no schema/business changes)
+`scoring_weight` (existing numeric) stays as-is for stated weights.
 
-### 1. New helper `src/features/reports/utils/textBreaks.ts`
-Two utilities:
-- `softBreakWord(s)` — insert U+200B (zero-width space) after `+`, `_`, `/`, `\`, `.`, `-` inside long tokens (>16 chars). Used for Word, where U+200B is a valid wrap opportunity.
-- `hardBreakWord(s, maxChars)` — same boundaries but inserts a regular space (so jsPDF's `splitTextToSize` can wrap). Used for PDF.
+## Edge function (`supabase/functions/analyze-sections/index.ts`)
+Update the prompt and JSON schema to require for every section:
+- `scoring_weight` — number or null (only when source explicitly states a point value or %)
+- `importance_score` — integer 1–5 (always required; reflects the section's strategic weight to the proposal: evaluation factors → 5, PWS/SOW core scope → 4, instructions/admin → 2, boilerplate/SF forms → 1)
+- `importance_rationale` — short string (≤140 chars) explaining the score
 
-Apply only to long tokens (length > ~16) so normal text is untouched.
+Insert logic sets `weight_source = scoring_weight ? 'stated' : 'inferred'`.
 
-### 2. `wordGenerator.ts` — `indexTable()`
-- Run `softBreakWord(r.source)` and `softBreakWord(r.topic)` before rendering.
-- Slightly rebalance widths to give Source breathing room: `numW=480`, `catW=1600`, `srcW=2600`, `topicW=CONTENT_W - rest` (was 1800/2200).
-- Drop body font from size 18 (9pt) to 16 (8pt) for index rows only.
+## UI (`src/pages/SolicitationDeepDive.tsx`)
+Replace the current single conditional `Weight` badge with a small two-state badge group on every card header:
+- If `scoring_weight` set → solid badge `Weight: {n}%` tagged "Stated" (phase-2 violet).
+- Else → outline badge `Importance: {1–5}` tagged "AI" with a tooltip showing `importance_rationale`.
+- Keep the existing `{n} flags` amber badge.
 
-### 3. `pdfGenerator.ts` — `drawIndexTable()`
-- Run `hardBreakWord()` on `r.source` and `r.topic` before passing to `wrap()`.
-- Same width rebalance: `numW=28`, `catW=95`, `srcW=150`, `topicW=CONTENT_W - rest`.
-- Reduce body font to 8pt to match.
+Also include the same fields in the report block emitted from this page so they appear in exports.
 
-### 4. Verification
-After edits, generate a Client Strategic Questionnaire on the affected solicitation and confirm:
-- Word: no column overflows the right margin; long filenames wrap mid-token.
-- PDF: same — re-render at 150dpi and visually inspect page containing the index.
+## Backfill
+After deploy, the existing rows on solicitation `0d2c19f3-…` show no importance. The user can hit **Regenerate** on the Section Analysis tab to repopulate, or we trigger a one-time backfill via the same edge function — recommend the manual Regenerate path (no extra code).
 
-## Files changed
-- new `src/features/reports/utils/textBreaks.ts`
-- edit `src/features/reports/utils/wordGenerator.ts` (indexTable only)
-- edit `src/features/reports/utils/pdfGenerator.ts` (drawIndexTable only)
-
-No backend, no DB, no template/prompt changes.
+## Files touched
+- migration: add 2 columns on `section_analyses`
+- `supabase/functions/analyze-sections/index.ts` — prompt, schema, insert payload
+- `src/pages/SolicitationDeepDive.tsx` — render two-state badge + tooltip
+- `src/integrations/supabase/types.ts` regenerates automatically
