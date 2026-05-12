@@ -55,6 +55,7 @@ interface Props {
   buildSteps: (phase: PhaseType) => HubStep[];
   onOpenPhase: (phase: PhaseType) => void;
   onWorkspace: (key: "reports" | "comparison" | "activity") => void;
+  solicitationId?: string;
 }
 
 function StateDot({ state }: { state: StepState }) {
