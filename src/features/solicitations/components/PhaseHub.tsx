@@ -46,6 +46,45 @@ const PHASE_LABELS: Record<PhaseType, string> = {
   phase_4_win_themes: "Win Themes",
 };
 
+const PHASE_COLORS: Record<PhaseType, { bg: string; bgSoft: string; text: string; border: string; ring: string; badge: string; button: string }> = {
+  phase_1_initial: {
+    bg: "bg-[hsl(var(--phase-1))]",
+    bgSoft: "bg-[hsl(var(--phase-1)/0.15)]",
+    text: "text-[hsl(var(--phase-1))]",
+    border: "border-[hsl(var(--phase-1)/0.6)]",
+    ring: "ring-[hsl(var(--phase-1)/0.3)]",
+    badge: "bg-[hsl(var(--phase-1)/0.15)] text-[hsl(var(--phase-1))] border-[hsl(var(--phase-1)/0.3)]",
+    button: "bg-[hsl(var(--phase-1))] hover:bg-[hsl(var(--phase-1)/0.9)] text-white",
+  },
+  phase_2_deep_dive: {
+    bg: "bg-[hsl(var(--phase-2))]",
+    bgSoft: "bg-[hsl(var(--phase-2)/0.15)]",
+    text: "text-[hsl(var(--phase-2))]",
+    border: "border-[hsl(var(--phase-2)/0.6)]",
+    ring: "ring-[hsl(var(--phase-2)/0.3)]",
+    badge: "bg-[hsl(var(--phase-2)/0.15)] text-[hsl(var(--phase-2))] border-[hsl(var(--phase-2)/0.3)]",
+    button: "bg-[hsl(var(--phase-2))] hover:bg-[hsl(var(--phase-2)/0.9)] text-white",
+  },
+  phase_3_outline: {
+    bg: "bg-[hsl(var(--phase-3))]",
+    bgSoft: "bg-[hsl(var(--phase-3)/0.15)]",
+    text: "text-[hsl(var(--phase-3))]",
+    border: "border-[hsl(var(--phase-3)/0.6)]",
+    ring: "ring-[hsl(var(--phase-3)/0.3)]",
+    badge: "bg-[hsl(var(--phase-3)/0.15)] text-[hsl(var(--phase-3))] border-[hsl(var(--phase-3)/0.3)]",
+    button: "bg-[hsl(var(--phase-3))] hover:bg-[hsl(var(--phase-3)/0.9)] text-white",
+  },
+  phase_4_win_themes: {
+    bg: "bg-[hsl(var(--phase-4))]",
+    bgSoft: "bg-[hsl(var(--phase-4)/0.15)]",
+    text: "text-[hsl(var(--phase-4))]",
+    border: "border-[hsl(var(--phase-4)/0.6)]",
+    ring: "ring-[hsl(var(--phase-4)/0.3)]",
+    badge: "bg-[hsl(var(--phase-4)/0.15)] text-[hsl(var(--phase-4))] border-[hsl(var(--phase-4)/0.3)]",
+    button: "bg-[hsl(var(--phase-4))] hover:bg-[hsl(var(--phase-4)/0.9)] text-white",
+  },
+};
+
 const PHASE_BLURBS: Record<PhaseType, string> = {
   phase_1_initial: "Set up the file: docs, analysis, questions, risks.",
   phase_2_deep_dive: "Build the RTM, section analysis, and capability gaps.",
