@@ -18,8 +18,10 @@ import {
   type DocumentRow,
 } from "@/features/documents/hooks/useDocuments";
 import { DocumentList } from "@/features/documents/components/DocumentList";
+import { DocumentReadinessBadge } from "@/features/documents/components/DocumentReadinessBadge";
 import { DocumentUploader } from "@/features/documents/components/DocumentUploader";
 import { DocumentsEmptyState } from "@/features/documents/components/DocumentsEmptyState";
+import { useDocumentsReadiness } from "@/features/documents/hooks/useDocumentsReadiness";
 import { DocumentViewer } from "@/features/documents/components/DocumentViewer";
 import { DocumentVersionHistory } from "@/features/documents/components/DocumentVersionHistory";
 import { ProcessAllDocuments } from "@/features/documents/components/ProcessAllDocuments";
