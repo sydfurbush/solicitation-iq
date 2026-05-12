@@ -53,7 +53,10 @@ export function SolicitationCard({ solicitation: s, onArchive, onDelete, onResto
   return (
     <Card
       onClick={() => navigate(`/solicitations/${s.id}`)}
-      className="cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5"
+      className={cn(
+        "cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5",
+        isDeleted && "opacity-60 border-dashed"
+      )}
     >
       <CardContent className="p-5 space-y-4">
         <div className="flex items-center gap-2">
