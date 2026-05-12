@@ -88,9 +88,9 @@ Deno.serve(async (req) => {
       .order("sort_order", { ascending: true });
 
     const docBlocks = documents.map((d) => {
-      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 80);
+      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 40);
       const txt = ds
-        .map((s) => `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 4000)}`)
+        .map((s) => `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 1800)}`)
         .join("\n\n");
       return `=== DOCUMENT: ${d.file_name} ===\n${txt}`;
     }).join("\n\n");
