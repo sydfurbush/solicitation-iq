@@ -39,7 +39,6 @@ interface Props {
 export function GenerateQuestionsDialog({ solicitationId, documents, hasExistingAi, open, onOpenChange }: Props) {
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [docIds, setDocIds] = useState<string[]>([]);
-  const [regenerate, setRegenerate] = useState(false);
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [stepLog, setStepLog] = useState<string[]>([]);
   const lastStepRef = useRef<string | null>(null);
