@@ -43,11 +43,7 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
   const [confirmDelete, setConfirmDelete] = useState<DocumentRow | null>(null);
 
   const docs = documents ?? [];
-  const stats = useMemo(() => {
-    const total = docs.length;
-    const analyzed = docs.filter((d) => d.status === "analyzed").length;
-    return { total, analyzed };
-  }, [docs]);
+  const readiness = useDocumentsReadiness(solicitationId);
 
   if (isLoading) {
     return (
