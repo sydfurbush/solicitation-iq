@@ -189,10 +189,6 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
             </ScrollArea>
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={regenerate} onCheckedChange={(c) => setRegenerate(c === true)} />
-            Replace existing AI-generated questions
-          </label>
 
           {generate.isPending && progress && (
             <Alert>
