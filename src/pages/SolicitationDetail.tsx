@@ -55,6 +55,7 @@ import SolicitationWinThemes from "./SolicitationWinThemes";
 import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
 import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
+import { PhaseHelpPanel } from "@/features/solicitations/components/PhaseHelpPanel";
 
 const PHASE_1_STEPS = [
   { key: "overview", label: "Overview" },
@@ -368,24 +369,28 @@ export default function SolicitationDetail() {
           </NavBtn>
 
           {/* Phase 1 with sub-step menu */}
-          <PhaseNavMenu
-            label={phaseLabelByKey["phase-1"]}
-            active={tab === "phase-1"}
-            steps={PHASE_1_STEPS}
-            activeStep={tab === "phase-1" ? (step ?? "overview") : undefined}
-            onPick={(k) => goTab("phase-1", k)}
-            onOpen={() => goTab("phase-1", "overview")}
-          />
+          <div className="inline-flex items-center">
+            <PhaseNavMenu
+              label={phaseLabelByKey["phase-1"]}
+              active={tab === "phase-1"}
+              steps={PHASE_1_STEPS}
+              activeStep={tab === "phase-1" ? (step ?? "overview") : undefined}
+              onPick={(k) => goTab("phase-1", k)}
+              onOpen={() => goTab("phase-1", "overview")}
+              phase="phase_1_initial"
+            />
+            <PhaseHelpPanel phase="phase_1_initial" />
+          </div>
 
-          <NavBtn active={tab === "phase-2"} onClick={() => goTab("phase-2")}>
+          <PhaseNavBtn phase="phase_2_deep_dive" active={tab === "phase-2"} onClick={() => goTab("phase-2")}>
             {phaseLabelByKey["phase-2"]}
-          </NavBtn>
-          <NavBtn active={tab === "phase-3"} onClick={() => goTab("phase-3")}>
+          </PhaseNavBtn>
+          <PhaseNavBtn phase="phase_3_outline" active={tab === "phase-3"} onClick={() => goTab("phase-3")}>
             {phaseLabelByKey["phase-3"]}
-          </NavBtn>
-          <NavBtn active={tab === "phase-4"} onClick={() => goTab("phase-4")}>
+          </PhaseNavBtn>
+          <PhaseNavBtn phase="phase_4_win_themes" active={tab === "phase-4"} onClick={() => goTab("phase-4")}>
             {phaseLabelByKey["phase-4"]}
-          </NavBtn>
+          </PhaseNavBtn>
 
           <WorkspaceNavMenu
             active={tab === "reports" || tab === "comparison" || tab === "activity"}
