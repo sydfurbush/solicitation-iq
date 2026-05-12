@@ -1,84 +1,82 @@
-# Strategic Questions Brief — Branded Format
+## Goal
 
-Reformat the `questions_brief` report so PDF and DOCX output mirrors the uploaded samples: cover hero, stats strip, color-coded category sections, and a styled card per question.
+Add a new report type **Client Strategic Questionnaire** to the report list. It reuses the branded styling we built for the existing Strategic Questions Brief and adds the additional structural sections shown in the uploaded V2 sample (`Inverness_Strategic_Questions_Brief_V2.docx`):
 
-## What changes (visual)
+1. Cover page (firm name, title, sol#, agency, generated date)
+2. Stats strip (Submitted / Strategic Hold / Internal Only / Issue Categories)
+3. Executive Summary block
+4. Issue Category Legend (2-column grid with color dot, name, count, description)
+5. Quick Reference Index (single table: # · Category · Source · Topic/Summary, all submitted questions)
+6. Per-question detail pages — `Question N | CATEGORY | Source` header, "Question to Ask" body, Source row, Rationale row
+7. Strategic Hold Questions section (same per-question card style)
+8. Internal Only Items section
 
-1. **Cover page** (already mostly there) — keep navy hero with `EXECUTIVE REPORT` eyebrow, title, sol# + generated date. Add a thin amber accent bar on the left of the hero.
-2. **Stats strip** — directly under the hero on the cover, render a 5-up tile row(s):
-   - Total Questions, Contradictions, Risk Concerns, Quantitative Gaps, Drafting Errors,
-   - Compliance, Clarifications, Scope Expansion, Strategic Hold, Internal Items.
-   - Tile = light grey value cell on top, navy label cell underneath (matches sample image-22).
-3. **Section headers** — `SUBMITTED QUESTIONS`, `STRATEGIC HOLD QUESTIONS`, `INTERNAL DISCUSSION ITEMS` rendered as a 2-row band: thin grey row on top, full-width navy bar with white uppercase title underneath.
-4. **Per-category band** inside Submitted Questions — full-width grey bar reading e.g. `CONTRADICTIONS (29 questions)`, in the category color.
-5. **Question card** — replaces the current bullet list. Each card has:
-   - Left amber gold rule (accent),
-   - Two-column row: left tinted cell with `Q##` and a colored category badge (`CONTRADICTION`, `RISK CONCERN`, `QUANTITATIVE GAP`, `COMPLIANCE`, `DRAFTING ERROR`, `CLARIFICATION`, `SCOPE EXPANSION`, `STRATEGIC`),
-   - Right cell with question text, italic `Rationale:` line, amber `Source:` line.
-6. **Page header** — `INVERNESS | W9124D26RA041 | CONFIDENTIAL` (client | sol# | confidential), thin amber rule under it.
-7. **Page footer** — `Strategic Questions Brief — {title}  |  Page X of Y`.
+## Where it lives in the UI
 
-## Category color map
+- New entry in `REPORT_TYPES` array (`src/features/reports/templates/types.ts`) with id `client_questionnaire`, title "Client Strategic Questionnaire", description "Client-ready questionnaire: cover, executive summary, legend, index, full Q&A detail."
+- Icon mapping in `ReportTypeSelector.tsx` (use `ClipboardList` from lucide).
+- Appears alongside existing cards in `/solicitations/:id?tab=reports`.
 
-| Category | Badge bg / band tint |
-|---|---|
-| contradiction | navy `#1E3A5F` / light navy tint |
-| risk concern | coral `#E57373` / `#FBEAEA` |
-| quantitative gap | green `#2E7D32` / `#E8F3EA` |
-| compliance | teal `#26A69A` / `#E0F2F1` |
-| drafting error | purple `#9575CD` / `#EDE7F6` |
-| clarification | sky `#42A5F5` / `#E3F2FD` |
-| scope expansion | amber `#F4A95B` / `#FFF3E0` |
-| strategic | pink `#EC407A` / `#FCE4EC` |
+## Generation pipeline
 
-Map computed from `category` (case-insensitive, normalized).
-
-## Technical changes
+`supabase/functions/generate-report/index.ts` adds a branch when `reportType === "client_questionnaire"` that builds structured `blocks` (no AI call needed — same data source as `questions_brief`):
 
 ```text
-src/features/reports/templates/blocks.ts
-  + add Block kinds:
-    - { kind: "statsStrip"; tiles: Array<{ label: string; value: number | string }> }
-    - { kind: "categoryBand"; title: string; count: number; tone: CategoryTone }
-    - { kind: "questionCard"; index: number; category: string;
-        question: string; rationale?: string; source?: string;
-        agencyResponse?: string }
-  + export CATEGORY_TONES + tone color resolver
-
-src/features/reports/templates/theme.ts
-  + add per-category RGB + HEX entries for the 8 tones above
-
-src/features/reports/utils/pdfGenerator.ts
-  + drawStatsStrip(), drawCategoryBand(), drawQuestionCard()
-  + extend drawBlock() switch
-  + page header: support 3-segment "client | sol# | CONFIDENTIAL"
-  + page footer: include report title and "Page X of Y" (two-pass for total)
-
-src/features/reports/utils/wordGenerator.ts
-  + statsStripTable(), categoryBandParagraph(), questionCardTable()
-  + extend block dispatch
-  + matching header/footer
-
-supabase/functions/generate-report/index.ts  (deterministic questions_brief branch)
-  - replace bullets with structured blocks:
-      • prepend statsStrip computed from counts by category + group totals
-      • SUBMITTED section: group rows by category, emit categoryBand + questionCards
-      • STRATEGIC HOLD + INTERNAL sections: questionCards (no inner band needed,
-        but still color-coded badges by category)
-  - keep existing intro paragraph per section
-  - retain citations section (unchanged)
+Section 1  Cover                → coverHero block (new)
+Section 2  At a Glance          → statsStrip
+Section 3  Executive Summary    → paragraph (from existing summary if present, else generated count line)
+Section 4  Issue Category Legend → categoryLegend block (new) — 2-col grid of dot+name+count+desc
+Section 5  Quick Reference Index → indexTable block (new) — # · Category · Source · Topic
+Section 6  Submitted Questions  → categoryBand + questionCard (existing blocks, reused)
+Section 7  Strategic Hold       → questionCard
+Section 8  Internal Only        → questionCard
 ```
 
-No DB schema changes. No prompt changes (path is deterministic). Other report types are untouched (new block kinds are additive — existing renderers ignore them only if not used; the switch will cover them).
+## New block kinds (`src/features/reports/templates/blocks.ts`)
+
+- `coverHero` — `{ firm, title, solicitationNumber, agency, generatedAt, confidential?: boolean }`
+- `categoryLegend` — `{ items: Array<{ tone, label, count, description }> }`
+- `indexTable` — `{ rows: Array<{ index: number; tone: CategoryTone; categoryLabel: string; source: string; topic: string }> }`
+
+Existing `statsStrip`, `categoryBand`, and `questionCard` are reused as-is.
+
+## PDF rendering (`src/features/reports/utils/pdfGenerator.ts`)
+
+- `drawCoverHero` — full-page cover: navy band with firm name top, large title centered, sol# + agency line, generated date footer. Forces a page break after.
+- `drawCategoryLegend` — 2-column grid; each cell = colored dot in category tone + uppercase label + `(N questions)` + small description.
+- `drawIndexTable` — striped rows, narrow # col, colored category pill, source col, wrapping topic col. Auto page-break with repeated header row.
+- Hook all three into the `drawBlock` switch.
+
+## Word rendering (`src/features/reports/utils/wordGenerator.ts`)
+
+- Cover = section with single full-page `Table` (1×1) holding centered paragraphs, then `PageBreak`.
+- Legend = 2-column `Table` of cells with colored shading bars for each tone.
+- Index = standard `Table` with header row + per-row category color in the category cell.
+- Wire each into the block dispatcher.
+
+## Data flow
+
+The edge function already loads the question set (categories, sources, topics, rationales). For this report it skips the AI prompt entirely and emits the deterministic block list above. Stats counts derive from the same grouping logic used today for `questions_brief`.
 
 ## Out of scope
 
-- Inverness logo art (text-only header for now; user can wire a `firmLogoUrl` later via existing branding options).
-- Reordering/customization UI for which categories appear in stats.
-- Changing AI-generated reports (executive_summary, full_analysis, etc.).
+- No changes to existing `questions_brief` output.
+- No new editor / customization UI — branding fields (`firm`, `clientLogo`) reuse `ReportOptions.branding`.
+- Inverness logo art remains text-only on the cover (matches what the brief does today).
+- No new database columns; the report is saved through the existing `reports` + `report_exports` tables.
 
-## Risk / mitigation
+## Files touched
 
-- DOCX cell borders + colored bands tested against existing `kvTable`/`categoryTable` patterns already in `wordGenerator.ts`.
-- PDF "Page X of Y" requires a second pass; will use `doc.getNumberOfPages()` after layout to stamp the totals.
-- Color tokens added to `theme.ts` only — components/UI unaffected.
+- `src/features/reports/templates/types.ts` — add `client_questionnaire` type + REPORT_TYPES entry
+- `src/features/reports/templates/blocks.ts` — add 3 block kinds
+- `src/features/reports/templates/theme.ts` — no changes (existing CategoryTone palette covers all 7 categories)
+- `src/features/reports/utils/pdfGenerator.ts` — 3 new draw functions + switch wiring
+- `src/features/reports/utils/wordGenerator.ts` — 3 new builders + switch wiring
+- `src/features/reports/components/ReportTypeSelector.tsx` — add icon mapping
+- `supabase/functions/generate-report/index.ts` — new branch for `client_questionnaire`
+
+## Open questions (will assume defaults unless you say otherwise)
+
+1. Use the firm name from `branding.headerText` as the cover header (defaults to "INVERNESS" if blank)?
+2. Include the "CONFIDENTIAL" stamp in the running header on every page (matches sample)?
+3. Default output formats = both PDF and Word, like other reports?
