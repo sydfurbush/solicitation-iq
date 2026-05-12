@@ -168,6 +168,7 @@ export function DocumentList({
                       onReplace={onReplace}
                       onDelete={onDelete}
                       onShowVersions={onShowVersions}
+                      onRetry={onRetry}
                     />
                   ))}
                 </div>
