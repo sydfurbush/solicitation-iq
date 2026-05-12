@@ -73,6 +73,7 @@ export const PROMPT_BY_TYPE: Record<ReportType, string> = {
   executive_summary: EXECUTIVE_SUMMARY_PROMPT,
   full_analysis: FULL_ANALYSIS_PROMPT,
   questions_brief: QUESTIONS_BRIEF_PROMPT,
+  client_questionnaire: QUESTIONS_BRIEF_PROMPT,
   risk_assessment: RISK_ASSESSMENT_PROMPT,
   opportunity_brief: OPPORTUNITY_BRIEF_PROMPT,
   comparison_report: COMPARISON_REPORT_PROMPT,

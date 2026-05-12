@@ -13,6 +13,7 @@ type ReportType =
   | "executive_summary"
   | "full_analysis"
   | "questions_brief"
+  | "client_questionnaire"
   | "risk_assessment"
   | "opportunity_brief"
   | "comparison_report"
@@ -48,6 +49,7 @@ const PROMPTS: Record<ReportType, string> = {
 Cite inline as [Doc §Section p.X] where relevant. Crisp executive language.${BLOCKS_GUIDE}`,
   full_analysis: `Generate a comprehensive solicitation analysis report. Sections: Executive Summary, Solicitation Overview, Requirements Analysis, Evaluation Criteria Analysis, Risk Assessment, Opportunities Analysis, Competitive Landscape, Strategic Questions, Comparison to Prior Solicitation (skip if no data), Proposal Strategy Recommendations, Appendices. Every claim cites [Doc §Section p.X]. Use markdown.`,
   questions_brief: `Generate a Strategic Questions brief. Sections: Submitted Questions (recommendation 'ask', numbered Q&A with rationale), Strategic Hold Questions (recommendation 'hold', explain advantage), Internal Discussion Items (monitor/internal). Citations required.`,
+  client_questionnaire: `Client-ready strategic questionnaire (deterministic — handled in code).`,
   risk_assessment: `Generate a Risk Assessment. Sections: Risk Overview (summary + count by severity), Critical Risks (each high/critical risk with description, citation, mitigation), Mitigation Plan (prioritized actions).`,
   opportunity_brief: `Generate an Opportunity Brief. Sections: Opportunity Overview, High-Impact Opportunities (each with description, recommended approach, capability match, citation), Recommended Capture Approach.`,
   comparison_report: `Generate a Comparison Report from the supplied prior-solicitation data. Sections: Comparison Summary, Key Changes (requirements, evaluation factors, scope, timeline, financial), Strategic Implications. Markdown.`,
@@ -149,7 +151,7 @@ async function gatherContext(supabase: ReturnType<typeof createClient>, solicita
     .eq("solicitation_id", solicitationId)
     .is("deleted_at", null);
 
-  const isQBrief = reportType === "questions_brief";
+  const isQBrief = reportType === "questions_brief" || reportType === "client_questionnaire";
   let qQuery = supabase
     .from("strategic_questions")
     .select("category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, is_submitted, agency_response")
@@ -230,7 +232,8 @@ Deno.serve(async (req) => {
 
     // Deterministic path: questions_brief renders ALL questions from DB,
     // bypassing the model so nothing is dropped/summarized.
-    if (reportType === "questions_brief") {
+    if (reportType === "questions_brief" || reportType === "client_questionnaire") {
+      const isClientQ = reportType === "client_questionnaire";
       const all = (ctx.questions ?? []) as Array<{
         category: string | null;
         recommendation: string | null;
@@ -312,14 +315,110 @@ Deno.serve(async (req) => {
         { label: "Internal Items", value: groupCount("internal") },
       ];
 
-      const sections: any[] = [
-        {
+      // Category descriptions used for the legend
+      const TONE_DESC: Record<Tone, string> = {
+        contradiction: "Conflicting requirements between two or more documents that must be resolved before pricing.",
+        risk_concern: "Clauses or structures that transfer undue financial or performance risk to the contractor.",
+        quantitative_gap: "Missing data, undefined ranges, or ambiguous workload figures that prevent accurate pricing.",
+        compliance: "Regulatory or certification requirements with unclear scope or applicability.",
+        drafting_error: "Apparent typographical errors, obsolete references, or placeholder language requiring correction.",
+        clarification: "Ambiguous requirements where the Government's intent is unclear and multiple interpretations are plausible.",
+        scope_expansion: "Provisions that could significantly expand contract scope without a defined pricing mechanism.",
+        strategic: "Questions held for strategic advantage — not submitted to the Government.",
+        internal: "Items flagged for internal capture planning only.",
+        neutral: "General questions that do not fit the standard categories.",
+      };
+
+      const clientName = (sol.client as { name?: string } | null)?.name ?? "INVERNESS";
+      const firmName = (options?.branding?.headerText as string | undefined) || clientName || "INVERNESS";
+
+      const sections: any[] = [];
+
+      if (isClientQ) {
+        // Cover page
+        sections.push({
+          id: "cover",
+          heading: "Cover",
+          level: 1,
+          blocks: [{
+            kind: "coverHero",
+            firm: firmName,
+            title: sol.title ?? "Strategic Questionnaire",
+            solicitationNumber: sol.solicitation_number ?? undefined,
+            agency: sol.issuing_agency ?? undefined,
+            generatedAt: new Date().toISOString(),
+            confidential: true,
+          }],
+        });
+
+        // Executive Summary
+        const submittedCount = groupCount("ask");
+        const usedCategories = (Object.keys(catCounts) as Tone[]).filter((t) => catCounts[t] > 0).length;
+        const execSummary = sol.ai_summary
+          ? String(sol.ai_summary)
+          : `A total of ${all.length} question${all.length === 1 ? "" : "s"} ${all.length === 1 ? "was" : "were"} identified across ${usedCategories} issue categor${usedCategories === 1 ? "y" : "ies"} following a comprehensive review of the draft solicitation package${sol.solicitation_number ? ` for ${sol.solicitation_number}` : ""}. ${submittedCount} ${submittedCount === 1 ? "is" : "are"} recommended for submission to the agency. An additional ${groupCount("hold")} question${groupCount("hold") === 1 ? " has" : "s have"} been withheld for strategic advantage, and ${groupCount("internal")} item${groupCount("internal") === 1 ? " is" : "s are"} flagged for internal capture planning only.`;
+
+        sections.push({
+          id: "exec_summary",
+          heading: "Executive Summary",
+          level: 1,
+          blocks: [{ kind: "paragraph", text: execSummary }],
+        });
+
+        // At a Glance (stats strip)
+        sections.push({
+          id: "at_a_glance",
+          heading: "At a Glance",
+          level: 1,
+          blocks: [{ kind: "statsStrip", tiles: statsTiles }],
+        });
+
+        // Issue Category Legend
+        const legendItems = TONE_ORDER
+          .filter((t) => t !== "neutral" && t !== "strategic" && t !== "internal" && catCounts[t] > 0)
+          .map((t) => ({ tone: t, label: TONE_LABEL[t], count: catCounts[t], description: TONE_DESC[t] }));
+        if (legendItems.length) {
+          sections.push({
+            id: "legend",
+            heading: "Issue Category Legend",
+            level: 1,
+            blocks: [{ kind: "categoryLegend", items: legendItems }],
+          });
+        }
+
+        // Quick Reference Index — all submitted questions
+        const submittedRows = groups.ask;
+        if (submittedRows.length) {
+          let idx = 0;
+          const indexRows = submittedRows.map((q) => {
+            idx++;
+            const tone = toneOf(q.category);
+            const topic = (q.question_text || "").replace(/\s+/g, " ").trim();
+            const truncated = topic.length > 140 ? topic.slice(0, 137) + "…" : topic;
+            return {
+              index: idx,
+              tone,
+              categoryLabel: TONE_LABEL[tone],
+              source: q.source_citation ?? "—",
+              topic: truncated,
+            };
+          });
+          sections.push({
+            id: "index",
+            heading: "Quick Reference Index",
+            level: 1,
+            blocks: [{ kind: "indexTable", rows: indexRows }],
+          });
+        }
+      } else {
+        // Original questions_brief overview
+        sections.push({
           id: "overview",
           heading: "Report Overview",
           level: 1,
           blocks: [{ kind: "statsStrip", tiles: statsTiles }],
-        },
-      ];
+        });
+      }
 
       let qCounter = 0;
       for (const def of sectionDef) {
@@ -397,7 +496,7 @@ Deno.serve(async (req) => {
       }
 
       const content = {
-        title: `Strategic Questions Brief – ${sol.title}`,
+        title: `${isClientQ ? "Client Strategic Questionnaire" : "Strategic Questions Brief"} – ${sol.title}`,
         subtitle: sol.solicitation_number ?? null,
         generatedAt: new Date().toISOString(),
         meta: {

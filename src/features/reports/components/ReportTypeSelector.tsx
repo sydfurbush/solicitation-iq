@@ -1,4 +1,4 @@
-import { FileText, Briefcase, HelpCircle, ShieldAlert, Lightbulb, GitCompare, ListTree } from "lucide-react";
+import { FileText, Briefcase, HelpCircle, ShieldAlert, Lightbulb, GitCompare, ListTree, ClipboardList } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +8,7 @@ const ICONS: Record<ReportType, typeof FileText> = {
   executive_summary: Briefcase,
   full_analysis: FileText,
   questions_brief: HelpCircle,
+  client_questionnaire: ClipboardList,
   risk_assessment: ShieldAlert,
   opportunity_brief: Lightbulb,
   comparison_report: GitCompare,

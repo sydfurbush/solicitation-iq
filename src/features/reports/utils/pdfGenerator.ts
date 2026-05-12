@@ -497,6 +497,192 @@ function drawCitations(ctx: Ctx, cites: NonNullable<ReportContent["citations"]>)
   });
 }
 
+function drawCoverHero(ctx: Ctx, hero: Extract<Block, { kind: "coverHero" }>) {
+  const { doc } = ctx;
+  // start on a fresh page if not at the top
+  if (ctx.y > CONTENT_TOP + 4) newPage(ctx);
+
+  // Top firm band
+  const bandH = 70;
+  setFill(doc, RGB.navy);
+  doc.rect(0, 0, PAGE.w, bandH, "F");
+  setFill(doc, RGB.amber);
+  doc.rect(0, bandH, PAGE.w, 4, "F");
+
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(22);
+  setText(doc, RGB.white);
+  doc.text(hero.firm.toUpperCase(), MARGIN.left, 44);
+
+  if (hero.confidential) {
+    doc.setFont(FONT_PDF, "bold");
+    doc.setFontSize(9);
+    setText(doc, RGB.amber);
+    doc.text("CONFIDENTIAL", PAGE.w - MARGIN.right, 44, { align: "right" });
+  }
+
+  // Title block — centered roughly mid-page
+  const cy = PAGE.h / 2 - 60;
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(11);
+  setText(doc, RGB.amber);
+  doc.text("CLIENT STRATEGIC QUESTIONNAIRE", PAGE.w / 2, cy, { align: "center" });
+
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(28);
+  setText(doc, RGB.navy);
+  const titleLines = wrap(doc, hero.title, CONTENT_W - 40, "bold", 28).slice(0, 3);
+  let ty = cy + 36;
+  for (const line of titleLines) { doc.text(line, PAGE.w / 2, ty, { align: "center" }); ty += 32; }
+
+  // amber rule
+  setDraw(doc, RGB.amber);
+  doc.setLineWidth(1.2);
+  doc.line(PAGE.w / 2 - 80, ty + 6, PAGE.w / 2 + 80, ty + 6);
+
+  // Sol# + Agency
+  ty += 36;
+  doc.setFont(FONT_PDF, "normal");
+  doc.setFontSize(12);
+  setText(doc, RGB.text);
+  if (hero.solicitationNumber) { doc.text(hero.solicitationNumber, PAGE.w / 2, ty, { align: "center" }); ty += 18; }
+  if (hero.agency) { doc.text(hero.agency, PAGE.w / 2, ty, { align: "center" }); ty += 18; }
+
+  // Generated date footer band
+  const footY = PAGE.h - 80;
+  doc.setFont(FONT_PDF, "italic");
+  doc.setFontSize(10);
+  setText(doc, RGB.textMuted);
+  doc.text(`Generated ${fmt(hero.generatedAt)}`, PAGE.w / 2, footY, { align: "center" });
+
+  // bottom amber accent
+  setFill(doc, RGB.amber);
+  doc.rect(0, PAGE.h - 12, PAGE.w, 12, "F");
+
+  newPage(ctx);
+}
+
+function drawCategoryLegend(ctx: Ctx, items: Array<{ tone: keyof typeof CATEGORY_RGB; label: string; count: number; description: string }>) {
+  const { doc } = ctx;
+  const cols = 2;
+  const gap = 10;
+  const cellW = (CONTENT_W - gap) / cols;
+  const padX = 10;
+  const padY = 10;
+
+  for (let i = 0; i < items.length; i += cols) {
+    const row = items.slice(i, i + cols);
+    // measure each cell first
+    const heights = row.map((it) => {
+      const descLines = wrap(doc, it.description, cellW - padX * 2, "normal", 9);
+      return Math.max(50, 22 + descLines.length * 11 + padY * 2);
+    });
+    const rowH = Math.max(...heights);
+    ensureSpace(ctx, rowH + 8);
+    row.forEach((it, j) => {
+      const t = CATEGORY_RGB[it.tone] ?? CATEGORY_RGB.neutral;
+      const x = MARGIN.left + j * (cellW + gap);
+      // cell background
+      setFill(doc, RGB.rowAlt);
+      doc.rect(x, ctx.y, cellW, rowH, "F");
+      // colored left bar
+      setFill(doc, t.solid);
+      doc.rect(x, ctx.y, 4, rowH, "F");
+      // dot + label + count
+      setFill(doc, t.solid);
+      doc.circle(x + padX + 14, ctx.y + padY + 6, 4, "F");
+      doc.setFont(FONT_PDF, "bold");
+      doc.setFontSize(10);
+      setText(doc, RGB.navy);
+      doc.text(it.label.toUpperCase(), x + padX + 24, ctx.y + padY + 9);
+      const labelW = doc.getTextWidth(it.label.toUpperCase());
+      doc.setFont(FONT_PDF, "normal");
+      doc.setFontSize(9);
+      setText(doc, RGB.textMuted);
+      doc.text(`(${it.count} question${it.count === 1 ? "" : "s"})`, x + padX + 24 + labelW + 6, ctx.y + padY + 9);
+      // description
+      const descLines = wrap(doc, it.description, cellW - padX * 2, "normal", 9);
+      setText(doc, RGB.text);
+      let dy = ctx.y + padY + 24;
+      for (const line of descLines) { doc.text(line, x + padX, dy); dy += 11; }
+    });
+    ctx.y += rowH + 8;
+  }
+}
+
+function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeof CATEGORY_RGB; categoryLabel: string; source: string; topic: string }>) {
+  const { doc } = ctx;
+  const numW = 28;
+  const catW = 110;
+  const srcW = 130;
+  const topicW = CONTENT_W - numW - catW - srcW;
+  const padX = 6;
+  const padY = 5;
+  const headerH = 18;
+
+  const drawHeader = () => {
+    ensureSpace(ctx, headerH + 8);
+    setFill(doc, RGB.navy);
+    doc.rect(MARGIN.left, ctx.y, CONTENT_W, headerH, "F");
+    doc.setFont(FONT_PDF, "bold");
+    doc.setFontSize(8);
+    setText(doc, RGB.white);
+    doc.text("#", MARGIN.left + padX, ctx.y + 12);
+    doc.text("CATEGORY", MARGIN.left + numW + padX, ctx.y + 12);
+    doc.text("SOURCE", MARGIN.left + numW + catW + padX, ctx.y + 12);
+    doc.text("TOPIC / SUMMARY", MARGIN.left + numW + catW + srcW + padX, ctx.y + 12);
+    ctx.y += headerH;
+  };
+
+  drawHeader();
+
+  rows.forEach((r, i) => {
+    const t = CATEGORY_RGB[r.tone] ?? CATEGORY_RGB.neutral;
+    const topicLines = wrap(doc, r.topic, topicW - padX * 2, "normal", 9);
+    const srcLines = wrap(doc, r.source, srcW - padX * 2, "normal", 9);
+    const catLines = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 8);
+    const rowH = Math.max(20, Math.max(topicLines.length, srcLines.length, catLines.length) * 11 + padY * 2);
+    if (ctx.y + rowH > CONTENT_BOTTOM) {
+      newPage(ctx);
+      drawHeader();
+    }
+    // alt row
+    setFill(doc, i % 2 === 0 ? RGB.white : RGB.rowAlt);
+    doc.rect(MARGIN.left, ctx.y, CONTENT_W, rowH, "F");
+    // row separator
+    setDraw(doc, RGB.border);
+    doc.setLineWidth(0.2);
+    doc.line(MARGIN.left, ctx.y + rowH, MARGIN.left + CONTENT_W, ctx.y + rowH);
+    // # column
+    doc.setFont(FONT_PDF, "bold");
+    doc.setFontSize(9);
+    setText(doc, RGB.textMuted);
+    doc.text(String(r.index), MARGIN.left + padX, ctx.y + padY + 10);
+    // Category pill
+    const pillX = MARGIN.left + numW + padX;
+    const pillY = ctx.y + padY + 1;
+    const pillH = catLines.length * 9 + 4;
+    const pillW = Math.min(catW - padX * 2, doc.getTextWidth(r.categoryLabel.toUpperCase()) + 10);
+    setFill(doc, t.tint);
+    doc.rect(pillX, pillY, pillW, pillH, "F");
+    setText(doc, t.solid);
+    doc.setFontSize(7);
+    let cy = pillY + 8;
+    for (const line of catLines) { doc.text(line, pillX + 5, cy); cy += 9; }
+    // Source
+    doc.setFont(FONT_PDF, "normal");
+    doc.setFontSize(9);
+    setText(doc, RGB.text);
+    let sy = ctx.y + padY + 10;
+    for (const line of srcLines) { doc.text(line, MARGIN.left + numW + catW + padX, sy); sy += 11; }
+    // Topic
+    let ty = ctx.y + padY + 10;
+    for (const line of topicLines) { doc.text(line, MARGIN.left + numW + catW + srcW + padX, ty); ty += 11; }
+    ctx.y += rowH;
+  });
+  ctx.y += 8;
+}
+
 function drawBlock(ctx: Ctx, b: Block) {
   switch (b.kind) {
     case "paragraph": return drawParagraph(ctx, b.text);
@@ -508,6 +694,9 @@ function drawBlock(ctx: Ctx, b: Block) {
     case "statsStrip": return drawStatsStrip(ctx, b.tiles);
     case "categoryBand": return drawCategoryBand(ctx, b.title, b.count, b.tone);
     case "questionCard": return drawQuestionCard(ctx, b);
+    case "coverHero": return drawCoverHero(ctx, b);
+    case "categoryLegend": return drawCategoryLegend(ctx, b.items);
+    case "indexTable": return drawIndexTable(ctx, b.rows);
   }
 }
 
@@ -537,14 +726,20 @@ export function generatePdf(report: ReportContent): Blob {
   const footerTitle = report.title;
 
   const ctx: Ctx = { doc, y: CONTENT_TOP, page: 1, headerLeft, headerRight, headerExtra, footerLeft, footerTitle };
-  drawHeader(ctx);
-  drawFooter(ctx);
 
-  drawCoverBand(ctx, report);
+  // Skip the default cover band when the report supplies its own coverHero block.
+  const firstBlock = report.sections?.[0]?.blocks?.[0];
+  const hasOwnCover = firstBlock?.kind === "coverHero";
+  if (!hasOwnCover) {
+    drawHeader(ctx);
+    drawFooter(ctx);
+    drawCoverBand(ctx, report);
+  }
 
   for (const section of report.sections ?? []) {
-    drawSectionHeading(ctx, section.heading);
     const blocks = sectionBlocks(section);
+    const skipHeading = blocks[0]?.kind === "coverHero";
+    if (!skipHeading) drawSectionHeading(ctx, section.heading);
     for (const b of blocks) drawBlock(ctx, b);
     ctx.y += 6;
   }

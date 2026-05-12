@@ -25,6 +25,23 @@ export type Block =
       rationale?: string;
       source?: string;
       agencyResponse?: string;
+    }
+  | {
+      kind: "coverHero";
+      firm: string;
+      title: string;
+      solicitationNumber?: string;
+      agency?: string;
+      generatedAt: string;
+      confidential?: boolean;
+    }
+  | {
+      kind: "categoryLegend";
+      items: Array<{ tone: CategoryTone; label: string; count: number; description: string }>;
+    }
+  | {
+      kind: "indexTable";
+      rows: Array<{ index: number; tone: CategoryTone; categoryLabel: string; source: string; topic: string }>;
     };
 
 function stripMd(line: string): string {
