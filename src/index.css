@@ -42,6 +42,12 @@
 
     --radius: 0.5rem;
 
+    /* Phase colors */
+    --phase-1: 217 91% 60%;
+    --phase-2: 262 83% 63%;
+    --phase-3: 38 92% 55%;
+    --phase-4: 152 69% 42%;
+
     /* Dark sidebar */
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 96%;
@@ -84,6 +90,11 @@
     --border: 217 33% 18%;
     --input: 217 33% 18%;
     --ring: 221 83% 53%;
+
+    --phase-1: 217 91% 60%;
+    --phase-2: 262 83% 63%;
+    --phase-3: 38 92% 55%;
+    --phase-4: 152 69% 42%;
 
     --sidebar-background: 222 47% 6%;
     --sidebar-foreground: 210 40% 96%;
