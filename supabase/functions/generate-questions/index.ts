@@ -467,12 +467,22 @@ Deno.serve(async (req) => {
       : "";
     const summaryText = sol?.ai_summary ? `\n\nEXISTING ANALYSIS SUMMARY:\n${sol.ai_summary}` : "";
 
+    // Fresh runs always wipe prior AI-generated questions before generating, so re-runs
+    // start from a clean slate (manual questions are preserved). Retries only append.
+    if (!isRetry) {
+      const { error: wipeErr } = await supabase
+        .from("strategic_questions")
+        .delete()
+        .eq("solicitation_id", solicitationId)
+        .eq("is_ai_generated", true);
+      if (wipeErr) console.error("[generate-questions] pre-run wipe error", wipeErr);
+      else console.log(`[generate-questions] sol=${solicitationId} wiped prior AI questions before run`);
+    }
+
     const work = (async () => {
       let totalInserted = 0;
       let completed = 0;
       let failed = 0;
-      // Retry mode never deletes — only appends.
-      let didRegenDelete = isRetry;
       const failedDocIds: string[] = [];
       let crossDocFailed = false;
 
