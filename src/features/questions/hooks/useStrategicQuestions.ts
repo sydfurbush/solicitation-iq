@@ -82,7 +82,6 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
           solicitationId,
           focusAreas: input.focusAreas,
           focusDocumentIds: input.focusDocumentIds,
-          regenerate: input.regenerate,
           retryRunId: input.retryRunId,
         },
       });
