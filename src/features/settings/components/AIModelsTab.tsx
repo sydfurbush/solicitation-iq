@@ -25,7 +25,7 @@ const FUNCTIONS: { name: string; label: string; description: string; defaultMax:
   { name: "generate-questions", label: "Strategic Questions", description: "Generates clarifying and strategic questions.", defaultMax: 8192 },
   { name: "generate-report", label: "Reports", description: "Builds executive and client-facing reports.", defaultMax: 16384 },
   { name: "compare-solicitations", label: "Comparison", description: "Compares the current solicitation to a prior one.", defaultMax: 8192 },
-  { name: "extract-entities", label: "Entity Extraction", description: "Pulls dates, requirements, dollar amounts, and other entities from documents.", defaultMax: 4096 },
+  { name: "extract-entities", label: "Entity Extraction", description: "Pulls dates, requirements, dollar amounts, and other entities from documents.", defaultMax: 16000 },
 ];
 
 const ANTHROPIC_MODELS = ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"];
