@@ -61,7 +61,11 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
         children: sections.map((s) => ({
           heading: `${s.section_code} — ${s.section_title ?? "Untitled"}`,
           paragraphs: [
-            s.scoring_weight ? `Weight: ${s.scoring_weight}` : "",
+            s.scoring_weight != null
+              ? `Weight (stated): ${s.scoring_weight}%`
+              : s.importance_score != null
+                ? `Importance (AI): ${s.importance_score}/5${s.importance_rationale ? ` — ${s.importance_rationale}` : ""}`
+                : "",
             s.summary ?? "",
           ].filter(Boolean),
           bullets: Array.isArray(s.risk_flags) ? (s.risk_flags as string[]) : undefined,
