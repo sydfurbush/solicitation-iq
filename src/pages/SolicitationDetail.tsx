@@ -33,6 +33,10 @@ import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicat
 import { PhaseHub, type HubStep } from "@/features/solicitations/components/PhaseHub";
 import { PhaseShell } from "@/features/solicitations/components/PhaseShell";
 import { SolicitationActionsMenu } from "@/features/solicitations/components/SolicitationActionsMenu";
+import { StageBadge } from "@/features/solicitations/components/StageBadge";
+import { AddFinalSolicitationDialog } from "@/features/solicitations/components/AddFinalSolicitationDialog";
+import { useChildSolicitation } from "@/features/solicitations/hooks/useFinalFromPreSol";
+import type { SolicitationStage } from "@/features/solicitations/lib/stage";
 import { SolicitationOverview } from "@/features/solicitations/components/SolicitationOverview";
 import {
   STATUS_CLASSES,
@@ -85,6 +89,30 @@ const WORKSPACE_LABELS: Record<WorkspaceKey, string> = {
   comparison: "Comparison",
   activity: "Activity",
 };
+
+function ParentChildLinks({ solId, parentId }: { solId: string; parentId: string | null }) {
+  const { data: child } = useChildSolicitation(parentId ? undefined : solId);
+  return (
+    <>
+      {parentId && (
+        <Link
+          to={`/solicitations/${parentId}`}
+          className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+        >
+          ← Linked from earlier stage
+        </Link>
+      )}
+      {!parentId && child && (
+        <Link
+          to={`/solicitations/${child.id}`}
+          className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+        >
+          Continued in {child.stage_label || child.stage} →
+        </Link>
+      )}
+    </>
+  );
+}
 
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
@@ -296,6 +324,11 @@ export default function SolicitationDetail() {
                 {s.solicitation_number}
               </Badge>
             )}
+            <StageBadge stage={(s as { stage?: string }).stage} label={(s as { stage_label?: string | null }).stage_label} />
+            <ParentChildLinks
+              solId={s.id}
+              parentId={(s as { parent_solicitation_id?: string | null }).parent_solicitation_id ?? null}
+            />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
           <div className="flex items-center gap-3 flex-wrap">
@@ -336,6 +369,14 @@ export default function SolicitationDetail() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          {((s as { stage?: string }).stage === "pre_solicitation" ||
+            (s as { stage?: string }).stage === "draft_rfp") && (
+            <AddFinalSolicitationDialog
+              sourceId={s.id}
+              sourceTitle={s.title}
+              sourceStage={(s as { stage: SolicitationStage }).stage}
+            />
+          )}
           <SolicitationActionsMenu
             solicitation={s}
             onArchive={() => handleStatusChange("archived")}

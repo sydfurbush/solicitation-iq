@@ -516,6 +516,148 @@ export type Database = {
           },
         ]
       }
+      delta_actions: {
+        Row: {
+          assigned_to: string | null
+          change_category: string | null
+          change_ref: Json
+          created_at: string
+          delta_run_id: string | null
+          description: string | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          note: string | null
+          prior_solicitation_id: string | null
+          priority: string
+          recommended_action: string
+          solicitation_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          change_category?: string | null
+          change_ref?: Json
+          created_at?: string
+          delta_run_id?: string | null
+          description?: string | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          note?: string | null
+          prior_solicitation_id?: string | null
+          priority?: string
+          recommended_action?: string
+          solicitation_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          change_category?: string | null
+          change_ref?: Json
+          created_at?: string
+          delta_run_id?: string | null
+          description?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          note?: string | null
+          prior_solicitation_id?: string | null
+          priority?: string
+          recommended_action?: string
+          solicitation_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delta_actions_delta_run_id_fkey"
+            columns: ["delta_run_id"]
+            isOneToOne: false
+            referencedRelation: "delta_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delta_actions_prior_solicitation_id_fkey"
+            columns: ["prior_solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delta_actions_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delta_runs: {
+        Row: {
+          completed_at: string | null
+          completed_batches: number
+          current_step: string | null
+          error_message: string | null
+          failed_batches: number
+          id: string
+          prior_solicitation_id: string | null
+          solicitation_id: string
+          started_at: string
+          status: string
+          total_batches: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_batches?: number
+          current_step?: string | null
+          error_message?: string | null
+          failed_batches?: number
+          id?: string
+          prior_solicitation_id?: string | null
+          solicitation_id: string
+          started_at?: string
+          status?: string
+          total_batches?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_batches?: number
+          current_step?: string | null
+          error_message?: string | null
+          failed_batches?: number
+          id?: string
+          prior_solicitation_id?: string | null
+          solicitation_id?: string
+          started_at?: string
+          status?: string
+          total_batches?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delta_runs_prior_solicitation_id_fkey"
+            columns: ["prior_solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delta_runs_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_sections: {
         Row: {
           ai_importance_score: number | null
@@ -1619,6 +1761,41 @@ export type Database = {
           },
         ]
       }
+      solicitation_snapshots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          payload: Json
+          snapshot_label: string
+          solicitation_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          payload?: Json
+          snapshot_label: string
+          solicitation_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          payload?: Json
+          snapshot_label?: string
+          solicitation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitation_snapshots_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       solicitations: {
         Row: {
           agency_type: string | null
@@ -1642,6 +1819,7 @@ export type Database = {
           issuing_agency: string | null
           key_requirements: Json | null
           metadata: Json | null
+          parent_solicitation_id: string | null
           period_of_performance_end: string | null
           period_of_performance_start: string | null
           proposal_due_date: string | null
@@ -1650,6 +1828,8 @@ export type Database = {
           sam_url: string | null
           set_aside: string | null
           solicitation_number: string | null
+          stage: Database["public"]["Enums"]["solicitation_stage"]
+          stage_label: string | null
           status: Database["public"]["Enums"]["solicitation_status"] | null
           tags: string[] | null
           title: string
@@ -1677,6 +1857,7 @@ export type Database = {
           issuing_agency?: string | null
           key_requirements?: Json | null
           metadata?: Json | null
+          parent_solicitation_id?: string | null
           period_of_performance_end?: string | null
           period_of_performance_start?: string | null
           proposal_due_date?: string | null
@@ -1685,6 +1866,8 @@ export type Database = {
           sam_url?: string | null
           set_aside?: string | null
           solicitation_number?: string | null
+          stage?: Database["public"]["Enums"]["solicitation_stage"]
+          stage_label?: string | null
           status?: Database["public"]["Enums"]["solicitation_status"] | null
           tags?: string[] | null
           title: string
@@ -1712,6 +1895,7 @@ export type Database = {
           issuing_agency?: string | null
           key_requirements?: Json | null
           metadata?: Json | null
+          parent_solicitation_id?: string | null
           period_of_performance_end?: string | null
           period_of_performance_start?: string | null
           proposal_due_date?: string | null
@@ -1720,6 +1904,8 @@ export type Database = {
           sam_url?: string | null
           set_aside?: string | null
           solicitation_number?: string | null
+          stage?: Database["public"]["Enums"]["solicitation_stage"]
+          stage_label?: string | null
           status?: Database["public"]["Enums"]["solicitation_status"] | null
           tags?: string[] | null
           title?: string
@@ -1731,6 +1917,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitations_parent_solicitation_id_fkey"
+            columns: ["parent_solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
             referencedColumns: ["id"]
           },
         ]
@@ -1993,6 +2186,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clone_solicitation_for_stage: {
+        Args: {
+          p_new_stage: Database["public"]["Enums"]["solicitation_stage"]
+          p_new_title?: string
+          p_source_id: string
+          p_stage_label?: string
+        }
+        Returns: string
+      }
       current_client_id: { Args: never; Returns: string }
       current_user_org: { Args: never; Returns: string }
       has_role: {
@@ -2095,6 +2297,11 @@ export type Database = {
       question_recommendation: "ask" | "hold" | "monitor" | "internal_only"
       requirement_status: "open" | "in_review" | "covered" | "waived"
       risk_severity: "critical" | "high" | "medium" | "low" | "informational"
+      solicitation_stage:
+        | "pre_solicitation"
+        | "draft_rfp"
+        | "final"
+        | "amendment"
       solicitation_status:
         | "intake"
         | "processing"
@@ -2304,6 +2511,12 @@ export const Constants = {
       question_recommendation: ["ask", "hold", "monitor", "internal_only"],
       requirement_status: ["open", "in_review", "covered", "waived"],
       risk_severity: ["critical", "high", "medium", "low", "informational"],
+      solicitation_stage: [
+        "pre_solicitation",
+        "draft_rfp",
+        "final",
+        "amendment",
+      ],
       solicitation_status: [
         "intake",
         "processing",
