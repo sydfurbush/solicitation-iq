@@ -1030,6 +1030,51 @@ export type Database = {
           },
         ]
       }
+      phase_approvals: {
+        Row: {
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decided_by_name: string | null
+          decision_note: string | null
+          id: string
+          phase: Database["public"]["Enums"]["phase_type"]
+          requested_at: string | null
+          requested_by: string | null
+          solicitation_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decided_by_name?: string | null
+          decision_note?: string | null
+          id?: string
+          phase: Database["public"]["Enums"]["phase_type"]
+          requested_at?: string | null
+          requested_by?: string | null
+          solicitation_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decided_by_name?: string | null
+          decision_note?: string | null
+          id?: string
+          phase?: Database["public"]["Enums"]["phase_type"]
+          requested_at?: string | null
+          requested_by?: string | null
+          solicitation_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       prior_import_history: {
         Row: {
           action: string
