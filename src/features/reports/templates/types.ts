@@ -4,6 +4,7 @@ export type ReportType =
   | "executive_summary"
   | "full_analysis"
   | "questions_brief"
+  | "client_questionnaire"
   | "risk_assessment"
   | "opportunity_brief"
   | "comparison_report"
@@ -68,6 +69,13 @@ export const REPORT_TYPES: Array<{
     description: "Submission-ready Q&A document for the agency.",
     estimatedTime: "20 sec",
     defaultSections: ["Submitted Questions", "Strategic Hold Questions", "Internal Discussion Items"],
+  },
+  {
+    id: "client_questionnaire",
+    title: "Client Strategic Questionnaire",
+    description: "Client-ready deliverable: cover, executive summary, category legend, quick-reference index, and full Q&A detail.",
+    estimatedTime: "25 sec",
+    defaultSections: ["Cover", "At a Glance", "Executive Summary", "Issue Category Legend", "Quick Reference Index", "Submitted Questions", "Strategic Hold Questions", "Internal Discussion Items"],
   },
   {
     id: "risk_assessment",
