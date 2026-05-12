@@ -59,6 +59,12 @@ interface Props {
   onOpenPhase: (phase: PhaseType) => void;
   onWorkspace: (key: "reports" | "comparison" | "activity") => void;
   solicitationId?: string;
+  solicitation?: {
+    title: string | null;
+    solicitation_number?: string | null;
+    issuing_agency?: string | null;
+    client?: { name?: string | null } | null;
+  } | null;
 }
 
 function StateDot({ state }: { state: StepState }) {
