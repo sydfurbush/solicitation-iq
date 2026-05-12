@@ -78,7 +78,12 @@ export function PhaseHub({
   buildSteps,
   onOpenPhase,
   onWorkspace,
+  solicitationId,
 }: Props) {
+  const { byPhase } = usePhaseApprovals(solicitationId);
+  const requestApproval = useRequestApproval(solicitationId);
+  const resetApproval = useResetApproval(solicitationId);
+
   const phases: HubPhase[] = PHASES.map((p, i) => {
     const explicit = phaseStatusByPhase[p];
     const idx = PHASES.indexOf(currentPhase);
@@ -97,11 +102,37 @@ export function PhaseHub({
     };
   });
 
+  const handleRequest = async (p: PhaseType) => {
+    try {
+      await requestApproval.mutateAsync(p);
+      toast({ title: "Sent for client approval", description: PHASE_LABELS[p] });
+    } catch (e) {
+      toast({ title: "Failed", description: String(e), variant: "destructive" });
+    }
+  };
+
+  const handleReset = async (id: string) => {
+    try {
+      await resetApproval.mutateAsync(id);
+      toast({ title: "Reopened for review" });
+    } catch (e) {
+      toast({ title: "Failed", description: String(e), variant: "destructive" });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {phases.map((p) => (
-          <PhaseCard key={p.phase} phase={p} highlighted={p.phase === currentPhase} />
+          <PhaseCard
+            key={p.phase}
+            phase={p}
+            highlighted={p.phase === currentPhase}
+            approval={byPhase[p.phase]}
+            onRequestApproval={() => handleRequest(p.phase)}
+            onResetApproval={handleReset}
+            isMutating={requestApproval.isPending || resetApproval.isPending}
+          />
         ))}
       </div>
 
