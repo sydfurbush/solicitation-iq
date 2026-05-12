@@ -64,7 +64,6 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
     mutationFn: async (input: {
       focusAreas?: string[];
       focusDocumentIds?: string[];
-      regenerate?: boolean;
       retryRunId?: string;
       onProgress?: (p: {
         runId: string;
