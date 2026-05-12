@@ -123,17 +123,24 @@ Deno.serve(async (req) => {
           .eq("solicitation_id", solicitationId)
           .eq("is_ai_generated", true);
 
-        const rows = out.map((s) => ({
-          solicitation_id: solicitationId,
-          section_code: (s.section_code as string) ?? "?",
-          section_title: (s.section_title as string) ?? null,
-          summary: (s.summary as string) ?? "",
-          requirements_count: s.requirements_count ? Number(s.requirements_count) : 0,
-          scoring_weight: s.scoring_weight ? Number(s.scoring_weight) : null,
-          risk_flags: (s.risk_flags as string[]) ?? [],
-          source_citations: (s.source_citations as string[]) ?? [],
-          is_ai_generated: true,
-        })).filter((r) => r.summary);
+        const rows = out.map((s) => {
+          const stated = s.scoring_weight ? Number(s.scoring_weight) : null;
+          const inferred = s.importance_score ? Math.max(1, Math.min(5, Math.round(Number(s.importance_score)))) : null;
+          return {
+            solicitation_id: solicitationId,
+            section_code: (s.section_code as string) ?? "?",
+            section_title: (s.section_title as string) ?? null,
+            summary: (s.summary as string) ?? "",
+            requirements_count: s.requirements_count ? Number(s.requirements_count) : 0,
+            scoring_weight: stated,
+            importance_score: inferred,
+            importance_rationale: (s.importance_rationale as string) ?? null,
+            weight_source: stated != null ? "stated" : (inferred != null ? "inferred" : null),
+            risk_flags: (s.risk_flags as string[]) ?? [],
+            source_citations: (s.source_citations as string[]) ?? [],
+            is_ai_generated: true,
+          };
+        }).filter((r) => r.summary);
 
         if (rows.length) {
           const { error } = await supabase.from("section_analyses").insert(rows);
