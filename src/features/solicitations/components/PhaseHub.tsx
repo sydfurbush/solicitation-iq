@@ -253,11 +253,12 @@ function PhaseCard({
   onResetApproval?: (id: string) => void;
   isMutating?: boolean;
 }) {
+  const colors = PHASE_COLORS[phase.phase];
   const stateBadge =
     phase.state === "done" ? (
-      <Badge variant="outline" className="bg-accent/15 text-accent border-accent/30">Done</Badge>
+      <Badge variant="outline" className={colors.badge}>Done</Badge>
     ) : phase.state === "active" ? (
-      <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30">In progress</Badge>
+      <Badge variant="outline" className={colors.badge}>In progress</Badge>
     ) : (
       <Badge variant="outline" className="text-muted-foreground">Not started</Badge>
     );
@@ -287,7 +288,7 @@ function PhaseCard({
     <Card
       className={cn(
         "transition-shadow hover:shadow-md",
-        highlighted && "border-primary/60 ring-1 ring-primary/30",
+        highlighted && cn(colors.border, "ring-1", colors.ring),
       )}
     >
       <CardContent className="p-5 space-y-4">
@@ -296,11 +297,9 @@ function PhaseCard({
             <div
               className={cn(
                 "h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-sm font-semibold",
-                phase.state === "done"
-                  ? "bg-accent/15 text-accent"
-                  : phase.state === "active"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground",
+                phase.state === "done" || phase.state === "active"
+                  ? cn(colors.bg, "text-white")
+                  : "bg-muted text-muted-foreground",
               )}
             >
               {phase.state === "done" ? <Check className="h-4 w-4" /> : phase.index}
