@@ -484,6 +484,50 @@ function NavBtn({
   );
 }
 
+function PhaseNavBtn({
+  phase,
+  active,
+  onClick,
+  children,
+}: {
+  phase: PhaseType;
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  const colorBar: Record<PhaseType, string> = {
+    phase_1_initial: "bg-[hsl(var(--phase-1))]",
+    phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
+    phase_3_outline: "bg-[hsl(var(--phase-3))]",
+    phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
+  };
+  const colorText: Record<PhaseType, string> = {
+    phase_1_initial: "text-[hsl(var(--phase-1))]",
+    phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
+    phase_3_outline: "text-[hsl(var(--phase-3))]",
+    phase_4_win_themes: "text-[hsl(var(--phase-4))]",
+  };
+  return (
+    <div className="inline-flex items-center">
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "relative h-10 px-3 text-sm font-medium transition-colors inline-flex items-center gap-1.5",
+          active ? colorText[phase] : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        <span className={cn("h-2 w-2 rounded-full", colorBar[phase])} />
+        {children}
+        {active && (
+          <span className={cn("absolute left-2 right-2 -bottom-px h-0.5 rounded-full", colorBar[phase])} />
+        )}
+      </button>
+      <PhaseHelpPanel phase={phase} />
+    </div>
+  );
+}
+
 function PhaseNavMenu({
   label,
   active,
@@ -491,6 +535,7 @@ function PhaseNavMenu({
   activeStep,
   onPick,
   onOpen,
+  phase,
 }: {
   label: string;
   active: boolean;
@@ -498,18 +543,32 @@ function PhaseNavMenu({
   activeStep?: string;
   onPick: (k: string) => void;
   onOpen: () => void;
+  phase: PhaseType;
 }) {
+  const colorBar: Record<PhaseType, string> = {
+    phase_1_initial: "bg-[hsl(var(--phase-1))]",
+    phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
+    phase_3_outline: "bg-[hsl(var(--phase-3))]",
+    phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
+  };
+  const colorText: Record<PhaseType, string> = {
+    phase_1_initial: "text-[hsl(var(--phase-1))]",
+    phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
+    phase_3_outline: "text-[hsl(var(--phase-3))]",
+    phase_4_win_themes: "text-[hsl(var(--phase-4))]",
+  };
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
           className={cn(
-            "relative h-10 px-3 text-sm font-medium transition-colors inline-flex items-center gap-1",
-            active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+            "relative h-10 px-3 text-sm font-medium transition-colors inline-flex items-center gap-1.5",
+            active ? colorText[phase] : "text-muted-foreground hover:text-foreground",
           )}
           onDoubleClick={onOpen}
         >
+          <span className={cn("h-2 w-2 rounded-full", colorBar[phase])} />
           {label}
           {activeStep && (
             <span className="text-muted-foreground/80">
@@ -518,7 +577,7 @@ function PhaseNavMenu({
           )}
           <ChevronDown className="h-3.5 w-3.5 opacity-60" />
           {active && (
-            <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-primary rounded-full" />
+            <span className={cn("absolute left-2 right-2 -bottom-px h-0.5 rounded-full", colorBar[phase])} />
           )}
         </button>
       </DropdownMenuTrigger>
