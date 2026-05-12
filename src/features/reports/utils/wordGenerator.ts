@@ -492,8 +492,8 @@ function categoryLegendTable(items: Array<{ tone: CategoryTone; label: string; c
 
 function indexTable(rows: Array<{ index: number; tone: CategoryTone; categoryLabel: string; source: string; topic: string }>) {
   const numW = 480;
-  const catW = 1800;
-  const srcW = 2200;
+  const catW = 1600;
+  const srcW = 2600;
   const topicW = CONTENT_W - numW - catW - srcW;
 
   const headerCells = ["#", "CATEGORY", "SOURCE", "TOPIC / SUMMARY"].map((label, i) => new TableCell({
@@ -508,6 +508,8 @@ function indexTable(rows: Array<{ index: number; tone: CategoryTone; categoryLab
   const dataRows = rows.map((r, i) => {
     const t = CATEGORY_HEX[r.tone] ?? CATEGORY_HEX.neutral;
     const altFill = i % 2 === 0 ? HEX.white : HEX.rowAlt;
+    const sourceText = softBreakWord(r.source);
+    const topicText = softBreakWord(r.topic);
     return new TableRow({
       children: [
         new TableCell({
@@ -515,7 +517,7 @@ function indexTable(rows: Array<{ index: number; tone: CategoryTone; categoryLab
           shading: { fill: altFill, type: ShadingType.CLEAR, color: "auto" },
           margins: { top: 100, bottom: 100, left: 120, right: 120 },
           verticalAlign: VerticalAlign.CENTER,
-          children: [new Paragraph({ children: [new TextRun({ text: String(r.index), bold: true, size: 18, color: HEX.textMuted, font: FONT_DOCX })] })],
+          children: [new Paragraph({ children: [new TextRun({ text: String(r.index), bold: true, size: 16, color: HEX.textMuted, font: FONT_DOCX })] })],
         }),
         new TableCell({
           width: { size: catW, type: WidthType.DXA },
@@ -528,13 +530,13 @@ function indexTable(rows: Array<{ index: number; tone: CategoryTone; categoryLab
           width: { size: srcW, type: WidthType.DXA },
           shading: { fill: altFill, type: ShadingType.CLEAR, color: "auto" },
           margins: { top: 100, bottom: 100, left: 120, right: 120 },
-          children: [new Paragraph({ children: [new TextRun({ text: r.source, size: 18, color: HEX.text, font: FONT_DOCX })] })],
+          children: [new Paragraph({ children: [new TextRun({ text: sourceText, size: 16, color: HEX.text, font: FONT_DOCX })] })],
         }),
         new TableCell({
           width: { size: topicW, type: WidthType.DXA },
           shading: { fill: altFill, type: ShadingType.CLEAR, color: "auto" },
           margins: { top: 100, bottom: 100, left: 120, right: 120 },
-          children: [new Paragraph({ children: [new TextRun({ text: r.topic, size: 18, color: HEX.text, font: FONT_DOCX })] })],
+          children: [new Paragraph({ children: [new TextRun({ text: topicText, size: 16, color: HEX.text, font: FONT_DOCX })] })],
         }),
       ],
     });
