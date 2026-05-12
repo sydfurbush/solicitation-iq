@@ -165,18 +165,12 @@ export function ClientUsersManagement({ clientId }: Props) {
 
         {invitations.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2">
               <h4 className="text-sm font-medium">Invitations</h4>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  navigator.clipboard.writeText(portalLink);
-                  toast.success("Portal link copied");
-                }}
-              >
-                <Copy className="h-3.5 w-3.5 mr-1" /> Copy portal link
-              </Button>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Each invitation has a unique link. Use the row menu to copy and share it
+                with the invitee — they'll set their password and gain portal access.
+              </p>
             </div>
             <Table>
               <TableHeader>
@@ -208,6 +202,15 @@ export function ClientUsersManagement({ clientId }: Props) {
                           <Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            disabled={i.status !== "pending"}
+                            onClick={() => {
+                              navigator.clipboard.writeText(inviteLinkFor(i.token));
+                              toast.success("Invite link copied — share with the invitee");
+                            }}
+                          >
+                            <Copy className="h-4 w-4 mr-2" /> Copy invite link
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => resendInvite.mutate(i.id)}>
                             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
                           </DropdownMenuItem>
