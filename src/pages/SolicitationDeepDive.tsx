@@ -14,6 +14,7 @@ import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseBut
 import { RTMTable } from "@/features/deepdive/components/RTMTable";
 import { CapabilitiesProfileCard } from "@/features/deepdive/components/CapabilitiesProfileCard";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
 const SEV_COLOR: Record<string, string> = {
