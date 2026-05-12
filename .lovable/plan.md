@@ -1,71 +1,38 @@
-## Goal
-Add in-app per-phase help docs (sheet panel), color-code phase tabs, and improve phase progress visibility.
+# Fix Quick Reference Index Overflow
 
-## Decisions locked
-- Help icon placement: **C** — icon on each top-level phase tab AND on each Deep Dive sub-tab.
-- Doc format: **A** — hand-authored React components per phase (no new deps).
-- Phase color palette: **A** — Phase 1 blue, Phase 2 violet, Phase 3 amber, Phase 4 emerald.
-- Progress bar style: **A** (richer stepper with gradient connectors + sub-step counter) — assumed; can swap to B during build.
+## Root Cause
+The Quick Reference Index table renders overflow because the **Source** column contains long unbreakable filename tokens like `IB01_Draft+RFP+Solicitation+-+W9124D26RA041+Professional+Appearance+(20260508).pdf` joined by `+`, `_`, `/`, `.` with **no whitespace**. Both renderers wrap on whitespace only, so these tokens push the column past the right page edge.
 
-## 1. Phase color tokens
-Edit `src/index.css` and `tailwind.config.ts`:
-```text
---phase-1: 217 91% 60%   (blue)
---phase-2: 262 83% 63%   (violet)
---phase-3: 38  92% 55%   (amber)
---phase-4: 152 69% 42%   (emerald)
-+ matching --phase-N-soft (same hue, ~12% lightness overlay via /15 alpha)
-```
-Expose Tailwind classes `bg-phase-1 / text-phase-1 / border-phase-1` (and 2/3/4) plus `*-soft` variants.
+- `wordGenerator.ts` `indexTable()` — column widths sum correctly to `CONTENT_W` (9360 DXA), but Word can't break unbreakable strings, so the cell visually overruns.
+- `pdfGenerator.ts` `drawIndexTable()` — uses jsPDF `splitTextToSize` which only breaks on spaces; long tokens render past `srcW`.
 
-## 2. Help docs (hand-authored React)
-New folder `src/features/solicitations/help/`:
-- `phase1.tsx`, `phase2.tsx`, `phase3.tsx`, `phase4.tsx`
-- Each exports `{ title, summary, Body }` where `Body` is a React component using shared primitives (`<HelpSection>`, `<HelpStep>`, `<HelpCallout>`).
-- Shared template per doc: **Purpose · How it works · Step-by-step · Outcome · Why it matters · Client participation · Tips**.
-- Phase 2 doc additionally documents the 3 sub-steps (RTM, Section analysis, Gaps).
+## Fix (presentation-only, no schema/business changes)
 
-## 3. PhaseHelpPanel component
-New `src/features/solicitations/components/PhaseHelpPanel.tsx`:
-- Trigger: small ghost icon button (`BookOpen` from lucide) sized `h-7 w-7`.
-- Opens shadcn `Sheet` on the right (`side="right"`, width `sm:max-w-xl`).
-- Sheet header shows phase number badge in phase color + title + Print button.
-- Body wrapped in `ScrollArea`.
-- Print: `window.print()` with a print stylesheet (`src/styles/help-print.css`) that hides `[data-print="hide"]` and shows only `#phase-help-printable`.
-- Closes on outside click (default Sheet behavior) and on route change (effect on `location.pathname`).
-- Props: `phase: PhaseType`, optional `subStep` to deep-link Phase 2 sub-doc.
+### 1. New helper `src/features/reports/utils/textBreaks.ts`
+Two utilities:
+- `softBreakWord(s)` — insert U+200B (zero-width space) after `+`, `_`, `/`, `\`, `.`, `-` inside long tokens (>16 chars). Used for Word, where U+200B is a valid wrap opportunity.
+- `hardBreakWord(s, maxChars)` — same boundaries but inserts a regular space (so jsPDF's `splitTextToSize` can wrap). Used for PDF.
 
-## 4. Color the phase nav + indicators
-- `src/pages/SolicitationDetail.tsx`: replace the four `NavBtn` phase entries with a new `PhaseNavBtn` that accepts `phase` and applies `border-b-2 border-phase-N` + `text-phase-N` when active, soft-tinted hover. Also mount `<PhaseHelpPanel phase={...} />` next to each phase tab label.
-- `src/features/solicitations/components/PhaseIndicator.tsx`: numbered circles use the matching phase color (done = filled phase color, current = phase color with pulsing ring `ring-2 ring-phase-N/40 animate-pulse`, future = muted). Connector lines thicken to `h-[3px]` and use phase-color gradient for completed segments.
-- `src/pages/SolicitationDeepDive.tsx`: render `<PhaseHelpPanel phase="phase_2_deep_dive" subStep={tab} />` next to each `TabsTrigger` (RTM / Section analysis / Gaps).
+Apply only to long tokens (length > ~16) so normal text is untouched.
 
-## 5. Sub-step progress meter
-Inside the phase strip card on `SolicitationDetail.tsx`, below the `PhaseIndicator`:
-- Add a thin `Progress` bar tinted with the **current** phase color, value = `(completedSteps / totalSteps) * 100`.
-- Counts derived locally:
-  - Phase 1: documents/questions/risks counts already on `s` — treat each PHASE_1_STEPS item as "done" if its associated count > 0; overview always done.
-  - Phase 2: derive from existing `useRequirementItems`, `useSectionAnalyses`, `useCapabilityGaps` hooks (already lazy-loaded via Deep Dive page — query them at this level, cached).
-  - Phase 3 / Phase 4: 1 step each, done if `solicitation_phases.status = complete`.
-- Caption: `"In progress · 2 of 5 steps"` / `"Complete"` / `"Not started"`.
+### 2. `wordGenerator.ts` — `indexTable()`
+- Run `softBreakWord(r.source)` and `softBreakWord(r.topic)` before rendering.
+- Slightly rebalance widths to give Source breathing room: `numW=480`, `catW=1600`, `srcW=2600`, `topicW=CONTENT_W - rest` (was 1800/2200).
+- Drop body font from size 18 (9pt) to 16 (8pt) for index rows only.
 
-## Files
+### 3. `pdfGenerator.ts` — `drawIndexTable()`
+- Run `hardBreakWord()` on `r.source` and `r.topic` before passing to `wrap()`.
+- Same width rebalance: `numW=28`, `catW=95`, `srcW=150`, `topicW=CONTENT_W - rest`.
+- Reduce body font to 8pt to match.
 
-**New**
-- `src/features/solicitations/help/phase1.tsx`
-- `src/features/solicitations/help/phase2.tsx`
-- `src/features/solicitations/help/phase3.tsx`
-- `src/features/solicitations/help/phase4.tsx`
-- `src/features/solicitations/help/primitives.tsx` (HelpSection/Step/Callout)
-- `src/features/solicitations/components/PhaseHelpPanel.tsx`
-- `src/features/solicitations/components/PhaseProgressBar.tsx`
-- `src/styles/help-print.css`
+### 4. Verification
+After edits, generate a Client Strategic Questionnaire on the affected solicitation and confirm:
+- Word: no column overflows the right margin; long filenames wrap mid-token.
+- PDF: same — re-render at 150dpi and visually inspect page containing the index.
 
-**Edit**
-- `src/index.css` — phase color tokens + import print css
-- `tailwind.config.ts` — phase color extensions
-- `src/features/solicitations/components/PhaseIndicator.tsx` — color + pulse + thicker connectors
-- `src/pages/SolicitationDetail.tsx` — phase-colored nav, mount help panels, mount progress bar
-- `src/pages/SolicitationDeepDive.tsx` — sub-tab help panels
+## Files changed
+- new `src/features/reports/utils/textBreaks.ts`
+- edit `src/features/reports/utils/wordGenerator.ts` (indexTable only)
+- edit `src/features/reports/utils/pdfGenerator.ts` (drawIndexTable only)
 
-No backend / DB / dependency changes.
+No backend, no DB, no template/prompt changes.
