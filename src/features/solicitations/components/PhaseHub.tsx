@@ -376,7 +376,7 @@ function PhaseCard({
             variant={phase.state === "active" ? "default" : "outline"}
             size="sm"
             onClick={phase.onOpen}
-            className="w-full"
+            className={cn("w-full", phase.state === "active" && colors.button)}
           >
             Open Phase {phase.index}
             <ArrowRight className="h-4 w-4 ml-2" />
