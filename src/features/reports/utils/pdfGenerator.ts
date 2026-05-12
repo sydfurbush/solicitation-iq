@@ -614,8 +614,8 @@ function drawCategoryLegend(ctx: Ctx, items: Array<{ tone: keyof typeof CATEGORY
 function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeof CATEGORY_RGB; categoryLabel: string; source: string; topic: string }>) {
   const { doc } = ctx;
   const numW = 28;
-  const catW = 110;
-  const srcW = 130;
+  const catW = 95;
+  const srcW = 150;
   const topicW = CONTENT_W - numW - catW - srcW;
   const padX = 6;
   const padY = 5;
@@ -639,10 +639,10 @@ function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeo
 
   rows.forEach((r, i) => {
     const t = CATEGORY_RGB[r.tone] ?? CATEGORY_RGB.neutral;
-    const topicLines = wrap(doc, r.topic, topicW - padX * 2, "normal", 9);
-    const srcLines = wrap(doc, r.source, srcW - padX * 2, "normal", 9);
-    const catLines = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 8);
-    const rowH = Math.max(20, Math.max(topicLines.length, srcLines.length, catLines.length) * 11 + padY * 2);
+    const topicLines = wrap(doc, hardBreakWord(r.topic), topicW - padX * 2, "normal", 8);
+    const srcLines = wrap(doc, hardBreakWord(r.source), srcW - padX * 2, "normal", 8);
+    const catLines = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 7);
+    const rowH = Math.max(20, Math.max(topicLines.length, srcLines.length, catLines.length) * 10 + padY * 2);
     if (ctx.y + rowH > CONTENT_BOTTOM) {
       newPage(ctx);
       drawHeader();
