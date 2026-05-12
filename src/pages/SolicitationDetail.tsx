@@ -409,6 +409,7 @@ export default function SolicitationDetail() {
             buildSteps={buildHubSteps}
             onOpenPhase={(p) => goTab(PHASE_TAB[p])}
             onWorkspace={(k) => goTab(k)}
+            solicitationId={s.id}
           />
         )}
 

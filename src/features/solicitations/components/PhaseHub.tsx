@@ -1,9 +1,19 @@
-import { ArrowRight, Check, Circle, CircleDashed } from "lucide-react";
+import { ArrowRight, Check, Circle, CircleDashed, Clock, AlertCircle, Send, RotateCw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { PHASES, type PhaseType } from "@/lib/validators/solicitation";
+import {
+  usePhaseApprovals,
+  useRequestApproval,
+  useResetApproval,
+  APPROVAL_LABEL,
+  type PhaseApproval,
+} from "@/features/phases/hooks/usePhaseApprovals";
+import { GATED_PHASES } from "@/features/phases/components/PhaseApprovalStrip";
+import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 type StepState = "done" | "active" | "todo";
 
@@ -45,6 +55,7 @@ interface Props {
   buildSteps: (phase: PhaseType) => HubStep[];
   onOpenPhase: (phase: PhaseType) => void;
   onWorkspace: (key: "reports" | "comparison" | "activity") => void;
+  solicitationId?: string;
 }
 
 function StateDot({ state }: { state: StepState }) {
@@ -67,7 +78,12 @@ export function PhaseHub({
   buildSteps,
   onOpenPhase,
   onWorkspace,
+  solicitationId,
 }: Props) {
+  const { byPhase } = usePhaseApprovals(solicitationId);
+  const requestApproval = useRequestApproval(solicitationId);
+  const resetApproval = useResetApproval(solicitationId);
+
   const phases: HubPhase[] = PHASES.map((p, i) => {
     const explicit = phaseStatusByPhase[p];
     const idx = PHASES.indexOf(currentPhase);
@@ -86,11 +102,37 @@ export function PhaseHub({
     };
   });
 
+  const handleRequest = async (p: PhaseType) => {
+    try {
+      await requestApproval.mutateAsync(p);
+      toast({ title: "Sent for client approval", description: PHASE_LABELS[p] });
+    } catch (e) {
+      toast({ title: "Failed", description: String(e), variant: "destructive" });
+    }
+  };
+
+  const handleReset = async (id: string) => {
+    try {
+      await resetApproval.mutateAsync(id);
+      toast({ title: "Reopened for review" });
+    } catch (e) {
+      toast({ title: "Failed", description: String(e), variant: "destructive" });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {phases.map((p) => (
-          <PhaseCard key={p.phase} phase={p} highlighted={p.phase === currentPhase} />
+          <PhaseCard
+            key={p.phase}
+            phase={p}
+            highlighted={p.phase === currentPhase}
+            approval={byPhase[p.phase]}
+            onRequestApproval={() => handleRequest(p.phase)}
+            onResetApproval={handleReset}
+            isMutating={requestApproval.isPending || resetApproval.isPending}
+          />
         ))}
       </div>
 
@@ -114,7 +156,21 @@ export function PhaseHub({
   );
 }
 
-function PhaseCard({ phase, highlighted }: { phase: HubPhase; highlighted: boolean }) {
+function PhaseCard({
+  phase,
+  highlighted,
+  approval,
+  onRequestApproval,
+  onResetApproval,
+  isMutating,
+}: {
+  phase: HubPhase;
+  highlighted: boolean;
+  approval?: PhaseApproval;
+  onRequestApproval?: () => void;
+  onResetApproval?: (id: string) => void;
+  isMutating?: boolean;
+}) {
   const stateBadge =
     phase.state === "done" ? (
       <Badge variant="outline" className="bg-accent/15 text-accent border-accent/30">Done</Badge>
@@ -123,6 +179,27 @@ function PhaseCard({ phase, highlighted }: { phase: HubPhase; highlighted: boole
     ) : (
       <Badge variant="outline" className="text-muted-foreground">Not started</Badge>
     );
+
+  const isGated = GATED_PHASES.includes(phase.phase);
+  const status = approval?.status ?? "not_ready";
+  const approvalBadge = isGated ? (
+    status === "approved" ? (
+      <Badge variant="outline" className="bg-accent/15 text-accent border-accent/30 gap-1">
+        <Check className="h-3 w-3" /> Client approved
+      </Badge>
+    ) : status === "pending_review" ? (
+      <Badge variant="outline" className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1">
+        <Clock className="h-3 w-3" /> Awaiting client
+      </Badge>
+    ) : status === "changes_requested" ? (
+      <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30 gap-1">
+        <AlertCircle className="h-3 w-3" /> Changes requested
+      </Badge>
+    ) : (
+      <Badge variant="outline" className="text-muted-foreground">Not requested</Badge>
+    )
+  ) : null;
+
 
   return (
     <Card
@@ -182,6 +259,37 @@ function PhaseCard({ phase, highlighted }: { phase: HubPhase; highlighted: boole
           )}
         </ul>
 
+        {isGated && (
+          <div className="rounded-md border border-dashed p-2.5 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Client approval</span>
+              {approvalBadge}
+            </div>
+            {approval?.decided_at && (
+              <p className="text-xs text-muted-foreground">
+                {APPROVAL_LABEL[status]} by {approval.decided_by_name ?? "client"} on{" "}
+                {format(new Date(approval.decided_at), "PP")}
+              </p>
+            )}
+            {approval?.decision_note && (
+              <p className="text-xs italic text-muted-foreground">"{approval.decision_note}"</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {(status === "not_ready" || status === "approved") && onRequestApproval && (
+                <Button size="sm" variant="outline" onClick={onRequestApproval} disabled={isMutating}>
+                  <Send className="h-3.5 w-3.5 mr-1" />
+                  {status === "approved" ? "Re-request approval" : "Request client approval"}
+                </Button>
+              )}
+              {status === "changes_requested" && approval && onResetApproval && (
+                <Button size="sm" variant="outline" onClick={() => onResetApproval(approval.id)} disabled={isMutating}>
+                  <RotateCw className="h-3.5 w-3.5 mr-1" /> Reopen for review
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="pt-1">
           <Button
             variant={phase.state === "active" ? "default" : "outline"}
@@ -193,6 +301,7 @@ function PhaseCard({ phase, highlighted }: { phase: HubPhase; highlighted: boole
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </div>
+
       </CardContent>
     </Card>
   );

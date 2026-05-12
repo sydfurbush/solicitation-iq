@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Check, AlertCircle, Clock, CircleDashed } from "lucide-react";
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,15 +10,28 @@ import { useClientSolicitation, useClientReports } from "@/features/portal/hooks
 import { useClientUser } from "@/features/portal/hooks/useClientUser";
 import { ClientAnnotations } from "@/features/portal/components/ClientAnnotations";
 import { ClientReportViewer } from "@/features/portal/components/ClientReportViewer";
+import { usePhaseApprovals, APPROVAL_LABEL, type PhaseApproval } from "@/features/phases/hooks/usePhaseApprovals";
+import { PhaseApprovalStrip } from "@/features/phases/components/PhaseApprovalStrip";
+import { ApprovalActionBanner } from "@/features/phases/components/ApprovalActionBanner";
+import { type PhaseType } from "@/lib/validators/solicitation";
+
+const PHASE_LABELS: Record<PhaseType, string> = {
+  phase_1_initial: "Initial",
+  phase_2_deep_dive: "Deep Dive",
+  phase_3_outline: "Outline",
+  phase_4_win_themes: "Win Themes",
+};
 
 export default function PortalSolicitationDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: sol, isLoading } = useClientSolicitation(id);
   const { data: reports = [] } = useClientReports(id);
-  const { client } = useClientUser();
+  const { client, clientUser } = useClientUser();
+  const { approvals, byPhase } = usePhaseApprovals(id);
 
   const accessLevel = (client?.access_level as "full" | "summary" | "restricted") ?? "summary";
   const hasFullAccess = accessLevel === "full";
+  const canApprove = accessLevel === "full" || accessLevel === "restricted";
 
   if (isLoading) return <Skeleton className="h-96 w-full" />;
   if (!sol)
@@ -29,6 +42,11 @@ export default function PortalSolicitationDetail() {
         </CardContent>
       </Card>
     );
+
+  const pending = canApprove
+    ? approvals.find((a) => a.status === "pending_review")
+    : undefined;
+  const deciderName = clientUser?.full_name ?? clientUser?.email ?? null;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -50,6 +68,14 @@ export default function PortalSolicitationDetail() {
         </div>
       </div>
 
+      {/* Phase status strip — visible to all access levels */}
+      <PhaseApprovalStrip byPhase={byPhase} />
+
+      {/* Action banner when something needs the client's review */}
+      {pending && id && (
+        <ApprovalActionBanner pending={pending} solicitationId={id} deciderName={deciderName} />
+      )}
+
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -60,6 +86,10 @@ export default function PortalSolicitationDetail() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4 mt-4">
+          {canApprove && (
+            <ApprovalsCard approvals={approvals} />
+          )}
+
           <Card>
             <CardHeader><CardTitle className="text-base">Summary</CardTitle></CardHeader>
             <CardContent>
@@ -142,6 +172,57 @@ export default function PortalSolicitationDetail() {
         )}
       </Tabs>
     </div>
+  );
+}
+
+function ApprovalsCard({ approvals }: { approvals: PhaseApproval[] }) {
+  const sorted = [...approvals].sort((a, b) => a.phase.localeCompare(b.phase));
+  if (sorted.length === 0) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-base">Approvals</CardTitle></CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          No phases have been sent for your review yet.
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader><CardTitle className="text-base">Approvals</CardTitle></CardHeader>
+      <CardContent className="space-y-3">
+        {sorted.map((a) => {
+          const Icon =
+            a.status === "approved" ? Check
+            : a.status === "pending_review" ? Clock
+            : a.status === "changes_requested" ? AlertCircle
+            : CircleDashed;
+          const tone =
+            a.status === "approved" ? "text-accent"
+            : a.status === "pending_review" ? "text-amber-600 dark:text-amber-400"
+            : a.status === "changes_requested" ? "text-destructive"
+            : "text-muted-foreground";
+          return (
+            <div key={a.id} className="flex items-start gap-3 text-sm">
+              <Icon className={`h-4 w-4 mt-0.5 ${tone}`} />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium">
+                  {PHASE_LABELS[a.phase]} · <span className={tone}>{APPROVAL_LABEL[a.status]}</span>
+                </div>
+                {a.decided_at && (
+                  <div className="text-xs text-muted-foreground">
+                    {a.decided_by_name ?? "Client"} · {format(new Date(a.decided_at), "PPp")}
+                  </div>
+                )}
+                {a.decision_note && (
+                  <div className="text-xs italic text-muted-foreground mt-1">"{a.decision_note}"</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
 
