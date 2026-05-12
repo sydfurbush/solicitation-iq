@@ -113,6 +113,8 @@ function ParentChildLinks({ solId, parentId }: { solId: string; parentId: string
     </>
   );
 }
+
+export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
