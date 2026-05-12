@@ -13,6 +13,7 @@ type ReportType =
   | "executive_summary"
   | "full_analysis"
   | "questions_brief"
+  | "client_questionnaire"
   | "risk_assessment"
   | "opportunity_brief"
   | "comparison_report"
@@ -48,6 +49,7 @@ const PROMPTS: Record<ReportType, string> = {
 Cite inline as [Doc §Section p.X] where relevant. Crisp executive language.${BLOCKS_GUIDE}`,
   full_analysis: `Generate a comprehensive solicitation analysis report. Sections: Executive Summary, Solicitation Overview, Requirements Analysis, Evaluation Criteria Analysis, Risk Assessment, Opportunities Analysis, Competitive Landscape, Strategic Questions, Comparison to Prior Solicitation (skip if no data), Proposal Strategy Recommendations, Appendices. Every claim cites [Doc §Section p.X]. Use markdown.`,
   questions_brief: `Generate a Strategic Questions brief. Sections: Submitted Questions (recommendation 'ask', numbered Q&A with rationale), Strategic Hold Questions (recommendation 'hold', explain advantage), Internal Discussion Items (monitor/internal). Citations required.`,
+  client_questionnaire: `Client-ready strategic questionnaire (deterministic — handled in code).`,
   risk_assessment: `Generate a Risk Assessment. Sections: Risk Overview (summary + count by severity), Critical Risks (each high/critical risk with description, citation, mitigation), Mitigation Plan (prioritized actions).`,
   opportunity_brief: `Generate an Opportunity Brief. Sections: Opportunity Overview, High-Impact Opportunities (each with description, recommended approach, capability match, citation), Recommended Capture Approach.`,
   comparison_report: `Generate a Comparison Report from the supplied prior-solicitation data. Sections: Comparison Summary, Key Changes (requirements, evaluation factors, scope, timeline, financial), Strategic Implications. Markdown.`,
@@ -149,7 +151,7 @@ async function gatherContext(supabase: ReturnType<typeof createClient>, solicita
     .eq("solicitation_id", solicitationId)
     .is("deleted_at", null);
 
-  const isQBrief = reportType === "questions_brief";
+  const isQBrief = reportType === "questions_brief" || reportType === "client_questionnaire";
   let qQuery = supabase
     .from("strategic_questions")
     .select("category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, is_submitted, agency_response")
@@ -230,7 +232,8 @@ Deno.serve(async (req) => {
 
     // Deterministic path: questions_brief renders ALL questions from DB,
     // bypassing the model so nothing is dropped/summarized.
-    if (reportType === "questions_brief") {
+    if (reportType === "questions_brief" || reportType === "client_questionnaire") {
+      const isClientQ = reportType === "client_questionnaire";
       const all = (ctx.questions ?? []) as Array<{
         category: string | null;
         recommendation: string | null;
