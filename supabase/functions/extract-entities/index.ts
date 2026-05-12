@@ -79,12 +79,31 @@ and a confidence_score between 0 and 1.`;
     },
   };
 
-  const args = await callAiTool({
-    functionName: "extract-entities",
-    system: systemPrompt,
-    user: slice,
-    tool,
-  });
+  let args: Record<string, unknown>;
+  try {
+    args = await callAiTool({
+      functionName: "extract-entities",
+      system: systemPrompt,
+      user: slice,
+      tool,
+    });
+  } catch (e) {
+    // If the model truncated or returned malformed JSON, retry once with half the input.
+    const msg = e instanceof Error ? e.message : String(e);
+    const truncated =
+      msg.includes("did not return structured") ||
+      msg.includes("Unexpected end of JSON") ||
+      msg.includes("JSON");
+    if (!truncated) throw e;
+    const halved = slice.slice(0, Math.floor(slice.length / 2));
+    console.warn(`[extract-entities] retrying with halved input (${halved.length} chars) after error: ${msg}`);
+    args = await callAiTool({
+      functionName: "extract-entities",
+      system: systemPrompt,
+      user: halved,
+      tool,
+    });
+  }
   const list = Array.isArray((args as any).entities) ? (args as any).entities : [];
   return list.filter(
     (e: ExtractedEntity) =>

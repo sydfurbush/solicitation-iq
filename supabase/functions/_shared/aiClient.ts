@@ -11,15 +11,15 @@ export interface ModelChoice {
 
 // Single source of truth — change values here to retune any function.
 export const MODEL_CONFIG: Record<string, ModelChoice> = {
-  "analyze-solicitation": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
-  "identify-risks-opportunities": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
+  "analyze-solicitation": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
+  "identify-risks-opportunities": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 12000 },
   "generate-questions": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 },
   "generate-report": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
   "compare-solicitations": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
-  "extract-entities": { provider: "anthropic", model: "claude-haiku-4-5", maxTokens: 4096 },
-  "extract-requirements": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 16000 },
-  "analyze-sections": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
-  "analyze-gaps": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 4096 },
+  "extract-entities": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 16000 },
+  "extract-requirements": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 24000 },
+  "analyze-sections": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
+  "analyze-gaps": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 12000 },
   "generate-outline": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "generate-win-themes": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 6000 },
 };
