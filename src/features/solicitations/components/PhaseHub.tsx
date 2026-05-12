@@ -14,6 +14,7 @@ import {
 import { GATED_PHASES } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalsTimeline } from "@/features/phases/components/ApprovalsTimeline";
 import { ApprovalNoteDialog } from "@/features/phases/components/ApprovalNoteDialog";
+import { ExportApprovalsButton } from "@/features/phases/components/ExportApprovalsButton";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { useState } from "react";
