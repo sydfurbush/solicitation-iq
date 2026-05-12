@@ -345,6 +345,14 @@ export default function SolicitationDetail() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          {((s as { stage?: string }).stage === "pre_solicitation" ||
+            (s as { stage?: string }).stage === "draft_rfp") && (
+            <AddFinalSolicitationDialog
+              sourceId={s.id}
+              sourceTitle={s.title}
+              sourceStage={(s as { stage: SolicitationStage }).stage}
+            />
+          )}
           <SolicitationActionsMenu
             solicitation={s}
             onArchive={() => handleStatusChange("archived")}
