@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import type { ReportContent } from "../templates/types";
 import { sectionBlocks, type Block } from "../templates/blocks";
-import { RGB, FONT_PDF, DEFAULT_FOOTER_TEXT } from "../templates/theme";
+import { RGB, FONT_PDF, DEFAULT_FOOTER_TEXT, CATEGORY_RGB } from "../templates/theme";
 
 const PAGE = { w: 612, h: 792 }; // US Letter pt
 const MARGIN = { top: 36, right: 56, bottom: 56, left: 56 };
