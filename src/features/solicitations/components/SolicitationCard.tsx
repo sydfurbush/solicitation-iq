@@ -28,6 +28,7 @@ interface Props {
   solicitation: SolicitationWithClient;
   onArchive?: (s: SolicitationWithClient) => void;
   onDelete?: (s: SolicitationWithClient) => void;
+  onRestore?: (s: SolicitationWithClient) => void;
 }
 
 function clientInitials(name: string) {
@@ -40,13 +41,14 @@ function clientInitials(name: string) {
     .toUpperCase();
 }
 
-export function SolicitationCard({ solicitation: s, onArchive, onDelete }: Props) {
+export function SolicitationCard({ solicitation: s, onArchive, onDelete, onRestore }: Props) {
   const navigate = useNavigate();
   const status = (s.status ?? "intake") as SolicitationStatus;
   const urgency = dueUrgency(s.proposal_due_date);
   const days = daysUntil(s.proposal_due_date);
   const setAside = (s as { set_aside?: string | null }).set_aside;
-  const hasMenu = !!(onArchive || onDelete);
+  const isDeleted = !!s.deleted_at;
+  const hasMenu = !!(onArchive || onDelete || onRestore);
 
   return (
     <Card
