@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { useWinThemes, useGenerateWinThemes, useUpdateWinTheme, useDeleteWinTheme } from "@/features/winthemes/hooks/useWinThemes";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
 export default function SolicitationWinThemes({ solicitationId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
