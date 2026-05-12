@@ -224,16 +224,24 @@ export function SolicitationsTable({
                         <DropdownMenuItem onClick={() => navigate(`/solicitations/${s.id}`)}>
                           Open
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onArchive(s)}>
-                          Archive
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => onDelete(s)}
-                        >
-                          Delete
-                        </DropdownMenuItem>
+                        {isDeleted && onRestore ? (
+                          <DropdownMenuItem onClick={() => onRestore(s)}>
+                            Restore
+                          </DropdownMenuItem>
+                        ) : (
+                          <>
+                            <DropdownMenuItem onClick={() => onArchive(s)}>
+                              Archive
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => onDelete(s)}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
