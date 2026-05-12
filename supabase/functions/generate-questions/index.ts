@@ -665,14 +665,6 @@ Deno.serve(async (req) => {
             const rows = mapRows(questions, solicitationId, docByName);
             console.log(`[generate-questions] ${sub.label} got ${rows.length} questions`);
             if (rows.length > 0) {
-              if (regenerate && !didRegenDelete) {
-                await supabase
-                  .from("strategic_questions")
-                  .delete()
-                  .eq("solicitation_id", solicitationId)
-                  .eq("is_ai_generated", true);
-                didRegenDelete = true;
-              }
               const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
               if (insErr) {
                 console.error(`[generate-questions] ${sub.label} insert error`, insErr);
