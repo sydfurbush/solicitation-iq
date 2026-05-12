@@ -96,6 +96,7 @@ const App = () => (
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/portal/login" element={<PortalLogin />} />
+                  <Route path="/portal/accept-invite" element={<PortalAcceptInvite />} />
                   <Route path="/portal" element={<PortalLayout />}>
                     <Route index element={<PortalDashboard />} />
                     <Route path="solicitations" element={<PortalSolicitations />} />
