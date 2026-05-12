@@ -85,51 +85,65 @@ Deno.serve(async (req) => {
       .order("sort_order", { ascending: true });
 
     const docBlocks = documents.map((d) => {
-      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 60);
+      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 30);
       const txt = ds
-        .map((s) => `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 3000)}`)
+        .map((s) => `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 1500)}`)
         .join("\n\n");
       return `=== DOCUMENT: ${d.file_name} ===\n${txt}`;
     }).join("\n\n");
 
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${sol?.ai_summary ? `\n\nSUMMARY:\n${sol.ai_summary}` : ""}\n\n${docBlocks}\n\nProduce per-section analysis.`;
 
-    console.log(`[analyze-sections] sol=${solicitationId} docs=${documents.length}`);
+    console.log(`[analyze-sections] sol=${solicitationId} docs=${documents.length} prompt_chars=${userPrompt.length}`);
 
-    const parsed = await callAiTool({
-      functionName: "analyze-sections",
-      system: SYSTEM_PROMPT,
-      user: userPrompt,
-      tool: SCHEMA,
-    }) as { sections: Array<Record<string, unknown>> };
+    // Run AI + DB write in background to avoid 150s edge timeout. Client polls section_analyses.
+    const work = (async () => {
+      try {
+        const parsed = await callAiTool({
+          functionName: "analyze-sections",
+          system: SYSTEM_PROMPT,
+          user: userPrompt,
+          tool: SCHEMA,
+        }) as { sections: Array<Record<string, unknown>> };
 
-    const out = parsed.sections ?? [];
+        const out = parsed.sections ?? [];
 
-    // Replace existing AI rows
-    await supabase
-      .from("section_analyses")
-      .delete()
-      .eq("solicitation_id", solicitationId)
-      .eq("is_ai_generated", true);
+        await supabase
+          .from("section_analyses")
+          .delete()
+          .eq("solicitation_id", solicitationId)
+          .eq("is_ai_generated", true);
 
-    const rows = out.map((s) => ({
-      solicitation_id: solicitationId,
-      section_code: (s.section_code as string) ?? "?",
-      section_title: (s.section_title as string) ?? null,
-      summary: (s.summary as string) ?? "",
-      requirements_count: s.requirements_count ? Number(s.requirements_count) : 0,
-      scoring_weight: s.scoring_weight ? Number(s.scoring_weight) : null,
-      risk_flags: (s.risk_flags as string[]) ?? [],
-      source_citations: (s.source_citations as string[]) ?? [],
-      is_ai_generated: true,
-    })).filter((r) => r.summary);
+        const rows = out.map((s) => ({
+          solicitation_id: solicitationId,
+          section_code: (s.section_code as string) ?? "?",
+          section_title: (s.section_title as string) ?? null,
+          summary: (s.summary as string) ?? "",
+          requirements_count: s.requirements_count ? Number(s.requirements_count) : 0,
+          scoring_weight: s.scoring_weight ? Number(s.scoring_weight) : null,
+          risk_flags: (s.risk_flags as string[]) ?? [],
+          source_citations: (s.source_citations as string[]) ?? [],
+          is_ai_generated: true,
+        })).filter((r) => r.summary);
 
-    if (rows.length) {
-      const { error } = await supabase.from("section_analyses").insert(rows);
-      if (error) throw error;
+        if (rows.length) {
+          const { error } = await supabase.from("section_analyses").insert(rows);
+          if (error) throw error;
+        }
+        console.log(`[analyze-sections] background done sol=${solicitationId} inserted=${rows.length}`);
+      } catch (err) {
+        console.error("[analyze-sections] background error", err);
+      }
+    })();
+
+    // @ts-ignore EdgeRuntime is provided by Supabase runtime
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(work);
     }
 
-    return new Response(JSON.stringify({ success: true, inserted: rows.length }), {
+    return new Response(JSON.stringify({ success: true, status: "processing" }), {
+      status: 202,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

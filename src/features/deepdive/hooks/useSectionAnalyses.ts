@@ -32,6 +32,27 @@ export function useAnalyzeSections(solicitationId: string | undefined) {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+
+      // Job runs in background; poll up to ~3 min for new rows.
+      const startedAt = Date.now();
+      const baselineCount = (
+        await supabase
+          .from("section_analyses")
+          .select("id", { count: "exact", head: true })
+          .eq("solicitation_id", solicitationId)
+          .eq("is_ai_generated", true)
+      ).count ?? 0;
+
+      while (Date.now() - startedAt < 180_000) {
+        await new Promise((r) => setTimeout(r, 4000));
+        const { count } = await supabase
+          .from("section_analyses")
+          .select("id", { count: "exact", head: true })
+          .eq("solicitation_id", solicitationId)
+          .eq("is_ai_generated", true)
+          .gt("created_at", new Date(startedAt - 1000).toISOString());
+        if ((count ?? 0) > 0 && (count ?? 0) !== baselineCount) break;
+      }
       return data;
     },
     onSuccess: () => {
