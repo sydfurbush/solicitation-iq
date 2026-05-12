@@ -617,12 +617,17 @@ export async function generateDocx(report: ReportContent): Promise<Blob> {
   });
 
   const children: Array<Paragraph | Table> = [];
-  children.push(coverBand(report));
-  children.push(new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }));
+  const firstBlock = report.sections?.[0]?.blocks?.[0];
+  const hasOwnCover = firstBlock?.kind === "coverHero";
+  if (!hasOwnCover) {
+    children.push(coverBand(report));
+    children.push(new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }));
+  }
 
   for (const s of report.sections ?? []) {
-    children.push(sectionHeading(s.heading));
     const blocks = sectionBlocks(s);
+    const skipHeading = blocks[0]?.kind === "coverHero";
+    if (!skipHeading) children.push(sectionHeading(s.heading));
     for (const b of blocks) {
       for (const el of blockToElements(b)) children.push(el);
     }
