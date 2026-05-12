@@ -21,6 +21,7 @@ type Props = {
   onShowVersions?: (doc: DocumentRow) => void;
   onBulkDelete?: (docs: DocumentRow[]) => void;
   onBulkReprocess?: (docs: DocumentRow[]) => void;
+  onRetry?: (doc: DocumentRow) => void;
 };
 
 type SortKey = "created_at" | "file_name" | "document_type" | "status";
