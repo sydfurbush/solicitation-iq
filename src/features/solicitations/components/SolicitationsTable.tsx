@@ -139,10 +139,11 @@ export function SolicitationsTable({
               const urgency = dueUrgency(s.proposal_due_date);
               const days = daysUntil(s.proposal_due_date);
               const checked = selectedIds.includes(s.id);
+              const isDeleted = !!s.deleted_at;
               return (
                 <TableRow
                   key={s.id}
-                  className="cursor-pointer"
+                  className={cn("cursor-pointer", isDeleted && "opacity-60")}
                   onClick={() => navigate(`/solicitations/${s.id}`)}
                 >
                   <TableCell onClick={(e) => e.stopPropagation()}>
