@@ -32,17 +32,21 @@ function setText(doc: jsPDF, c: [number, number, number]) { doc.setTextColor(c[0
 function setDraw(doc: jsPDF, c: [number, number, number]) { doc.setDrawColor(c[0], c[1], c[2]); }
 
 function drawHeader(ctx: Ctx) {
-  const { doc, headerLeft, headerRight } = ctx;
+  const { doc, headerLeft, headerRight, headerExtra } = ctx;
   doc.setFont(FONT_PDF, "bold");
   doc.setFontSize(9);
   setText(doc, RGB.navy);
   doc.text(headerLeft.toUpperCase(), MARGIN.left, MARGIN.top);
-  // pipe + solicitation #
   const leftW = doc.getTextWidth(headerLeft.toUpperCase());
   setText(doc, RGB.amber);
   doc.text(" |", MARGIN.left + leftW, MARGIN.top);
+  setText(doc, RGB.navy);
   doc.text(headerRight.toUpperCase(), MARGIN.left + leftW + 14, MARGIN.top);
-  // double rule
+  if (headerExtra) {
+    setText(doc, RGB.textMuted);
+    doc.setFont(FONT_PDF, "bold");
+    doc.text(headerExtra.toUpperCase(), PAGE.w - MARGIN.right, MARGIN.top, { align: "right" });
+  }
   setDraw(doc, RGB.navy);
   doc.setLineWidth(0.6);
   doc.line(MARGIN.left, MARGIN.top + 6, PAGE.w - MARGIN.right, MARGIN.top + 6);
