@@ -90,7 +90,29 @@ const WORKSPACE_LABELS: Record<WorkspaceKey, string> = {
   activity: "Activity",
 };
 
-export default function SolicitationDetail() {
+function ParentChildLinks({ solId, parentId }: { solId: string; parentId: string | null }) {
+  const { data: child } = useChildSolicitation(parentId ? undefined : solId);
+  return (
+    <>
+      {parentId && (
+        <Link
+          to={`/solicitations/${parentId}`}
+          className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+        >
+          ← Linked from earlier stage
+        </Link>
+      )}
+      {!parentId && child && (
+        <Link
+          to={`/solicitations/${child.id}`}
+          className="text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+        >
+          Continued in {child.stage_label || child.stage} →
+        </Link>
+      )}
+    </>
+  );
+}
   const { solicitationId } = useParams<{ solicitationId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
