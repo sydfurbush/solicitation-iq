@@ -1,56 +1,28 @@
-**Analysis result**
+## Goal
 
-Do I know what the issue is? Yes.
+Eliminate duplicate questions on regenerate by always wiping prior AI-generated questions before a new generation run. Manual questions are preserved.
 
-The failed document is the RFQ DOCX for solicitation `7d1c6a0c-2717-4e54-9076-e1a590c25b65`. The document parsing step succeeds: text is extracted successfully (`42,655` characters). The failure happens afterward in the entity extraction function.
+## Changes
 
-**What is actually happening**
+### 1. `supabase/functions/generate-questions/index.ts`
+- Remove the `regenerate` flag dependency for the delete step. When the request is **not** a `retryRunId` retry, perform a single up-front delete of all `is_ai_generated = true` rows for the solicitation **before** the first batch runs (instead of conditionally inside the batch loop).
+- Keep the existing `didRegenDelete` guard so it only fires once per run.
+- Retries (`retryRunId`) skip the delete and continue appending, as today.
 
-- `process-document` downloads and parses the uploaded DOCX correctly.
-- It then calls `extract-entities`.
-- `extract-entities` calls the AI gateway using forced tool-call structured output.
-- The deployed function log shows the failed run used:
-  - model: `google/gemini-2.5-flash`
-  - max tokens: `4096`
-  - finish reason: `error`
-  - tool argument chars: `0`
-- Because the AI response contained no tool call, the function marked the document as `failed` with: `AI did not return structured tool call`.
+### 2. `src/features/questions/components/GenerateQuestionsDialog.tsx`
+- Remove the "Replace existing AI-generated questions" checkbox and the `hasExistingAi` warning Alert (no longer needed — replacement is now the default).
+- Remove `regenerate` state and stop sending it in the mutation payload.
 
-**Why the prior fix did not take effect**
+### 3. `src/features/questions/hooks/useStrategicQuestions.ts` (and `SolicitationQuestions.tsx`)
+- Drop the now-unused `regenerate` argument from `useGenerateQuestions` and the `hasExistingAi` prop wiring (cosmetic cleanup).
 
-The code fallback was changed to `google/gemini-2.5-pro`, but this app has a runtime database override table called `ai_model_settings`. That override still says:
+## Behavior after change
 
-```text
-extract-entities -> google/gemini-2.5-flash, max_tokens 4096
-```
+- Clicking **Generate** always: deletes prior AI questions → runs all batches → inserts fresh set. No more accumulation/duplicates.
+- Manually-added questions (`is_ai_generated = false`) are untouched.
+- **Retry failed batches** still appends only — no destructive delete on retry.
 
-The shared AI client checks that override first, so the deployed function ignored the new static code fallback and kept using Flash. That is why it failed again.
+## Out of scope
 
-**Plan to fix**
-
-1. Update the runtime AI model setting for `extract-entities`
-   - Set provider to `lovable`.
-   - Set model to `google/gemini-2.5-pro`.
-   - Raise max tokens from `4096` to `16000` to match the intended code config and reduce structured-output truncation risk.
-
-2. Harden the code path so this mismatch is less likely to recur
-   - Keep the current Pro fallback in `_shared/aiClient.ts`.
-   - Add clearer logging that identifies when a runtime override is being used.
-   - Optionally make the Settings UI default for Entity Extraction show `16000` instead of `4096` so admins do not unknowingly save the weaker value again.
-
-3. Retry only the failed current document
-   - Re-run processing for the failed RFQ DOCX after the runtime setting is corrected.
-   - Confirm logs show `extract-entities` using `google/gemini-2.5-pro`.
-   - Confirm the document status changes from `failed` to `analyzed`.
-
-**Expected outcome**
-
-The upload itself is not the root problem. The parser is working. The repeated failure is caused by entity extraction still using the stale Flash override instead of Gemini 2.5 Pro.
-
-<lov-actions>
-  <lov-open-history>View History</lov-open-history>
-</lov-actions>
-
-<lov-actions>
-<lov-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</lov-link>
-</lov-actions>
+- No DB schema changes.
+- No dedupe of existing duplicates already in the table — user can clean those up by clicking Generate once after this ships, or we can add a one-off cleanup if desired.
