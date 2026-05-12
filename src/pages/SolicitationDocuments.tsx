@@ -133,6 +133,10 @@ export default function SolicitationDocuments({ solicitationId }: { solicitation
           items.forEach((d) => void invokeProcessDocument(d.id));
           toast({ title: `Re-processing ${items.length} document(s)` });
         }}
+        onRetry={(d) => {
+          void invokeProcessDocument(d.id);
+          toast({ title: "Retrying", description: d.file_name });
+        }}
       />
 
       <DocumentViewer
