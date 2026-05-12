@@ -13,8 +13,10 @@ import {
 } from "@/features/phases/hooks/usePhaseApprovals";
 import { GATED_PHASES } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalsTimeline } from "@/features/phases/components/ApprovalsTimeline";
+import { ApprovalNoteDialog } from "@/features/phases/components/ApprovalNoteDialog";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useState } from "react";
 
 type StepState = "done" | "active" | "todo";
 
