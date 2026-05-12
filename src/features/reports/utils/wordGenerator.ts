@@ -5,7 +5,7 @@ import {
 } from "docx";
 import type { ReportContent } from "../templates/types";
 import { sectionBlocks, type Block } from "../templates/blocks";
-import { HEX, FONT_DOCX, DEFAULT_FOOTER_TEXT } from "../templates/theme";
+import { HEX, FONT_DOCX, DEFAULT_FOOTER_TEXT, CATEGORY_HEX, type CategoryTone } from "../templates/theme";
 
 function fmt(d: string) {
   try { return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }); }
