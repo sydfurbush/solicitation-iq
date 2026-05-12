@@ -549,14 +549,6 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
   const blob = await Packer.toBlob(docx);
   return blob;
 }
-        },
-      },
-      children,
-    }],
-  });
-  const blob = await Packer.toBlob(docx);
-  return blob;
-}
 
 /* -------------------- Public API -------------------- */
 export async function exportDocument(doc: ExportDocument, format: ExportFormat, opts: ExportOptions = {}) {
