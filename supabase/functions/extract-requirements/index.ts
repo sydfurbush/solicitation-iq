@@ -87,13 +87,30 @@ Deno.serve(async (req) => {
       .in("document_id", docIds)
       .order("sort_order", { ascending: true });
 
+    // Pre-filter to sections that actually contain binding verbs to keep the AI
+    // payload small enough to finish within the 150s edge function idle timeout.
+    const BINDING_RE = /\b(shall|must|will|is required to|are required to|is responsible for|are responsible for)\b/i;
+    const MAX_TOTAL_CHARS = 180_000; // keep prompt well under model context + latency budget
+    const PER_SECTION_CHARS = 1400;
+
+    let usedChars = 0;
     const docBlocks = documents.map((d) => {
-      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 40);
-      const txt = ds
-        .map((s) => `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 1800)}`)
-        .join("\n\n");
-      return `=== DOCUMENT: ${d.file_name} ===\n${txt}`;
+      const all = (sections ?? []).filter((s) => s.document_id === d.id);
+      const relevant = all.filter((s) => BINDING_RE.test(s.content ?? ""));
+      const pick = (relevant.length ? relevant : all).slice(0, 60);
+      const parts: string[] = [];
+      for (const s of pick) {
+        if (usedChars >= MAX_TOTAL_CHARS) break;
+        const remaining = MAX_TOTAL_CHARS - usedChars;
+        const slice = (s.content ?? "").slice(0, Math.min(PER_SECTION_CHARS, remaining));
+        const block = `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${slice}`;
+        parts.push(block);
+        usedChars += block.length;
+      }
+      return `=== DOCUMENT: ${d.file_name} ===\n${parts.join("\n\n")}`;
     }).join("\n\n");
+
+    console.log(`[extract-requirements] prompt_chars=${usedChars}`);
 
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${docBlocks}\n\nExtract every binding requirement.`;
 
