@@ -1,7 +1,7 @@
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType,
-  HeadingLevel, PageNumber, VerticalAlign, LevelFormat, TabStopType,
+  HeadingLevel, PageNumber, VerticalAlign, LevelFormat, TabStopType, PageBreak,
 } from "docx";
 import type { ReportContent } from "../templates/types";
 import { sectionBlocks, type Block } from "../templates/blocks";
@@ -369,6 +369,184 @@ function questionCardTable(card: Extract<Block, { kind: "questionCard" }>) {
   });
 }
 
+function coverHeroElements(b: Extract<Block, { kind: "coverHero" }>): Array<Paragraph | Table> {
+  const out: Array<Paragraph | Table> = [];
+  // Firm band
+  out.push(new Table({
+    width: { size: CONTENT_W, type: WidthType.DXA },
+    columnWidths: [CONTENT_W],
+    borders: { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder, insideHorizontal: noBorder, insideVertical: noBorder },
+    rows: [new TableRow({
+      children: [new TableCell({
+        width: { size: CONTENT_W, type: WidthType.DXA },
+        shading: { fill: HEX.navy, type: ShadingType.CLEAR, color: "auto" },
+        margins: { top: 240, bottom: 240, left: 240, right: 240 },
+        children: [new Paragraph({
+          tabStops: [{ type: TabStopType.RIGHT, position: CONTENT_W - 480 }],
+          children: [
+            new TextRun({ text: b.firm.toUpperCase(), bold: true, size: 36, color: HEX.white, font: FONT_DOCX }),
+            ...(b.confidential ? [new TextRun({ text: "\tCONFIDENTIAL", bold: true, size: 18, color: HEX.amber, font: FONT_DOCX })] : []),
+          ],
+        })],
+      })],
+    })],
+  }));
+  // Spacer
+  for (let i = 0; i < 8; i++) out.push(new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }));
+  // Eyebrow
+  out.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 200 },
+    children: [new TextRun({ text: "CLIENT STRATEGIC QUESTIONNAIRE", bold: true, size: 22, color: HEX.amber, font: FONT_DOCX })],
+  }));
+  // Title
+  out.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 240 },
+    children: [new TextRun({ text: b.title, bold: true, size: 56, color: HEX.navy, font: FONT_DOCX })],
+  }));
+  // Amber rule
+  out.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    border: { bottom: { style: BorderStyle.SINGLE, size: 18, color: HEX.amber, space: 4 } },
+    spacing: { after: 200 },
+    children: [new TextRun({ text: "", font: FONT_DOCX })],
+  }));
+  if (b.solicitationNumber) {
+    out.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 80 },
+      children: [new TextRun({ text: b.solicitationNumber, size: 24, color: HEX.text, font: FONT_DOCX })],
+    }));
+  }
+  if (b.agency) {
+    out.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 80 },
+      children: [new TextRun({ text: b.agency, size: 24, color: HEX.text, font: FONT_DOCX })],
+    }));
+  }
+  // Generated date
+  for (let i = 0; i < 6; i++) out.push(new Paragraph({ children: [new TextRun("")], spacing: { after: 200 } }));
+  out.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    children: [new TextRun({ text: `Generated ${fmt(b.generatedAt)}`, italics: true, size: 20, color: HEX.textMuted, font: FONT_DOCX })],
+  }));
+  // Page break after cover
+  out.push(new Paragraph({ children: [new PageBreak()] }));
+  return out;
+}
+
+function categoryLegendTable(items: Array<{ tone: CategoryTone; label: string; count: number; description: string }>) {
+  const cols = 2;
+  const cellW = Math.floor(CONTENT_W / cols);
+  // Group into rows of 2
+  const rowsArr: Array<Array<{ tone: CategoryTone; label: string; count: number; description: string } | null>> = [];
+  for (let i = 0; i < items.length; i += cols) {
+    const row = items.slice(i, i + cols) as Array<{ tone: CategoryTone; label: string; count: number; description: string } | null>;
+    while (row.length < cols) row.push(null);
+    rowsArr.push(row);
+  }
+  return new Table({
+    width: { size: CONTENT_W, type: WidthType.DXA },
+    columnWidths: Array(cols).fill(cellW),
+    borders: lightBorders,
+    rows: rowsArr.map((row) => new TableRow({
+      children: row.map((it) => {
+        if (!it) {
+          return new TableCell({
+            width: { size: cellW, type: WidthType.DXA },
+            shading: { fill: HEX.white, type: ShadingType.CLEAR, color: "auto" },
+            margins: { top: 120, bottom: 120, left: 160, right: 160 },
+            children: [new Paragraph({ children: [new TextRun("")] })],
+          });
+        }
+        const t = CATEGORY_HEX[it.tone] ?? CATEGORY_HEX.neutral;
+        return new TableCell({
+          width: { size: cellW, type: WidthType.DXA },
+          shading: { fill: HEX.rowAlt, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 140, bottom: 140, left: 200, right: 160 },
+          borders: {
+            ...lightBorders,
+            left: { style: BorderStyle.SINGLE, size: 24, color: t.solid },
+          },
+          children: [
+            new Paragraph({
+              spacing: { after: 60 },
+              children: [
+                new TextRun({ text: "● ", bold: true, size: 22, color: t.solid, font: FONT_DOCX }),
+                new TextRun({ text: it.label.toUpperCase(), bold: true, size: 20, color: HEX.navy, font: FONT_DOCX }),
+                new TextRun({ text: `   (${it.count} question${it.count === 1 ? "" : "s"})`, size: 18, color: HEX.textMuted, font: FONT_DOCX }),
+              ],
+            }),
+            new Paragraph({
+              children: [new TextRun({ text: it.description, size: 18, color: HEX.text, font: FONT_DOCX })],
+            }),
+          ],
+        });
+      }),
+    })),
+  });
+}
+
+function indexTable(rows: Array<{ index: number; tone: CategoryTone; categoryLabel: string; source: string; topic: string }>) {
+  const numW = 480;
+  const catW = 1800;
+  const srcW = 2200;
+  const topicW = CONTENT_W - numW - catW - srcW;
+
+  const headerCells = ["#", "CATEGORY", "SOURCE", "TOPIC / SUMMARY"].map((label, i) => new TableCell({
+    width: { size: [numW, catW, srcW, topicW][i], type: WidthType.DXA },
+    shading: { fill: HEX.navy, type: ShadingType.CLEAR, color: "auto" },
+    margins: { top: 100, bottom: 100, left: 120, right: 120 },
+    children: [new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 16, color: HEX.white, font: FONT_DOCX })] })],
+  }));
+
+  const headerRow = new TableRow({ tableHeader: true, children: headerCells });
+
+  const dataRows = rows.map((r, i) => {
+    const t = CATEGORY_HEX[r.tone] ?? CATEGORY_HEX.neutral;
+    const altFill = i % 2 === 0 ? HEX.white : HEX.rowAlt;
+    return new TableRow({
+      children: [
+        new TableCell({
+          width: { size: numW, type: WidthType.DXA },
+          shading: { fill: altFill, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 100, bottom: 100, left: 120, right: 120 },
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: [new TextRun({ text: String(r.index), bold: true, size: 18, color: HEX.textMuted, font: FONT_DOCX })] })],
+        }),
+        new TableCell({
+          width: { size: catW, type: WidthType.DXA },
+          shading: { fill: t.tint, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 100, bottom: 100, left: 120, right: 120 },
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: [new TextRun({ text: r.categoryLabel.toUpperCase(), bold: true, size: 14, color: t.solid, font: FONT_DOCX })] })],
+        }),
+        new TableCell({
+          width: { size: srcW, type: WidthType.DXA },
+          shading: { fill: altFill, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 100, bottom: 100, left: 120, right: 120 },
+          children: [new Paragraph({ children: [new TextRun({ text: r.source, size: 18, color: HEX.text, font: FONT_DOCX })] })],
+        }),
+        new TableCell({
+          width: { size: topicW, type: WidthType.DXA },
+          shading: { fill: altFill, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 100, bottom: 100, left: 120, right: 120 },
+          children: [new Paragraph({ children: [new TextRun({ text: r.topic, size: 18, color: HEX.text, font: FONT_DOCX })] })],
+        }),
+      ],
+    });
+  });
+
+  return new Table({
+    width: { size: CONTENT_W, type: WidthType.DXA },
+    columnWidths: [numW, catW, srcW, topicW],
+    borders: lightBorders,
+    rows: [headerRow, ...dataRows],
+  });
+}
+
 // ---------- Block dispatch ----------
 
 function blockToElements(b: Block): Array<Paragraph | Table> {
@@ -391,6 +569,12 @@ function blockToElements(b: Block): Array<Paragraph | Table> {
       return [categoryBandTable(b.title, b.count, b.tone), new Paragraph({ children: [new TextRun("")], spacing: { after: 80 } })];
     case "questionCard":
       return [questionCardTable(b), new Paragraph({ children: [new TextRun("")], spacing: { after: 80 } })];
+    case "coverHero":
+      return coverHeroElements(b);
+    case "categoryLegend":
+      return [categoryLegendTable(b.items), new Paragraph({ children: [new TextRun("")], spacing: { after: 120 } })];
+    case "indexTable":
+      return [indexTable(b.rows), new Paragraph({ children: [new TextRun("")], spacing: { after: 120 } })];
   }
 }
 
