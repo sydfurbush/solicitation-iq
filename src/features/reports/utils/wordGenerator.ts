@@ -407,19 +407,28 @@ export async function generateDocx(report: ReportContent): Promise<Blob> {
     border: {
       bottom: { style: BorderStyle.SINGLE, size: 6, color: HEX.amber, space: 2 },
     },
+    tabStops: [{ type: "right" as never, position: 9360 }],
     children: [
       new TextRun({ text: headerLeft.toUpperCase(), bold: true, size: 18, color: HEX.navy, font: FONT_DOCX }),
       new TextRun({ text: "   |   ", bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
-      new TextRun({ text: headerRight.toUpperCase(), size: 18, color: HEX.amber, font: FONT_DOCX }),
+      new TextRun({ text: headerRight.toUpperCase(), size: 18, color: HEX.navy, font: FONT_DOCX }),
+      new TextRun({ text: "\tCONFIDENTIAL", bold: true, size: 16, color: HEX.textMuted, font: FONT_DOCX }),
     ],
   });
 
   const footerPara = new Paragraph({
     border: { top: { style: BorderStyle.SINGLE, size: 4, color: HEX.amber, space: 2 } },
+    tabStops: [
+      { type: "center" as never, position: 4680 },
+      { type: "right" as never, position: 9360 },
+    ],
     children: [
       new TextRun({ text: footerLeft, size: 16, color: HEX.textMuted, font: FONT_DOCX }),
-      new TextRun({ text: "\t\tPage ", size: 16, color: HEX.textMuted, font: FONT_DOCX }),
+      new TextRun({ text: `\t${report.title}`, italics: true, size: 16, color: HEX.textMuted, font: FONT_DOCX }),
+      new TextRun({ text: "\tPage ", size: 16, color: HEX.textMuted, font: FONT_DOCX }),
       new TextRun({ children: [PageNumber.CURRENT], size: 16, color: HEX.textMuted, font: FONT_DOCX }),
+      new TextRun({ text: " of ", size: 16, color: HEX.textMuted, font: FONT_DOCX }),
+      new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, color: HEX.textMuted, font: FONT_DOCX }),
     ],
   });
 
