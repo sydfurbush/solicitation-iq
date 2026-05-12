@@ -16,20 +16,28 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import {
-  exportDocument,
+  buildExportBlob,
   type ExportDocument,
   type ExportFormat,
   type ExportPageSize,
 } from "@/features/exports/lib/exporters";
+import { saveAs } from "file-saver";
+import { useSaveExport } from "@/features/exports/hooks/useExportHistory";
 
 interface Props {
   /** Lazy builder so we only assemble the doc on click */
   build: () => ExportDocument | null;
   disabled?: boolean;
   label?: string;
+  /** When provided, each export is recorded in history. */
+  solicitationId?: string;
+  /** Logical export kind (e.g. "deep-dive", "outline", "win-themes"). */
+  kind?: string;
 }
 
-export function ExportMenu({ build, disabled, label = "Export" }: Props) {
+export function ExportMenu({ build, disabled, label = "Export", solicitationId, kind }: Props) {
+  const saveExport = useSaveExport();
+
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -114,18 +122,49 @@ export function ExportMenu({ build, disabled, label = "Export" }: Props) {
       await tick(20, "Building cover & sections…");
       await tick(45, format === "pdf" ? "Rendering PDF pages…" : "Rendering Word document…");
 
-      await exportDocument({ ...doc, sections }, format, {
-        pageSize,
-        filenameBase: filename || doc.filenameBase,
-        version,
-        noCover: !includeCover,
-      });
+      const { blob, filename: outName } = await buildExportBlob(
+        { ...doc, sections },
+        format,
+        {
+          pageSize,
+          filenameBase: filename || doc.filenameBase,
+          version,
+          noCover: !includeCover,
+        },
+      );
 
-      await tick(95, "Saving file…");
+      await tick(80, "Saving file…");
+      saveAs(blob, outName);
+
+      if (solicitationId && kind) {
+        try {
+          await tick(90, "Recording in history…");
+          await saveExport.mutateAsync({
+            solicitationId,
+            kind,
+            format,
+            filename: outName,
+            blob,
+            version: includeCover ? version : null,
+            pageSize,
+            sections: sections.map((s) => s.heading),
+          });
+        } catch (histErr) {
+          // Non-fatal: download succeeded
+          console.warn("Export history save failed", histErr);
+          toast({
+            title: "Saved locally, history not recorded",
+            description: histErr instanceof Error ? histErr.message : String(histErr),
+            variant: "destructive",
+          });
+        }
+      }
+
       await tick(100, "Done");
       toast({ title: "Export ready", description: `${format.toUpperCase()} downloaded.` });
       // brief pause so the user sees 100% before close
       setTimeout(() => setOpen(false), 350);
+
     } catch (e) {
       toast({
         title: "Export failed",

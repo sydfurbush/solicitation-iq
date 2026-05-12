@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { useWinThemes, useGenerateWinThemes, useUpdateWinTheme, useDeleteWinTheme } from "@/features/winthemes/hooks/useWinThemes";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
 export default function SolicitationWinThemes({ solicitationId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
@@ -58,7 +59,8 @@ export default function SolicitationWinThemes({ solicitationId, currentPhase, so
             <p className="text-xs text-muted-foreground mt-1">{themes.length} themes · {themes.filter((t) => t.status === "approved").length} approved</p>
           </div>
           <div className="flex gap-2">
-            <ExportMenu build={buildExport} disabled={themes.length === 0} label="Export themes" />
+            <ExportMenu build={buildExport} disabled={themes.length === 0} label="Export themes" solicitationId={solicitationId} kind="win-themes" />
+            <ExportHistoryButton solicitationId={solicitationId} kind="win-themes" />
             <Button onClick={run} disabled={gen.isPending}>
               {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               Generate suggestions

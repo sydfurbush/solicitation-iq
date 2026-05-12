@@ -551,14 +551,23 @@ async function renderDocx(doc: ExportDocument, opts: ExportOptions = {}): Promis
 }
 
 /* -------------------- Public API -------------------- */
-export async function exportDocument(doc: ExportDocument, format: ExportFormat, opts: ExportOptions = {}) {
+export async function buildExportBlob(
+  doc: ExportDocument,
+  format: ExportFormat,
+  opts: ExportOptions = {},
+): Promise<{ blob: Blob; filename: string }> {
   const base = opts.filenameBase?.trim() || doc.filenameBase;
   const filename = `${sanitize(base)}_${fmtDate()}.${format}`;
-  if (format === "pdf") {
-    const blob = renderPdf(doc, opts);
-    saveAs(blob, filename);
-  } else {
-    const blob = await renderDocx(doc, opts);
-    saveAs(blob, filename);
-  }
+  const blob = format === "pdf" ? renderPdf(doc, opts) : await renderDocx(doc, opts);
+  return { blob, filename };
+}
+
+export async function exportDocument(
+  doc: ExportDocument,
+  format: ExportFormat,
+  opts: ExportOptions = {},
+): Promise<{ blob: Blob; filename: string }> {
+  const out = await buildExportBlob(doc, format, opts);
+  saveAs(out.blob, out.filename);
+  return out;
 }

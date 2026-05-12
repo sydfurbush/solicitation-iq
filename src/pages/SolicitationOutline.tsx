@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { useActiveOutline, useOutlineNodes, useGenerateOutline } from "@/features/outline/hooks/useProposalOutline";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument } from "@/features/exports/lib/exporters";
 
 export default function SolicitationOutline({ solicitationId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
@@ -57,7 +58,8 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
             {outline && <p className="text-xs text-muted-foreground mt-1">v{outline.version} · {nodes.length} nodes</p>}
           </div>
           <div className="flex gap-2">
-            <ExportMenu build={buildExport} disabled={!outline || nodes.length === 0} label="Export outline" />
+            <ExportMenu build={buildExport} disabled={!outline || nodes.length === 0} label="Export outline" solicitationId={solicitationId} kind="outline" />
+            <ExportHistoryButton solicitationId={solicitationId} kind="outline" />
             <Button onClick={run} disabled={gen.isPending}>
               {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               {outline ? "Regenerate" : "Generate outline"}

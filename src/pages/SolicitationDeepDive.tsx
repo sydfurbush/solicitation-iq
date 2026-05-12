@@ -14,6 +14,7 @@ import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseBut
 import { RTMTable } from "@/features/deepdive/components/RTMTable";
 import { CapabilitiesProfileCard } from "@/features/deepdive/components/CapabilitiesProfileCard";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
+import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 
 const SEV_COLOR: Record<string, string> = {
@@ -109,8 +110,9 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <ExportMenu build={buildExport} disabled={!canExport} label="Export deep dive" />
+      <div className="flex justify-end gap-2">
+        <ExportMenu build={buildExport} disabled={!canExport} label="Export deep dive" solicitationId={solicitationId} kind="deep-dive" />
+        <ExportHistoryButton solicitationId={solicitationId} kind="deep-dive" />
       </div>
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
