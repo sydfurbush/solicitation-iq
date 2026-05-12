@@ -169,6 +169,11 @@ export function PhaseHub({
         </div>
       </div>
 
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Approvals</h3>
+        <ExportApprovalsButton solicitationId={solicitationId} solicitation={solicitation} />
+      </div>
+
       <ApprovalsTimeline solicitationId={solicitationId} />
 
       <ApprovalNoteDialog
