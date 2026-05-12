@@ -64,8 +64,10 @@ export function usePhaseApprovals(solicitationId: string | undefined) {
 export function useRequestApproval(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (phase: PhaseType) => {
+    mutationFn: async (input: PhaseType | { phase: PhaseType; note?: string }) => {
       if (!solicitationId) throw new Error("Missing solicitation");
+      const phase = typeof input === "string" ? input : input.phase;
+      const note = typeof input === "string" ? undefined : input.note?.trim() || undefined;
       const { data: u } = await supabase.auth.getUser();
       const { error } = await supabase
         .from("phase_approvals")
@@ -79,7 +81,7 @@ export function useRequestApproval(solicitationId: string | undefined) {
             decided_at: null,
             decided_by: null,
             decided_by_name: null,
-            decision_note: null,
+            decision_note: note ?? null,
           },
           { onConflict: "solicitation_id,phase" },
         );
