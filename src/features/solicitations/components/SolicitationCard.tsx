@@ -74,6 +74,11 @@ export function SolicitationCard({ solicitation: s, onArchive, onDelete, onResto
           <Badge variant="outline" className={cn("ml-auto capitalize", STATUS_CLASSES[status])}>
             {STATUS_LABELS[status]}
           </Badge>
+          {isDeleted && (
+            <Badge variant="outline" className="border-destructive/40 text-destructive">
+              Deleted
+            </Badge>
+          )}
           {hasMenu && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
