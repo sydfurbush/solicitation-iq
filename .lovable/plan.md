@@ -1,82 +1,71 @@
 ## Goal
+Add in-app per-phase help docs (sheet panel), color-code phase tabs, and improve phase progress visibility.
 
-Add a new report type **Client Strategic Questionnaire** to the report list. It reuses the branded styling we built for the existing Strategic Questions Brief and adds the additional structural sections shown in the uploaded V2 sample (`Inverness_Strategic_Questions_Brief_V2.docx`):
+## Decisions locked
+- Help icon placement: **C** — icon on each top-level phase tab AND on each Deep Dive sub-tab.
+- Doc format: **A** — hand-authored React components per phase (no new deps).
+- Phase color palette: **A** — Phase 1 blue, Phase 2 violet, Phase 3 amber, Phase 4 emerald.
+- Progress bar style: **A** (richer stepper with gradient connectors + sub-step counter) — assumed; can swap to B during build.
 
-1. Cover page (firm name, title, sol#, agency, generated date)
-2. Stats strip (Submitted / Strategic Hold / Internal Only / Issue Categories)
-3. Executive Summary block
-4. Issue Category Legend (2-column grid with color dot, name, count, description)
-5. Quick Reference Index (single table: # · Category · Source · Topic/Summary, all submitted questions)
-6. Per-question detail pages — `Question N | CATEGORY | Source` header, "Question to Ask" body, Source row, Rationale row
-7. Strategic Hold Questions section (same per-question card style)
-8. Internal Only Items section
-
-## Where it lives in the UI
-
-- New entry in `REPORT_TYPES` array (`src/features/reports/templates/types.ts`) with id `client_questionnaire`, title "Client Strategic Questionnaire", description "Client-ready questionnaire: cover, executive summary, legend, index, full Q&A detail."
-- Icon mapping in `ReportTypeSelector.tsx` (use `ClipboardList` from lucide).
-- Appears alongside existing cards in `/solicitations/:id?tab=reports`.
-
-## Generation pipeline
-
-`supabase/functions/generate-report/index.ts` adds a branch when `reportType === "client_questionnaire"` that builds structured `blocks` (no AI call needed — same data source as `questions_brief`):
-
+## 1. Phase color tokens
+Edit `src/index.css` and `tailwind.config.ts`:
 ```text
-Section 1  Cover                → coverHero block (new)
-Section 2  At a Glance          → statsStrip
-Section 3  Executive Summary    → paragraph (from existing summary if present, else generated count line)
-Section 4  Issue Category Legend → categoryLegend block (new) — 2-col grid of dot+name+count+desc
-Section 5  Quick Reference Index → indexTable block (new) — # · Category · Source · Topic
-Section 6  Submitted Questions  → categoryBand + questionCard (existing blocks, reused)
-Section 7  Strategic Hold       → questionCard
-Section 8  Internal Only        → questionCard
+--phase-1: 217 91% 60%   (blue)
+--phase-2: 262 83% 63%   (violet)
+--phase-3: 38  92% 55%   (amber)
+--phase-4: 152 69% 42%   (emerald)
++ matching --phase-N-soft (same hue, ~12% lightness overlay via /15 alpha)
 ```
+Expose Tailwind classes `bg-phase-1 / text-phase-1 / border-phase-1` (and 2/3/4) plus `*-soft` variants.
 
-## New block kinds (`src/features/reports/templates/blocks.ts`)
+## 2. Help docs (hand-authored React)
+New folder `src/features/solicitations/help/`:
+- `phase1.tsx`, `phase2.tsx`, `phase3.tsx`, `phase4.tsx`
+- Each exports `{ title, summary, Body }` where `Body` is a React component using shared primitives (`<HelpSection>`, `<HelpStep>`, `<HelpCallout>`).
+- Shared template per doc: **Purpose · How it works · Step-by-step · Outcome · Why it matters · Client participation · Tips**.
+- Phase 2 doc additionally documents the 3 sub-steps (RTM, Section analysis, Gaps).
 
-- `coverHero` — `{ firm, title, solicitationNumber, agency, generatedAt, confidential?: boolean }`
-- `categoryLegend` — `{ items: Array<{ tone, label, count, description }> }`
-- `indexTable` — `{ rows: Array<{ index: number; tone: CategoryTone; categoryLabel: string; source: string; topic: string }> }`
+## 3. PhaseHelpPanel component
+New `src/features/solicitations/components/PhaseHelpPanel.tsx`:
+- Trigger: small ghost icon button (`BookOpen` from lucide) sized `h-7 w-7`.
+- Opens shadcn `Sheet` on the right (`side="right"`, width `sm:max-w-xl`).
+- Sheet header shows phase number badge in phase color + title + Print button.
+- Body wrapped in `ScrollArea`.
+- Print: `window.print()` with a print stylesheet (`src/styles/help-print.css`) that hides `[data-print="hide"]` and shows only `#phase-help-printable`.
+- Closes on outside click (default Sheet behavior) and on route change (effect on `location.pathname`).
+- Props: `phase: PhaseType`, optional `subStep` to deep-link Phase 2 sub-doc.
 
-Existing `statsStrip`, `categoryBand`, and `questionCard` are reused as-is.
+## 4. Color the phase nav + indicators
+- `src/pages/SolicitationDetail.tsx`: replace the four `NavBtn` phase entries with a new `PhaseNavBtn` that accepts `phase` and applies `border-b-2 border-phase-N` + `text-phase-N` when active, soft-tinted hover. Also mount `<PhaseHelpPanel phase={...} />` next to each phase tab label.
+- `src/features/solicitations/components/PhaseIndicator.tsx`: numbered circles use the matching phase color (done = filled phase color, current = phase color with pulsing ring `ring-2 ring-phase-N/40 animate-pulse`, future = muted). Connector lines thicken to `h-[3px]` and use phase-color gradient for completed segments.
+- `src/pages/SolicitationDeepDive.tsx`: render `<PhaseHelpPanel phase="phase_2_deep_dive" subStep={tab} />` next to each `TabsTrigger` (RTM / Section analysis / Gaps).
 
-## PDF rendering (`src/features/reports/utils/pdfGenerator.ts`)
+## 5. Sub-step progress meter
+Inside the phase strip card on `SolicitationDetail.tsx`, below the `PhaseIndicator`:
+- Add a thin `Progress` bar tinted with the **current** phase color, value = `(completedSteps / totalSteps) * 100`.
+- Counts derived locally:
+  - Phase 1: documents/questions/risks counts already on `s` — treat each PHASE_1_STEPS item as "done" if its associated count > 0; overview always done.
+  - Phase 2: derive from existing `useRequirementItems`, `useSectionAnalyses`, `useCapabilityGaps` hooks (already lazy-loaded via Deep Dive page — query them at this level, cached).
+  - Phase 3 / Phase 4: 1 step each, done if `solicitation_phases.status = complete`.
+- Caption: `"In progress · 2 of 5 steps"` / `"Complete"` / `"Not started"`.
 
-- `drawCoverHero` — full-page cover: navy band with firm name top, large title centered, sol# + agency line, generated date footer. Forces a page break after.
-- `drawCategoryLegend` — 2-column grid; each cell = colored dot in category tone + uppercase label + `(N questions)` + small description.
-- `drawIndexTable` — striped rows, narrow # col, colored category pill, source col, wrapping topic col. Auto page-break with repeated header row.
-- Hook all three into the `drawBlock` switch.
+## Files
 
-## Word rendering (`src/features/reports/utils/wordGenerator.ts`)
+**New**
+- `src/features/solicitations/help/phase1.tsx`
+- `src/features/solicitations/help/phase2.tsx`
+- `src/features/solicitations/help/phase3.tsx`
+- `src/features/solicitations/help/phase4.tsx`
+- `src/features/solicitations/help/primitives.tsx` (HelpSection/Step/Callout)
+- `src/features/solicitations/components/PhaseHelpPanel.tsx`
+- `src/features/solicitations/components/PhaseProgressBar.tsx`
+- `src/styles/help-print.css`
 
-- Cover = section with single full-page `Table` (1×1) holding centered paragraphs, then `PageBreak`.
-- Legend = 2-column `Table` of cells with colored shading bars for each tone.
-- Index = standard `Table` with header row + per-row category color in the category cell.
-- Wire each into the block dispatcher.
+**Edit**
+- `src/index.css` — phase color tokens + import print css
+- `tailwind.config.ts` — phase color extensions
+- `src/features/solicitations/components/PhaseIndicator.tsx` — color + pulse + thicker connectors
+- `src/pages/SolicitationDetail.tsx` — phase-colored nav, mount help panels, mount progress bar
+- `src/pages/SolicitationDeepDive.tsx` — sub-tab help panels
 
-## Data flow
-
-The edge function already loads the question set (categories, sources, topics, rationales). For this report it skips the AI prompt entirely and emits the deterministic block list above. Stats counts derive from the same grouping logic used today for `questions_brief`.
-
-## Out of scope
-
-- No changes to existing `questions_brief` output.
-- No new editor / customization UI — branding fields (`firm`, `clientLogo`) reuse `ReportOptions.branding`.
-- Inverness logo art remains text-only on the cover (matches what the brief does today).
-- No new database columns; the report is saved through the existing `reports` + `report_exports` tables.
-
-## Files touched
-
-- `src/features/reports/templates/types.ts` — add `client_questionnaire` type + REPORT_TYPES entry
-- `src/features/reports/templates/blocks.ts` — add 3 block kinds
-- `src/features/reports/templates/theme.ts` — no changes (existing CategoryTone palette covers all 7 categories)
-- `src/features/reports/utils/pdfGenerator.ts` — 3 new draw functions + switch wiring
-- `src/features/reports/utils/wordGenerator.ts` — 3 new builders + switch wiring
-- `src/features/reports/components/ReportTypeSelector.tsx` — add icon mapping
-- `supabase/functions/generate-report/index.ts` — new branch for `client_questionnaire`
-
-## Open questions (will assume defaults unless you say otherwise)
-
-1. Use the firm name from `branding.headerText` as the cover header (defaults to "INVERNESS" if blank)?
-2. Include the "CONFIDENTIAL" stamp in the running header on every page (matches sample)?
-3. Default output formats = both PDF and Word, like other reports?
+No backend / DB / dependency changes.
