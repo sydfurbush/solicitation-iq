@@ -42,6 +42,17 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
   const [generateOpen, setGenerateOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Auto-open the Generate dialog when arriving via the "All documents ready" toast action.
+  useEffect(() => {
+    if (searchParams.get("autoOpenGenerate") === "1") {
+      setGenerateOpen(true);
+      const next = new URLSearchParams(searchParams);
+      next.delete("autoOpenGenerate");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data: filtered = [], isLoading } = useStrategicQuestions(solicitationId, filters);
   const { data: allQuestions = [] } = useStrategicQuestions(solicitationId);
