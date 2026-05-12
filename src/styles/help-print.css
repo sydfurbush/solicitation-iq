@@ -1,0 +1,19 @@
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  #phase-help-printable,
+  #phase-help-printable * {
+    visibility: visible !important;
+  }
+  #phase-help-printable {
+    position: absolute;
+    inset: 0;
+    padding: 24px;
+    background: white;
+    color: black;
+  }
+  [data-print="hide"] {
+    display: none !important;
+  }
+}
