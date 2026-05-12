@@ -59,7 +59,8 @@ export default function SolicitationWinThemes({ solicitationId, currentPhase, so
             <p className="text-xs text-muted-foreground mt-1">{themes.length} themes · {themes.filter((t) => t.status === "approved").length} approved</p>
           </div>
           <div className="flex gap-2">
-            <ExportMenu build={buildExport} disabled={themes.length === 0} label="Export themes" />
+            <ExportMenu build={buildExport} disabled={themes.length === 0} label="Export themes" solicitationId={solicitationId} kind="win-themes" />
+            <ExportHistoryButton solicitationId={solicitationId} kind="win-themes" />
             <Button onClick={run} disabled={gen.isPending}>
               {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               Generate suggestions
