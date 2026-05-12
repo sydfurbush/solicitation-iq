@@ -14,6 +14,7 @@ import { useUser } from "@/features/auth/hooks/useUser";
 import { MetaTags } from "@/components/shared/MetaTags";
 import { AIModelsTab } from "@/features/settings/components/AIModelsTab";
 import { IntegrationsTab } from "@/features/settings/components/IntegrationsTab";
+import { BrandTab } from "@/features/branding/components/BrandTab";
 
 export default function Settings() {
   const { role } = useUser();
