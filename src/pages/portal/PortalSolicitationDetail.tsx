@@ -89,7 +89,20 @@ export default function PortalSolicitationDetail() {
 
         <TabsContent value="overview" className="space-y-4 mt-4">
           {canApprove && (
-            <ApprovalsCard approvals={approvals} />
+            <>
+              <div className="flex justify-end">
+                <ExportApprovalsButton
+                  solicitationId={id}
+                  solicitation={{
+                    title: sol.title,
+                    solicitation_number: sol.solicitation_number,
+                    issuing_agency: sol.issuing_agency,
+                    client: { name: client?.name ?? null },
+                  }}
+                />
+              </div>
+              <ApprovalsCard approvals={approvals} />
+            </>
           )}
 
           {canApprove && <ApprovalsTimeline solicitationId={id} />}
