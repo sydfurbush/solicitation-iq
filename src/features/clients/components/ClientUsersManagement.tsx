@@ -104,6 +104,8 @@ export function ClientUsersManagement({ clientId }: Props) {
   });
 
   const portalLink = `${window.location.origin}/portal/login`;
+  const inviteLinkFor = (token: string) =>
+    `${window.location.origin}/portal/accept-invite?token=${token}`;
 
   return (
     <Card>
