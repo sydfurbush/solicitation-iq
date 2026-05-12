@@ -115,7 +115,9 @@ export function useDecideApproval(solicitationId: string | undefined) {
 export function useResetApproval(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (approvalId: string) => {
+    mutationFn: async (input: string | { approvalId: string; note?: string }) => {
+      const approvalId = typeof input === "string" ? input : input.approvalId;
+      const note = typeof input === "string" ? undefined : input.note?.trim() || undefined;
       const { error } = await supabase
         .from("phase_approvals")
         .update({
@@ -123,7 +125,7 @@ export function useResetApproval(solicitationId: string | undefined) {
           decided_at: null,
           decided_by: null,
           decided_by_name: null,
-          decision_note: null,
+          decision_note: note ?? null,
           requested_at: new Date().toISOString(),
         })
         .eq("id", approvalId);
