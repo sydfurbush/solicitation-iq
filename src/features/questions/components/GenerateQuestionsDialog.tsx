@@ -88,7 +88,6 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
       const result = await generate.mutateAsync({
         focusAreas: overrides?.retryRunId ? undefined : (focusAreas.length ? focusAreas : undefined),
         focusDocumentIds: overrides?.retryRunId ? undefined : (docIds.length ? docIds : undefined),
-        regenerate: overrides?.retryRunId ? false : regenerate,
         retryRunId: overrides?.retryRunId,
         onProgress: handleProgress,
       });
