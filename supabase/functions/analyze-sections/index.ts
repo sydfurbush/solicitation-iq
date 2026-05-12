@@ -14,7 +14,14 @@ const SYSTEM_PROMPT = `You analyze a federal solicitation section by section.
 Identify each major UCF/RFP section present in the source (e.g. A, B, C, L, M, plus PWS/SOW if present). For each section:
 - summary: 3-6 sentence plain-language explanation of what the section requires/governs
 - requirements_count: rough count of binding requirements (shall/must/will) found in this section
-- scoring_weight: numeric weight or % if the source states one (e.g. for Section M evaluation factors), else null
+- scoring_weight: numeric weight or % ONLY if the source explicitly states one (e.g. "Technical = 40 points" in Section M). Otherwise null.
+- importance_score: integer 1-5 (REQUIRED for every section). Reflects strategic weight to the proposal:
+    5 = Section M evaluation factors / award criteria
+    4 = PWS/SOW core scope, Section L instructions to offerors, key deliverables
+    3 = pricing schedules, CDRLs, technical exhibits with substantive content
+    2 = administrative clauses, representations, schedules
+    1 = boilerplate cover forms (SF 1449, SF 30), reference appendices
+- importance_rationale: ≤140 char explanation of the importance_score
 - risk_flags: short bullet phrases (≤120 chars each) identifying risky/unusual/aggressive language
 - source_citations: verbatim short quotes (≤200 chars) backing each risk flag
 
@@ -36,10 +43,12 @@ const SCHEMA = {
             summary: { type: "string" },
             requirements_count: { type: "number" },
             scoring_weight: { type: "number" },
+            importance_score: { type: "integer", minimum: 1, maximum: 5 },
+            importance_rationale: { type: "string" },
             risk_flags: { type: "array", items: { type: "string" } },
             source_citations: { type: "array", items: { type: "string" } },
           },
-          required: ["section_code", "summary"],
+          required: ["section_code", "summary", "importance_score"],
         },
       },
     },
