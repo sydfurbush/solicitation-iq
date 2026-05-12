@@ -99,6 +99,9 @@ function drawCoverBand(ctx: Ctx, content: ReportContent) {
   const h = 110;
   setFill(doc, RGB.navy);
   doc.rect(x, y, w, h, "F");
+  // amber accent rule on the left
+  setFill(doc, RGB.amber);
+  doc.rect(x, y, 4, h, "F");
 
   // eyebrow
   doc.setFont(FONT_PDF, "bold");
@@ -125,6 +128,150 @@ function drawCoverBand(ctx: Ctx, content: ReportContent) {
   doc.text(meta, x + 18, y + h - 16);
 
   ctx.y = y + h + 22;
+}
+
+function drawStatsStrip(ctx: Ctx, tiles: Array<{ label: string; value: number | string }>) {
+  if (!tiles.length) return;
+  const { doc } = ctx;
+  const perRow = 5;
+  const gap = 8;
+  const tileW = (CONTENT_W - gap * (perRow - 1)) / perRow;
+  const valueH = 30;
+  const labelH = 22;
+  const tileH = valueH + labelH;
+  for (let i = 0; i < tiles.length; i += perRow) {
+    const row = tiles.slice(i, i + perRow);
+    ensureSpace(ctx, tileH + 8);
+    row.forEach((t, j) => {
+      const x = MARGIN.left + j * (tileW + gap);
+      // value cell (light grey)
+      setFill(doc, RGB.tileGrey);
+      doc.rect(x, ctx.y, tileW, valueH, "F");
+      doc.setFont(FONT_PDF, "bold");
+      doc.setFontSize(16);
+      setText(doc, RGB.navy);
+      doc.text(String(t.value), x + tileW / 2, ctx.y + valueH - 9, { align: "center" });
+      // label cell (navy)
+      setFill(doc, RGB.navy);
+      doc.rect(x, ctx.y + valueH, tileW, labelH, "F");
+      doc.setFont(FONT_PDF, "bold");
+      doc.setFontSize(8);
+      setText(doc, RGB.white);
+      const lbl = wrap(doc, t.label.toUpperCase(), tileW - 8, "bold", 8).slice(0, 2);
+      let ly = ctx.y + valueH + (lbl.length === 1 ? 14 : 11);
+      for (const line of lbl) { doc.text(line, x + tileW / 2, ly, { align: "center" }); ly += 9; }
+    });
+    ctx.y += tileH + 8;
+  }
+  ctx.y += 6;
+}
+
+function drawCategoryBand(ctx: Ctx, title: string, count: number, tone: keyof typeof CATEGORY_RGB) {
+  const t = CATEGORY_RGB[tone];
+  const h = 22;
+  ensureSpace(ctx, h + 12);
+  // grey band background
+  setFill(ctx.doc, RGB.bandGrey);
+  ctx.doc.rect(MARGIN.left, ctx.y, CONTENT_W, h, "F");
+  // colored left bar
+  setFill(ctx.doc, t.solid);
+  ctx.doc.rect(MARGIN.left, ctx.y, 4, h, "F");
+  ctx.doc.setFont(FONT_PDF, "bold");
+  ctx.doc.setFontSize(10);
+  setText(ctx.doc, RGB.navy);
+  ctx.doc.text(title.toUpperCase(), MARGIN.left + 14, ctx.y + 14);
+  ctx.doc.setFont(FONT_PDF, "normal");
+  ctx.doc.setFontSize(9);
+  setText(ctx.doc, RGB.textMuted);
+  const countText = `(${count} question${count === 1 ? "" : "s"})`;
+  const titleW = ctx.doc.getTextWidth(title.toUpperCase());
+  ctx.doc.text(countText, MARGIN.left + 14 + titleW + 8, ctx.y + 14);
+  ctx.y += h + 8;
+}
+
+function drawQuestionCard(
+  ctx: Ctx,
+  card: Extract<Block, { kind: "questionCard" }>,
+) {
+  const { doc } = ctx;
+  const t = CATEGORY_RGB[card.tone] ?? CATEGORY_RGB.neutral;
+  const labelW = 70;
+  const accentW = 4;
+  const bodyX = MARGIN.left + accentW + labelW;
+  const bodyW = CONTENT_W - accentW - labelW;
+  const innerPad = 10;
+
+  // measure body
+  const qLines = wrap(doc, card.question, bodyW - innerPad * 2, "normal", 10);
+  const ratLines = card.rationale ? wrap(doc, `Rationale: ${card.rationale}`, bodyW - innerPad * 2, "italic", 9) : [];
+  const srcLines = card.source ? wrap(doc, `Source: ${card.source}`, bodyW - innerPad * 2, "bold", 9) : [];
+  const respLines = card.agencyResponse ? wrap(doc, `Agency response: ${card.agencyResponse}`, bodyW - innerPad * 2, "italic", 9) : [];
+  const bodyTextH =
+    qLines.length * 13 +
+    (ratLines.length ? 6 + ratLines.length * 12 : 0) +
+    (srcLines.length ? 6 + srcLines.length * 12 : 0) +
+    (respLines.length ? 6 + respLines.length * 12 : 0);
+  const cardH = Math.max(64, bodyTextH + innerPad * 2);
+
+  ensureSpace(ctx, cardH + 6);
+
+  // Card background
+  setFill(doc, RGB.rowAlt);
+  doc.rect(MARGIN.left, ctx.y, CONTENT_W, cardH, "F");
+  // Amber accent left bar
+  setFill(doc, RGB.amber);
+  doc.rect(MARGIN.left, ctx.y, accentW, cardH, "F");
+  // Q label cell (white)
+  setFill(doc, RGB.white);
+  doc.rect(MARGIN.left + accentW, ctx.y, labelW, cardH, "F");
+
+  // Q number
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(13);
+  setText(doc, RGB.navy);
+  doc.text(`Q${card.index}`, MARGIN.left + accentW + 10, ctx.y + 22);
+
+  // Category badge (under Q#)
+  const badgeText = card.categoryLabel.toUpperCase();
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(7);
+  const badgeLines = doc.splitTextToSize(badgeText, labelW - 12);
+  const badgeH = badgeLines.length * 9 + 6;
+  setFill(doc, t.tint);
+  doc.rect(MARGIN.left + accentW + 6, ctx.y + 30, labelW - 12, badgeH, "F");
+  setText(doc, t.solid);
+  let by = ctx.y + 30 + 8;
+  for (const line of badgeLines) { doc.text(line, MARGIN.left + accentW + 6 + (labelW - 12) / 2, by, { align: "center" }); by += 9; }
+
+  // Body text
+  let y = ctx.y + innerPad + 4;
+  doc.setFont(FONT_PDF, "normal");
+  doc.setFontSize(10);
+  setText(doc, RGB.text);
+  for (const line of qLines) { doc.text(line, bodyX + innerPad, y); y += 13; }
+  if (ratLines.length) {
+    y += 6;
+    doc.setFont(FONT_PDF, "italic");
+    doc.setFontSize(9);
+    setText(doc, RGB.textMuted);
+    for (const line of ratLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
+  }
+  if (srcLines.length) {
+    y += 6;
+    doc.setFont(FONT_PDF, "bold");
+    doc.setFontSize(9);
+    setText(doc, RGB.amber);
+    for (const line of srcLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
+  }
+  if (respLines.length) {
+    y += 6;
+    doc.setFont(FONT_PDF, "italic");
+    doc.setFontSize(9);
+    setText(doc, RGB.text);
+    for (const line of respLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
+  }
+
+  ctx.y += cardH + 6;
 }
 
 function drawSectionHeading(ctx: Ctx, text: string) {
