@@ -407,7 +407,7 @@ function renderDocxSection(s: ExportSection, depth = 0, primaryHex = "283C5A", o
     out.push(new Paragraph({ children: [new TextRun("")] }));
   }
 
-  s.children?.forEach((c) => out.push(...renderDocxSection(c, depth + 1)));
+  s.children?.forEach((c) => out.push(...renderDocxSection(c, depth + 1, primaryHex, onPrimaryHex)));
   return out;
 }
 
