@@ -56,7 +56,7 @@ function drawHeader(ctx: Ctx) {
 }
 
 function drawFooter(ctx: Ctx) {
-  const { doc, footerLeft } = ctx;
+  const { doc, footerLeft, footerTitle } = ctx;
   const y = PAGE.h - MARGIN.bottom;
   setDraw(doc, RGB.amber);
   doc.setLineWidth(0.4);
@@ -64,9 +64,13 @@ function drawFooter(ctx: Ctx) {
   doc.setFont(FONT_PDF, "normal");
   doc.setFontSize(8);
   setText(doc, RGB.textMuted);
+  if (footerTitle) {
+    doc.text(footerTitle, PAGE.w / 2, y - 4, { align: "center" });
+  }
   doc.text(footerLeft, MARGIN.left, y - 4);
   doc.setFont(FONT_PDF, "italic");
-  doc.text(`Page ${ctx.page}`, PAGE.w - MARGIN.right, y - 4, { align: "right" });
+  // Total page placeholder; stamped after layout.
+  doc.text(`Page ${ctx.page} of {{TOTAL}}`, PAGE.w - MARGIN.right, y - 4, { align: "right" });
 }
 
 function newPage(ctx: Ctx) {
