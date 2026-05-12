@@ -35,6 +35,7 @@ export function DocumentList({
   onShowVersions,
   onBulkDelete,
   onBulkReprocess,
+  onRetry,
 }: Props) {
   const [sort, setSort] = useState<SortKey>("created_at");
   const [typeFilter, setTypeFilter] = useState<DocumentType | "all">("all");
