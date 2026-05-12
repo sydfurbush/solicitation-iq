@@ -496,7 +496,7 @@ Deno.serve(async (req) => {
       }
 
       const content = {
-        title: `Strategic Questions Brief – ${sol.title}`,
+        title: `${isClientQ ? "Client Strategic Questionnaire" : "Strategic Questions Brief"} – ${sol.title}`,
         subtitle: sol.solicitation_number ?? null,
         generatedAt: new Date().toISOString(),
         meta: {
