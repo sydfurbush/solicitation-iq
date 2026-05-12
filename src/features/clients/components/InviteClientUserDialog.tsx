@@ -40,16 +40,27 @@ export function InviteClientUserDialog({ clientId, open, onOpenChange }: Props) 
       await supabase.from("clients").update({ access_level: accessLevel }).eq("id", clientId);
       // Create invitation record
       const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase.from("client_user_invitations").insert({
-        client_id: clientId,
-        email,
-        full_name: fullName,
-        invited_by: user?.id,
-      });
+      const { data, error } = await supabase
+        .from("client_user_invitations")
+        .insert({
+          client_id: clientId,
+          email,
+          full_name: fullName,
+          invited_by: user?.id,
+        })
+        .select("token")
+        .single();
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
-      toast.success("Invitation created. Share the portal link with the client.");
+    onSuccess: async (data) => {
+      const link = `${window.location.origin}/portal/accept-invite?token=${data.token}`;
+      try {
+        await navigator.clipboard.writeText(link);
+        toast.success("Invitation created — link copied to clipboard");
+      } catch {
+        toast.success("Invitation created. Open the row menu to copy the link.");
+      }
       qc.invalidateQueries({ queryKey: ["client-users", clientId] });
       qc.invalidateQueries({ queryKey: ["client-invitations", clientId] });
       setEmail("");
