@@ -16,6 +16,7 @@ import { CapabilitiesProfileCard } from "@/features/deepdive/components/Capabili
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
+import { PhaseHelpPanel } from "@/features/solicitations/components/PhaseHelpPanel";
 
 const SEV_COLOR: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive border-destructive/30",
@@ -115,11 +116,14 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
         <ExportHistoryButton solicitationId={solicitationId} kind="deep-dive" />
       </div>
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
-          <TabsTrigger value="rtm">Requirements (RTM)</TabsTrigger>
-          <TabsTrigger value="sections">Section analysis</TabsTrigger>
-          <TabsTrigger value="gaps">Gaps</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-2">
+          <TabsList>
+            <TabsTrigger value="rtm">Requirements (RTM)</TabsTrigger>
+            <TabsTrigger value="sections">Section analysis</TabsTrigger>
+            <TabsTrigger value="gaps">Gaps</TabsTrigger>
+          </TabsList>
+          <PhaseHelpPanel phase="phase_2_deep_dive" />
+        </div>
         <TabsContent value="rtm" className="mt-4">
           <RTMTable solicitationId={solicitationId} onExtracted={autoRunGaps} autoGapsPending={analyzeGaps.isPending} />
         </TabsContent>

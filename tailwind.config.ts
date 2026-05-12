@@ -43,6 +43,10 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        "phase-1": "hsl(var(--phase-1))",
+        "phase-2": "hsl(var(--phase-2))",
+        "phase-3": "hsl(var(--phase-3))",
+        "phase-4": "hsl(var(--phase-4))",
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
