@@ -384,8 +384,8 @@ function renderDocxSection(s: ExportSection, depth = 0, primaryHex = "283C5A", o
       tableHeader: true,
       children: s.table.head.map((h) =>
         new TableCell({
-          shading: { fill: "E5E7EB" },
-          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })],
+          shading: { fill: primaryHex },
+          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: onPrimaryHex })] })],
         }),
       ),
     });
