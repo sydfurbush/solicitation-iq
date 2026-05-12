@@ -267,7 +267,7 @@ function mapRows(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { solicitationId, focusAreas, focusDocumentIds, regenerate, retryRunId } = await req.json();
+    const { solicitationId, focusAreas, focusDocumentIds, retryRunId } = await req.json();
     if (!solicitationId) {
       return new Response(JSON.stringify({ error: "solicitationId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -459,7 +459,7 @@ Deno.serve(async (req) => {
     const runId = runRow?.id;
 
     console.log(
-      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} retry=${isRetry} crossDoc=${runCrossDoc} regenerate=${!!regenerate} runId=${runId} parentRunId=${parentRunId ?? "-"}`,
+      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} retry=${isRetry} crossDoc=${runCrossDoc} runId=${runId} parentRunId=${parentRunId ?? "-"}`,
     );
 
     const focusText = focusAreas?.length
@@ -467,12 +467,22 @@ Deno.serve(async (req) => {
       : "";
     const summaryText = sol?.ai_summary ? `\n\nEXISTING ANALYSIS SUMMARY:\n${sol.ai_summary}` : "";
 
+    // Fresh runs always wipe prior AI-generated questions before generating, so re-runs
+    // start from a clean slate (manual questions are preserved). Retries only append.
+    if (!isRetry) {
+      const { error: wipeErr } = await supabase
+        .from("strategic_questions")
+        .delete()
+        .eq("solicitation_id", solicitationId)
+        .eq("is_ai_generated", true);
+      if (wipeErr) console.error("[generate-questions] pre-run wipe error", wipeErr);
+      else console.log(`[generate-questions] sol=${solicitationId} wiped prior AI questions before run`);
+    }
+
     const work = (async () => {
       let totalInserted = 0;
       let completed = 0;
       let failed = 0;
-      // Retry mode never deletes — only appends.
-      let didRegenDelete = isRetry;
       const failedDocIds: string[] = [];
       let crossDocFailed = false;
 
@@ -516,16 +526,7 @@ Deno.serve(async (req) => {
           const rows = mapRows(questions, solicitationId, docByName);
           console.log(`[generate-questions] batch=${batchLabel} got ${rows.length} questions`);
 
-          // Delete prior AI rows once, before inserting the FIRST successful batch.
-          if (regenerate && !didRegenDelete && rows.length > 0) {
-            const { error: delErr } = await supabase
-              .from("strategic_questions")
-              .delete()
-              .eq("solicitation_id", solicitationId)
-              .eq("is_ai_generated", true);
-            if (delErr) console.error("[generate-questions] delete error", delErr);
-            didRegenDelete = true;
-          }
+          // Note: prior AI rows were already wiped up-front for fresh runs.
 
           if (rows.length > 0) {
             const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
@@ -664,14 +665,6 @@ Deno.serve(async (req) => {
             const rows = mapRows(questions, solicitationId, docByName);
             console.log(`[generate-questions] ${sub.label} got ${rows.length} questions`);
             if (rows.length > 0) {
-              if (regenerate && !didRegenDelete) {
-                await supabase
-                  .from("strategic_questions")
-                  .delete()
-                  .eq("solicitation_id", solicitationId)
-                  .eq("is_ai_generated", true);
-                didRegenDelete = true;
-              }
               const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
               if (insErr) {
                 console.error(`[generate-questions] ${sub.label} insert error`, insErr);

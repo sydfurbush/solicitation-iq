@@ -39,7 +39,6 @@ interface Props {
 export function GenerateQuestionsDialog({ solicitationId, documents, hasExistingAi, open, onOpenChange }: Props) {
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [docIds, setDocIds] = useState<string[]>([]);
-  const [regenerate, setRegenerate] = useState(false);
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [stepLog, setStepLog] = useState<string[]>([]);
   const lastStepRef = useRef<string | null>(null);
@@ -89,7 +88,6 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
       const result = await generate.mutateAsync({
         focusAreas: overrides?.retryRunId ? undefined : (focusAreas.length ? focusAreas : undefined),
         focusDocumentIds: overrides?.retryRunId ? undefined : (docIds.length ? docIds : undefined),
-        regenerate: overrides?.retryRunId ? false : regenerate,
         retryRunId: overrides?.retryRunId,
         onProgress: handleProgress,
       });
@@ -156,7 +154,7 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
           {hasExistingAi && (
             <Alert>
               <AlertDescription className="text-sm">
-                AI-generated questions already exist. Enable "Replace existing" to regenerate them.
+                AI-generated questions already exist. Running Generate will replace them with a fresh set (manual questions are kept).
               </AlertDescription>
             </Alert>
           )}
@@ -191,10 +189,6 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
             </ScrollArea>
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={regenerate} onCheckedChange={(c) => setRegenerate(c === true)} />
-            Replace existing AI-generated questions
-          </label>
 
           {generate.isPending && progress && (
             <Alert>

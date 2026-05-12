@@ -64,7 +64,6 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
     mutationFn: async (input: {
       focusAreas?: string[];
       focusDocumentIds?: string[];
-      regenerate?: boolean;
       retryRunId?: string;
       onProgress?: (p: {
         runId: string;
@@ -83,7 +82,6 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
           solicitationId,
           focusAreas: input.focusAreas,
           focusDocumentIds: input.focusDocumentIds,
-          regenerate: input.regenerate,
           retryRunId: input.retryRunId,
         },
       });
