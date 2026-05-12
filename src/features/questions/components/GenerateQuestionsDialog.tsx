@@ -154,7 +154,7 @@ export function GenerateQuestionsDialog({ solicitationId, documents, hasExisting
           {hasExistingAi && (
             <Alert>
               <AlertDescription className="text-sm">
-                AI-generated questions already exist. Enable "Replace existing" to regenerate them.
+                AI-generated questions already exist. Running Generate will replace them with a fresh set (manual questions are kept).
               </AlertDescription>
             </Alert>
           )}
