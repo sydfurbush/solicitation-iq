@@ -22,7 +22,9 @@ type Ctx = {
   page: number;
   headerLeft: string;
   headerRight: string;
+  headerExtra?: string;
   footerLeft: string;
+  footerTitle?: string;
 };
 
 function setFill(doc: jsPDF, c: [number, number, number]) { doc.setFillColor(c[0], c[1], c[2]); }
