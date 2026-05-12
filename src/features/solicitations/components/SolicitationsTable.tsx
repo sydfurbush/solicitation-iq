@@ -175,9 +175,16 @@ export function SolicitationsTable({
                   <TableCell className="font-medium max-w-[280px] truncate">{s.title}</TableCell>
                   <TableCell className="text-muted-foreground">{s.issuing_agency ?? "—"}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={cn(STATUS_CLASSES[status])}>
-                      {STATUS_LABELS[status]}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant="outline" className={cn(STATUS_CLASSES[status])}>
+                        {STATUS_LABELS[status]}
+                      </Badge>
+                      {isDeleted && (
+                        <Badge variant="outline" className="border-destructive/40 text-destructive">
+                          Deleted
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell
                     className={cn(
