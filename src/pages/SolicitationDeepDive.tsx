@@ -171,10 +171,27 @@ function SectionAccordion({ solicitationId }: { solicitationId: string }) {
             {rows.map((s) => (
               <AccordionItem key={s.id} value={s.id}>
                 <AccordionTrigger className="text-sm">
-                  <div className="flex items-center gap-3 text-left">
+                  <div className="flex items-center gap-2 text-left flex-wrap">
                     <Badge variant="outline" className="font-mono">{s.section_code}</Badge>
                     <span>{s.section_title ?? "Untitled"}</span>
-                    {s.scoring_weight && <Badge variant="secondary">Weight {s.scoring_weight}</Badge>}
+                    {s.scoring_weight != null ? (
+                      <Badge className="bg-phase-2 text-white hover:bg-phase-2/90">
+                        Weight: {s.scoring_weight}% · Stated
+                      </Badge>
+                    ) : s.importance_score != null ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="border-phase-2/40 text-phase-2">
+                              Importance: {s.importance_score}/5 · AI
+                            </Badge>
+                          </TooltipTrigger>
+                          {s.importance_rationale && (
+                            <TooltipContent className="max-w-xs">{s.importance_rationale}</TooltipContent>
+                          )}
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : null}
                     {Array.isArray(s.risk_flags) && s.risk_flags.length > 0 &&
                       <Badge variant="outline" className="text-amber-600 border-amber-500/30">{s.risk_flags.length} flags</Badge>}
                   </div>
