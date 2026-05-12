@@ -56,6 +56,16 @@ export default function Solicitations() {
   const { data: rows = [], isLoading, isError, error } = useSolicitations(filters);
   const updateStatus = useUpdateSolicitationStatus();
   const deleteMut = useDeleteSolicitation();
+  const restoreMut = useRestoreSolicitation();
+
+  const restore = async (s: SolicitationWithClient) => {
+    try {
+      await restoreMut.mutateAsync(s.id);
+      toast({ title: "Restored", description: s.title });
+    } catch (e) {
+      toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
 
   // Reset to page 1 when filters change
   useEffect(() => { setPage(1); }, [filters]);
