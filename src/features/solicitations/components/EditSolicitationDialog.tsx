@@ -24,7 +24,7 @@ import type { SolicitationFullInput, SetAsideType } from "@/lib/validators/solic
 import { toast } from "@/hooks/use-toast";
 
 interface Props {
-  trigger: ReactNode;
+  trigger?: ReactNode;
   solicitation: SolicitationRow;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;

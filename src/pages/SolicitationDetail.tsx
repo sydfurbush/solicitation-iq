@@ -1,19 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
-  Archive,
+  ChevronDown,
   ChevronRight,
   Clock,
   ExternalLink,
-  FileBarChart,
   FileText,
   HelpCircle,
   Lightbulb,
-  Pencil,
-  Share2,
   ShieldAlert,
-  Trash2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -21,35 +17,30 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useDeleteSolicitation, useSolicitation, useUpdateSolicitationStatus } from "@/features/solicitations/hooks/useSolicitations";
+import {
+  useDeleteSolicitation,
+  useSolicitation,
+  useUpdateSolicitationStatus,
+} from "@/features/solicitations/hooks/useSolicitations";
 import { useClient } from "@/features/clients/hooks/useClients";
 import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
+import { PhaseHub, type HubStep } from "@/features/solicitations/components/PhaseHub";
+import { PhaseShell } from "@/features/solicitations/components/PhaseShell";
+import { SolicitationActionsMenu } from "@/features/solicitations/components/SolicitationActionsMenu";
 import { SolicitationOverview } from "@/features/solicitations/components/SolicitationOverview";
-import { EditSolicitationDialog } from "@/features/solicitations/components/EditSolicitationDialog";
 import {
   STATUS_CLASSES,
   STATUS_LABELS,
   daysUntil,
   dueUrgency,
 } from "@/features/solicitations/lib/format";
-import { SOLICITATION_STATUSES, type SolicitationStatus } from "@/lib/validators/solicitation";
+import { SOLICITATION_STATUSES, PHASES, type PhaseType, type SolicitationStatus } from "@/lib/validators/solicitation";
 import { toast } from "@/hooks/use-toast";
 import SolicitationDocuments from "./SolicitationDocuments";
 import SolicitationAnalysis from "./SolicitationAnalysis";
@@ -62,33 +53,81 @@ import SolicitationDeepDive from "./SolicitationDeepDive";
 import SolicitationOutline from "./SolicitationOutline";
 import SolicitationWinThemes from "./SolicitationWinThemes";
 import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
-import type { PhaseType } from "@/lib/validators/solicitation";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
 import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
+
+const PHASE_1_STEPS = [
+  { key: "overview", label: "Overview" },
+  { key: "documents", label: "Documents" },
+  { key: "analysis", label: "Analysis" },
+  { key: "questions", label: "Questions" },
+  { key: "risks", label: "Risks & Opportunities" },
+];
+
+// Maps any legacy ?tab= value (or pre-redesign deep links) to the new shape.
+const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
+  overview: { tab: "phase-1", step: "overview" },
+  documents: { tab: "phase-1", step: "documents" },
+  analysis: { tab: "phase-1", step: "analysis" },
+  questions: { tab: "phase-1", step: "questions" },
+  risks: { tab: "phase-1", step: "risks" },
+  "deep-dive": { tab: "phase-2" },
+  outline: { tab: "phase-3" },
+  "win-themes": { tab: "phase-4" },
+};
+
+type WorkspaceKey = "reports" | "comparison" | "activity";
+const WORKSPACE_LABELS: Record<WorkspaceKey, string> = {
+  reports: "Reports",
+  comparison: "Comparison",
+  activity: "Activity",
+};
 
 export default function SolicitationDetail() {
   const { solicitationId } = useParams<{ solicitationId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get("tab") ?? "overview";
+
+  const rawTab = searchParams.get("tab");
+  const tab = rawTab ?? "workflow";
+  const step = searchParams.get("step");
+
   const { data: s, isLoading } = useSolicitation(solicitationId);
   const { data: client } = useClient(s?.client_id ?? undefined);
   const clientName = client?.name ?? undefined;
   const updateStatus = useUpdateSolicitationStatus();
   const deleteMut = useDeleteSolicitation();
-  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const urgency = useMemo(() => dueUrgency(s?.proposal_due_date), [s?.proposal_due_date]);
   const days = useMemo(() => daysUntil(s?.proposal_due_date), [s?.proposal_due_date]);
+
+  // One-time legacy ?tab= redirect
+  useEffect(() => {
+    if (!rawTab) return;
+    const mapped = LEGACY_TAB[rawTab];
+    if (!mapped) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", mapped.tab);
+    if (mapped.step) next.set("step", mapped.step);
+    else next.delete("step");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawTab]);
+
+  const goTab = (t: string, st?: string) => {
+    const next = new URLSearchParams();
+    next.set("tab", t);
+    if (st) next.set("step", st);
+    setSearchParams(next);
+  };
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-6 w-72" />
         <Skeleton className="h-32 w-full" />
-        <div className="grid grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
-        </div>
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
@@ -105,22 +144,15 @@ export default function SolicitationDetail() {
   }
 
   const status = (s.status ?? "intake") as SolicitationStatus;
+  const currentPhase: PhaseType = (s.current_phase ?? "phase_1_initial") as PhaseType;
+  const currentPhaseIdx = PHASES.indexOf(currentPhase);
 
   const handleStatusChange = async (next: SolicitationStatus) => {
     try {
       await updateStatus.mutateAsync({ id: s.id, status: next });
-      toast({ title: `Status updated`, description: STATUS_LABELS[next] });
+      toast({ title: "Status updated", description: STATUS_LABELS[next] });
     } catch (e) {
       toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-    }
-  };
-
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast({ title: "Link copied", description: "Share with your team." });
-    } catch {
-      toast({ title: "Could not copy link", variant: "destructive" });
     }
   };
 
@@ -135,9 +167,76 @@ export default function SolicitationDetail() {
         description: e instanceof Error ? e.message : String(e),
         variant: "destructive",
       });
-    } finally {
-      setConfirmDelete(false);
     }
+  };
+
+  // Build hub step lists (light guidance: state derived from current phase position only)
+  const buildHubSteps = (phase: PhaseType): HubStep[] => {
+    const idx = PHASES.indexOf(phase);
+    const phaseDone = idx < currentPhaseIdx;
+    const phaseActive = idx === currentPhaseIdx;
+    const stepState = (active = false): HubStep["state"] =>
+      phaseDone ? "done" : phaseActive && active ? "active" : phaseActive ? "todo" : "todo";
+
+    if (phase === "phase_1_initial") {
+      return [
+        { key: "overview", label: "Overview", state: stepState(true), onClick: () => goTab("phase-1", "overview") },
+        { key: "documents", label: "Documents", count: s.documents_count, state: stepState(), onClick: () => goTab("phase-1", "documents") },
+        { key: "analysis", label: "Analysis", state: stepState(), onClick: () => goTab("phase-1", "analysis") },
+        { key: "questions", label: "Questions", count: s.questions_count, state: stepState(), onClick: () => goTab("phase-1", "questions") },
+        { key: "risks", label: "Risks & Opportunities", count: (s.risks_count ?? 0) + (s.opportunities_count ?? 0), state: stepState(), onClick: () => goTab("phase-1", "risks") },
+      ];
+    }
+    if (phase === "phase_2_deep_dive") {
+      return [
+        { key: "rtm", label: "Requirements (RTM)", state: stepState(true), onClick: () => goTab("phase-2") },
+        { key: "sections", label: "Section analysis", state: stepState(), onClick: () => goTab("phase-2") },
+        { key: "gaps", label: "Capability gaps", state: stepState(), onClick: () => goTab("phase-2") },
+      ];
+    }
+    if (phase === "phase_3_outline") {
+      return [
+        { key: "outline", label: "Proposal outline", state: stepState(true), onClick: () => goTab("phase-3") },
+      ];
+    }
+    return [
+      { key: "themes", label: "Win themes", state: stepState(true), onClick: () => goTab("phase-4") },
+    ];
+  };
+
+  const phaseLabelByKey: Record<string, string> = {
+    "phase-1": "Phase 1 · Initial",
+    "phase-2": "Phase 2 · Deep Dive",
+    "phase-3": "Phase 3 · Outline",
+    "phase-4": "Phase 4 · Win Themes",
+  };
+
+  const renderPhase1 = () => {
+    const sub = step ?? "overview";
+    return (
+      <PhaseShell
+        solicitationId={s.id}
+        phase="phase_1_initial"
+        currentPhase={currentPhase}
+        subSteps={PHASE_1_STEPS}
+        activeStep={sub}
+        onStepChange={(k) => goTab("phase-1", k)}
+      >
+        {/* Phase 1 KPIs live here only */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <StatCard icon={FileText} label="Documents" value={s.documents_count} />
+          <StatCard icon={HelpCircle} label="Questions" value={s.questions_count} />
+          <StatCard icon={ShieldAlert} label="Risks" value={s.risks_count} accent="warning" />
+          <StatCard icon={Lightbulb} label="Opportunities" value={s.opportunities_count} accent="accent" />
+        </div>
+
+        {sub === "overview" && <SolicitationOverview solicitation={s} />}
+        {sub === "documents" && <SolicitationDocuments solicitationId={s.id} />}
+        {sub === "analysis" && <SolicitationAnalysis solicitationId={s.id} />}
+        {sub === "questions" && <SolicitationQuestions solicitationId={s.id} />}
+        {sub === "risks" && <SolicitationRisksOpportunities solicitationId={s.id} />}
+      </PhaseShell>
+    );
   };
 
   return (
@@ -212,35 +311,15 @@ export default function SolicitationDetail() {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <EditSolicitationDialog
+          <SolicitationActionsMenu
             solicitation={s}
-            trigger={
-              <Button variant="outline" size="sm">
-                <Pencil className="mr-2 h-4 w-4" /> Edit
-              </Button>
-            }
+            onArchive={() => handleStatusChange("archived")}
+            onDelete={handleDelete}
           />
-          <Button variant="outline" size="sm" onClick={() => handleStatusChange("archived")}>
-            <Archive className="mr-2 h-4 w-4" /> Archive
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setConfirmDelete(true)}
-          >
-            <Trash2 className="mr-2 h-4 w-4" /> Delete
-          </Button>
-          <Button variant="outline" size="sm">
-            <FileBarChart className="mr-2 h-4 w-4" /> Generate report
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleShare}>
-            <Share2 className="mr-2 h-4 w-4" /> Share
-          </Button>
         </div>
       </div>
 
-      {/* Phase + countdown */}
+      {/* Phase strip + countdown */}
       <Card>
         <CardContent className="p-5 flex flex-col lg:flex-row gap-6 lg:items-center">
           <div className="flex-1">
@@ -248,7 +327,7 @@ export default function SolicitationDetail() {
             <PhaseIndicator
               current={s.current_phase}
               status={s.status}
-              onPhaseClick={(p: PhaseType) => setSearchParams({ tab: PHASE_TAB[p] })}
+              onPhaseClick={(p: PhaseType) => goTab(PHASE_TAB[p])}
             />
           </div>
           <div className="lg:border-l lg:pl-6">
@@ -261,7 +340,7 @@ export default function SolicitationDetail() {
                     ? "text-destructive"
                     : urgency === "warning"
                       ? "text-amber-600 dark:text-amber-500"
-                      : ""
+                      : "",
                 )}
               >
                 <Clock className="h-4 w-4" />
@@ -281,68 +360,214 @@ export default function SolicitationDetail() {
         </CardContent>
       </Card>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard icon={FileText} label="Documents" value={s.documents_count} />
-        <StatCard icon={HelpCircle} label="Questions" value={s.questions_count} />
-        <StatCard icon={ShieldAlert} label="Risks" value={s.risks_count} accent="warning" />
-        <StatCard icon={Lightbulb} label="Opportunities" value={s.opportunities_count} accent="accent" />
+      {/* Slim top nav */}
+      <div className="border-b">
+        <div className="flex flex-wrap items-center gap-1">
+          <NavBtn active={tab === "workflow"} onClick={() => goTab("workflow")}>
+            Workflow
+          </NavBtn>
+
+          {/* Phase 1 with sub-step menu */}
+          <PhaseNavMenu
+            label={phaseLabelByKey["phase-1"]}
+            active={tab === "phase-1"}
+            steps={PHASE_1_STEPS}
+            activeStep={tab === "phase-1" ? (step ?? "overview") : undefined}
+            onPick={(k) => goTab("phase-1", k)}
+            onOpen={() => goTab("phase-1", "overview")}
+          />
+
+          <NavBtn active={tab === "phase-2"} onClick={() => goTab("phase-2")}>
+            {phaseLabelByKey["phase-2"]}
+          </NavBtn>
+          <NavBtn active={tab === "phase-3"} onClick={() => goTab("phase-3")}>
+            {phaseLabelByKey["phase-3"]}
+          </NavBtn>
+          <NavBtn active={tab === "phase-4"} onClick={() => goTab("phase-4")}>
+            {phaseLabelByKey["phase-4"]}
+          </NavBtn>
+
+          <WorkspaceNavMenu
+            active={tab === "reports" || tab === "comparison" || tab === "activity"}
+            currentKey={(tab as WorkspaceKey) || undefined}
+            onPick={(k) => goTab(k)}
+          />
+        </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={tab} onValueChange={(v) => setSearchParams({ tab: v })}>
-        <TabsList className="flex flex-wrap h-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="analysis">Analysis</TabsTrigger>
-          <TabsTrigger value="questions">Questions</TabsTrigger>
-          <TabsTrigger value="risks">Risks &amp; Opportunities</TabsTrigger>
-          <TabsTrigger value="deep-dive">Deep Dive</TabsTrigger>
-          <TabsTrigger value="outline">Outline</TabsTrigger>
-          <TabsTrigger value="win-themes">Win Themes</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
-          <TabsTrigger value="comparison">Comparison</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-        </TabsList>
+      {/* Content */}
+      <div>
+        {tab === "workflow" && (
+          <PhaseHub
+            currentPhase={currentPhase}
+            phaseStatusByPhase={{}}
+            buildSteps={buildHubSteps}
+            onOpenPhase={(p) => goTab(PHASE_TAB[p])}
+            onWorkspace={(k) => goTab(k)}
+          />
+        )}
 
-        <TabsContent value="overview" className="mt-6"><SolicitationOverview solicitation={s} /></TabsContent>
-        <TabsContent value="documents" className="mt-6"><SolicitationDocuments solicitationId={s.id} /></TabsContent>
-        <TabsContent value="analysis" className="mt-6"><SolicitationAnalysis solicitationId={s.id} /></TabsContent>
-        <TabsContent value="questions" className="mt-6"><SolicitationQuestions solicitationId={s.id} /></TabsContent>
-        <TabsContent value="risks" className="mt-6"><SolicitationRisksOpportunities solicitationId={s.id} /></TabsContent>
-        <TabsContent value="deep-dive" className="mt-6">
-          <SolicitationDeepDive solicitationId={s.id} clientId={s.client_id} currentPhase={s.current_phase ?? "phase_1_initial"} solicitationTitle={s.title} clientName={clientName} />
-        </TabsContent>
-        <TabsContent value="outline" className="mt-6">
-          <SolicitationOutline solicitationId={s.id} currentPhase={s.current_phase ?? "phase_1_initial"} solicitationTitle={s.title} clientName={clientName} />
-        </TabsContent>
-        <TabsContent value="win-themes" className="mt-6">
-          <SolicitationWinThemes solicitationId={s.id} currentPhase={s.current_phase ?? "phase_1_initial"} solicitationTitle={s.title} clientName={clientName} />
-        </TabsContent>
-        <TabsContent value="activity" className="mt-6"><SolicitationActivity solicitationId={s.id} /></TabsContent>
-        <TabsContent value="comparison" className="mt-6"><SolicitationComparison solicitationId={s.id} /></TabsContent>
-        <TabsContent value="reports" className="mt-6"><SolicitationReports solicitationId={s.id} /></TabsContent>
-      </Tabs>
+        {tab === "phase-1" && renderPhase1()}
 
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete solicitation?</AlertDialogTitle>
-            <AlertDialogDescription>
-              "{s.title}" will be removed from your active list. This can be restored later from the database.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {tab === "phase-2" && (
+          <PhaseShell solicitationId={s.id} phase="phase_2_deep_dive" currentPhase={currentPhase}>
+            <SolicitationDeepDive
+              solicitationId={s.id}
+              clientId={s.client_id}
+              currentPhase={currentPhase}
+              solicitationTitle={s.title}
+              clientName={clientName}
+            />
+          </PhaseShell>
+        )}
+
+        {tab === "phase-3" && (
+          <PhaseShell solicitationId={s.id} phase="phase_3_outline" currentPhase={currentPhase}>
+            <SolicitationOutline
+              solicitationId={s.id}
+              currentPhase={currentPhase}
+              solicitationTitle={s.title}
+              clientName={clientName}
+            />
+          </PhaseShell>
+        )}
+
+        {tab === "phase-4" && (
+          <PhaseShell solicitationId={s.id} phase="phase_4_win_themes" currentPhase={currentPhase}>
+            <SolicitationWinThemes
+              solicitationId={s.id}
+              currentPhase={currentPhase}
+              solicitationTitle={s.title}
+              clientName={clientName}
+            />
+          </PhaseShell>
+        )}
+
+        {tab === "reports" && <SolicitationReports solicitationId={s.id} />}
+        {tab === "comparison" && <SolicitationComparison solicitationId={s.id} />}
+        {tab === "activity" && <SolicitationActivity solicitationId={s.id} />}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------- Sub-components -------------------- */
+
+function NavBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "relative h-10 px-3 text-sm font-medium transition-colors",
+        active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {children}
+      {active && (
+        <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-primary rounded-full" />
+      )}
+    </button>
+  );
+}
+
+function PhaseNavMenu({
+  label,
+  active,
+  steps,
+  activeStep,
+  onPick,
+  onOpen,
+}: {
+  label: string;
+  active: boolean;
+  steps: { key: string; label: string }[];
+  activeStep?: string;
+  onPick: (k: string) => void;
+  onOpen: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "relative h-10 px-3 text-sm font-medium transition-colors inline-flex items-center gap-1",
+            active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+          )}
+          onDoubleClick={onOpen}
+        >
+          {label}
+          {activeStep && (
+            <span className="text-muted-foreground/80">
+              · {steps.find((s) => s.key === activeStep)?.label}
+            </span>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+          {active && (
+            <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-primary rounded-full" />
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {steps.map((s) => (
+          <DropdownMenuItem
+            key={s.key}
+            onClick={() => onPick(s.key)}
+            className={cn(s.key === activeStep && "bg-accent/50 font-medium")}
+          >
+            {s.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function WorkspaceNavMenu({
+  active,
+  currentKey,
+  onPick,
+}: {
+  active: boolean;
+  currentKey?: WorkspaceKey;
+  onPick: (k: WorkspaceKey) => void;
+}) {
+  return (
+    <div className="ml-auto">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "relative h-10 px-3 text-sm font-medium transition-colors inline-flex items-center gap-1",
+              active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Workspace
+            {currentKey && (
+              <span className="text-muted-foreground/80">· {WORKSPACE_LABELS[currentKey]}</span>
+            )}
+            <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+            {active && (
+              <span className="absolute left-2 right-2 -bottom-px h-0.5 bg-primary rounded-full" />
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onPick("reports")}>Reports</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onPick("comparison")}>Comparison</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onPick("activity")}>Activity</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -368,7 +593,7 @@ function StatCard({
               ? "bg-amber-500/15 text-amber-600 dark:text-amber-500"
               : accent === "accent"
                 ? "bg-accent/15 text-accent"
-                : "bg-primary/10 text-primary"
+                : "bg-primary/10 text-primary",
           )}
         >
           <Icon className="h-5 w-5" />

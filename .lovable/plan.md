@@ -1,64 +1,110 @@
+## Goal
 
-# Phases 2-4 build plan
+Replace the flat 11-tab solicitation page with a phase-driven workspace that mirrors the consultant's process: a default **Workflow Hub** that summarizes all 4 phases at a glance, plus a slim top navigation that drills into each phase's steps. Header gets a single Actions menu; stats move into Phase 1.
 
-Today the 4-step indicator (Initial → Deep Dive → Outline → Win Themes) is just a label. `solicitations.current_phase` and the `solicitation_phases` table exist, but no UI or AI is wired to phases 2-4. This plan adds them.
+---
 
-## Phase 1 — Initial (already built, no change)
-Documents, AI summary, requirements, evaluation factors, questions, risks/opportunities.
+## New information architecture
 
-## Phase 2 — Deep Dive (new)
-Three sub-tabs on a new `/solicitations/:id?tab=deep-dive` page.
+```text
+Solicitation header  (title, client, SAM link, status, Actions ▾)
+─────────────────────────────────────────────────────────────────
+Phase strip          [1 Initial] ─ [2 Deep Dive] ─ [3 Outline] ─ [4 Win Themes]   |  Proposal due
+─────────────────────────────────────────────────────────────────
+Top nav (slim)       Workflow ·  Phase 1 ▾  ·  Phase 2 ▾  ·  Phase 3 ▾  ·  Phase 4 ▾  ·  Workspace ▾
+                                                                                          (Reports · Comparison · Activity)
+─────────────────────────────────────────────────────────────────
+Content pane         Renders the chosen view
+```
 
-**a. Requirements Traceability Matrix (RTM)**
-- New table `requirement_items`: `id, solicitation_id, req_number, shall_text, source_section (L/M/C/PWS), source_document_id, page_number, source_quote, compliance_owner, proposal_volume, proposal_section, status (open/in_review/covered/waived), notes, is_ai_generated, created_at, updated_at`.
-- New edge function `extract-requirements`: pulls every "shall/must/will" statement from `document_sections`, numbers them, returns structured rows with citations. Uses Lovable AI Gateway (`google/gemini-2.5-pro`).
-- UI: sortable/filterable table, inline edit of owner + proposal mapping, CSV export.
+- **Workflow** (new default) = Phase Hub landing.
+- **Phase 1 ▾** opens a popover/menu of its 5 steps: Overview · Documents · Analysis · Questions · Risks & Opportunities.
+- **Phase 2/3/4 ▾** open directly to their single step (Deep Dive / Outline / Win Themes); the dropdown still lists internal sub-views where relevant (e.g. Deep Dive → RTM, Sections, Gaps).
+- **Workspace ▾** groups the cross-cutting tools: Reports, Comparison, Activity.
+- The existing `?tab=` query param is preserved so deep links keep working.
 
-**b. Section-by-section analysis**
-- New table `section_analyses`: `id, solicitation_id, section_code (L/M/C/etc.), summary, requirements_count, scoring_weight, risk_flags jsonb, source_citations jsonb, updated_at`.
-- New edge function `analyze-sections`: walks Section L (instructions), Section M (evaluation factors + weights), Section C/PWS (scope), produces structured breakdown.
-- UI: accordion per section with summary, weights, flagged risks linking to the existing risks list.
+## Workflow Hub (new landing view)
 
-**c. Gap & capability analysis**
-- New table `capability_gaps`: `id, solicitation_id, requirement_id (→requirement_items), gap_type (capability/past_performance/certification/teaming), severity, description, recommendation (build/buy/team/no_bid), client_note, updated_at`.
-- New edge function `analyze-gaps`: cross-references RTM against `clients.metadata.capabilities` (new field), flags gaps, suggests teaming.
-- UI: list grouped by gap_type with severity badges and a "no-bid trigger" banner if any critical gap is unresolved.
+A grid of 4 phase cards + a Workspace strip below.
 
-## Phase 3 — Outline (new)
-- New table `proposal_outlines`: `id, solicitation_id, version, title, generated_at, generated_by, metadata jsonb`.
-- New table `outline_nodes`: `id, outline_id, parent_id, sort_order, volume, section_number, title, page_allocation, assigned_to (uuid), source_l_reference, linked_requirement_ids uuid[], notes`.
-- New edge function `generate-outline`: takes Section L instructions + RTM, produces Volume → Section → Subsection tree with page allocations. Uses Lovable AI.
-- UI: `/solicitations/:id?tab=outline` with collapsible tree, drag-reorder (dnd-kit), inline edit, "Regenerate" and "Export to Word" buttons (reuses `wordGenerator.ts`).
+```text
+┌──────────────────────────────┐  ┌──────────────────────────────┐
+│ ① Initial            ●done   │  │ ② Deep Dive       ◐ active  │
+│ Set up the file               │  │ RTM, sections, gaps          │
+│  ✓ Overview                   │  │  · Deep Dive →               │
+│  ✓ Documents (11)             │  │                              │
+│  ✓ Analysis                   │  │                              │
+│  ✓ Questions (127)            │  │                              │
+│  ✓ Risks & Opps (12 / 0)      │  │                              │
+│  Open Phase 1 →               │  │  Open Phase 2 →              │
+└──────────────────────────────┘  └──────────────────────────────┘
+┌──────────────────────────────┐  ┌──────────────────────────────┐
+│ ③ Outline           ○ todo   │  │ ④ Win Themes        ○ todo  │
+└──────────────────────────────┘  └──────────────────────────────┘
 
-## Phase 4 — Win Themes (new)
-- New table `win_themes`: `id, solicitation_id, title, theme_statement, discriminators text[], ghosting_points text[], proof_points text[], linked_outline_node_ids uuid[], linked_requirement_ids uuid[], status (draft/approved/rejected), is_ai_generated, created_by, updated_at`.
-- New edge function `generate-win-themes`: input = RTM + Section M evaluation factors + client capabilities + incumbent intel; output = 5-8 candidate themes with discriminators, ghosting points, proof points, citations.
-- UI: `/solicitations/:id?tab=win-themes` — card grid, "Generate suggestions" button (AI), inline edit, link-to-outline-section picker, approve/reject toggle.
+Workspace:  [Reports]  [Comparison]  [Activity]
+```
 
-## Phase progression (manual)
-- Repurpose the existing `solicitation_phases` table to track per-phase state.
-- Each phase page shows a footer with **"Mark phase complete & advance to [next]"** button → updates `solicitations.current_phase` and inserts/updates the `solicitation_phases` row (sets `completed_at`, `completed_by`).
-- `PhaseIndicator` is already click-aware — wire `onPhaseClick` to navigate between tab routes; future phases stay clickable but show an "Advance previous phase first" empty state.
+Per card (light guidance, no gating):
+- Phase number, name, status dot (done / active / todo) derived from `solicitation_phases.status` + `current_phase`.
+- Step list with status dot only — no checklist enforcement, no owners, no due dates.
+- Counts pulled from existing `documents_count`, `questions_count`, etc. for relevant steps.
+- "Open Phase N →" jumps to that phase's first step.
+- The current phase card is visually emphasized (primary border / subtle gradient).
 
-## UI changes
-- `SolicitationDetail.tsx`: add 3 tabs (Deep Dive, Outline, Win Themes) alongside existing tabs; each tab renders a new page component.
-- `PhaseIndicator`: pass `onPhaseClick` so users can jump between phase tabs.
-- New components: `DeepDiveTab`, `RTMTable`, `SectionAnalysisAccordion`, `GapsList`, `OutlineTree`, `WinThemesGrid`, `AdvancePhaseButton`.
+## Phase 1 view (Initial)
 
-## Reports
-Extend `generate-report` with three new report types: `deep_dive_brief`, `proposal_outline`, `win_themes_brief` — deterministic builders (same pattern we used for `questions_brief`) so nothing gets dropped.
+When the user enters Phase 1 from the top nav, the page renders:
+
+1. A **Phase 1 toolbar**: phase title + sub-step pills (Overview · Documents · Analysis · Questions · Risks).
+2. **Stat strip** (Documents · Questions · Risks · Opportunities) — moved from the global header to live only inside Phase 1 / Overview, since they are Phase-1 KPIs.
+3. The selected sub-step content (existing components reused, no behavior changes).
+
+## Phase 2 / 3 / 4 views
+
+Same shell: a phase title bar + a "Mark phase complete & advance" button (existing `AdvancePhaseButton`) on the right, then the existing single-step content (Deep Dive / Outline / Win Themes). Sub-tabs already inside Deep Dive (RTM, Sections, Gaps) stay where they are.
+
+## Header changes
+
+- Keep visible: status pill + Change, Annotations, Team Presence.
+- Collapse into a single **Actions ▾** dropdown:
+  - Edit
+  - Generate report
+  - Share (copy link)
+  - Archive
+  - Delete (destructive style at the bottom, with the existing confirm dialog)
+- The phase strip + proposal-due card stays as-is (it is the spatial anchor users circled in the screenshot).
+
+## Routing & state
+
+- Single source of truth remains `?tab=...`.
+- New tab values:
+  - `workflow` (default landing)
+  - `phase-1` with sub-step in `?step=overview|documents|analysis|questions|risks`
+  - `phase-2`, `phase-3`, `phase-4` (sub-step optional, defaults to the phase's main step)
+  - `reports`, `comparison`, `activity` (unchanged)
+- Backwards compatibility: legacy values (`overview`, `documents`, `deep-dive`, `outline`, `win-themes`, …) get redirected to the new `phase-N?step=…` shape on load so existing bookmarks still resolve.
+- `PHASE_TAB` map (used by `PhaseIndicator` clicks and `AdvancePhaseButton`) is updated to point at the new `phase-N` values.
+
+## Files affected
+
+- `src/pages/SolicitationDetail.tsx` — replace the 11-tab block with the new Phase Hub + slim top nav, move stat cards into Phase 1, collapse header actions into a dropdown, add legacy-tab redirect.
+- `src/features/solicitations/hooks/usePhaseProgression.ts` — update `PHASE_TAB` to the new tab keys.
+- `src/features/solicitations/components/PhaseHub.tsx` *(new)* — the 4-card landing grid.
+- `src/features/solicitations/components/PhaseShell.tsx` *(new)* — phase title bar + sub-step pills + content slot used by all 4 phase views.
+- `src/features/solicitations/components/SolicitationActionsMenu.tsx` *(new)* — the consolidated Actions ▾ dropdown (wraps Edit dialog + share/archive/delete handlers).
+- `src/features/solicitations/components/PhaseIndicator.tsx` — minor: clicking a phase routes to `phase-N` instead of the old per-tab key.
+
+No backend, no schema changes, no behavior changes inside the existing step components (Documents, Analysis, Deep Dive, etc.) — they are only re-mounted under the new shell.
 
 ## Out of scope
-- Real proposal authoring (writing volumes inline) — outline only.
-- Color team reviews (pink/red/gold) — can be a Phase 5 later.
-- Pricing models, BOE, staffing plans.
 
-## Build order (suggested)
-1. Migration: new tables + indexes + RLS (mirrors existing `staff manage / view` policy pattern).
-2. Phase progression plumbing + clickable PhaseIndicator + AdvancePhaseButton.
-3. Deep Dive: RTM (table + edge fn + UI), then sections, then gaps.
-4. Outline: table + edge fn + tree UI + Word export.
-5. Win Themes: table + edge fn + grid UI.
-6. Report types for each.
+- Step checklists, owner assignment, due dates per step, gating advancement (chose Light guidance).
+- Any change to the per-step pages themselves.
+- New stats or analytics on the hub cards beyond counts already on `solicitations`.
 
-Let me know which phase to start with — I recommend shipping phase progression + Deep Dive RTM first since everything else depends on requirements being numbered.
+## Risk / mitigation
+
+- Deep links — handled by the legacy-tab redirect on mount.
+- Mobile — the slim top nav becomes a single phase dropdown under `md`; the Phase Hub grid collapses to one column.
+- Discoverability of moved stats — Phase 1 / Overview keeps them at the top so anyone landing there still sees the same numbers.

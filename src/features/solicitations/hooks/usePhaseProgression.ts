@@ -3,21 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { PHASES, type PhaseType } from "@/lib/validators/solicitation";
 
 export const PHASE_TAB: Record<PhaseType, string> = {
-  phase_1_initial: "overview",
-  phase_2_deep_dive: "deep-dive",
-  phase_3_outline: "outline",
-  phase_4_win_themes: "win-themes",
+  phase_1_initial: "phase-1",
+  phase_2_deep_dive: "phase-2",
+  phase_3_outline: "phase-3",
+  phase_4_win_themes: "phase-4",
 };
 
 export const TAB_PHASE: Record<string, PhaseType> = {
-  "overview": "phase_1_initial",
-  "documents": "phase_1_initial",
-  "analysis": "phase_1_initial",
-  "questions": "phase_1_initial",
-  "risks": "phase_1_initial",
-  "deep-dive": "phase_2_deep_dive",
-  "outline": "phase_3_outline",
-  "win-themes": "phase_4_win_themes",
+  "phase-1": "phase_1_initial",
+  "phase-2": "phase_2_deep_dive",
+  "phase-3": "phase_3_outline",
+  "phase-4": "phase_4_win_themes",
 };
 
 export function nextPhase(current: PhaseType | null | undefined): PhaseType | null {
