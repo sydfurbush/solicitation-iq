@@ -32,6 +32,7 @@ export default function Settings() {
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="organization">Organization</TabsTrigger>
+          <TabsTrigger value="brand">Brand</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           {isAdmin && <TabsTrigger value="ai-models">AI Models</TabsTrigger>}
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
@@ -40,6 +41,7 @@ export default function Settings() {
 
         <TabsContent value="profile" className="mt-6"><ProfileTab /></TabsContent>
         <TabsContent value="organization" className="mt-6"><OrganizationTab /></TabsContent>
+        <TabsContent value="brand" className="mt-6"><BrandTab /></TabsContent>
         <TabsContent value="notifications" className="mt-6"><NotificationsTab /></TabsContent>
         {isAdmin && <TabsContent value="ai-models" className="mt-6"><AIModelsTab /></TabsContent>}
         <TabsContent value="integrations" className="mt-6"><IntegrationsTab /></TabsContent>
