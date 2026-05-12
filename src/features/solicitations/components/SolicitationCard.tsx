@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { AlertTriangle, Archive, FileText, HelpCircle, MoreVertical, ShieldAlert, Clock, Trash2 } from "lucide-react";
+import { AlertTriangle, Archive, FileText, HelpCircle, MoreVertical, RotateCcw, ShieldAlert, Clock, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
