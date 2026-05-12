@@ -14,6 +14,7 @@ import { usePhaseApprovals, APPROVAL_LABEL, type PhaseApproval } from "@/feature
 import { PhaseApprovalStrip } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalActionBanner } from "@/features/phases/components/ApprovalActionBanner";
 import { ApprovalsTimeline } from "@/features/phases/components/ApprovalsTimeline";
+import { ExportApprovalsButton } from "@/features/phases/components/ExportApprovalsButton";
 import { type PhaseType } from "@/lib/validators/solicitation";
 
 const PHASE_LABELS: Record<PhaseType, string> = {
