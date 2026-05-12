@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import type { ReportContent } from "../templates/types";
 import { sectionBlocks, type Block } from "../templates/blocks";
 import { RGB, FONT_PDF, DEFAULT_FOOTER_TEXT, CATEGORY_RGB } from "../templates/theme";
+import { hardBreakWord } from "./textBreaks";
 
 const PAGE = { w: 612, h: 792 }; // US Letter pt
 const MARGIN = { top: 36, right: 56, bottom: 56, left: 56 };
@@ -613,8 +614,8 @@ function drawCategoryLegend(ctx: Ctx, items: Array<{ tone: keyof typeof CATEGORY
 function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeof CATEGORY_RGB; categoryLabel: string; source: string; topic: string }>) {
   const { doc } = ctx;
   const numW = 28;
-  const catW = 110;
-  const srcW = 130;
+  const catW = 95;
+  const srcW = 150;
   const topicW = CONTENT_W - numW - catW - srcW;
   const padX = 6;
   const padY = 5;
@@ -638,10 +639,10 @@ function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeo
 
   rows.forEach((r, i) => {
     const t = CATEGORY_RGB[r.tone] ?? CATEGORY_RGB.neutral;
-    const topicLines = wrap(doc, r.topic, topicW - padX * 2, "normal", 9);
-    const srcLines = wrap(doc, r.source, srcW - padX * 2, "normal", 9);
-    const catLines = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 8);
-    const rowH = Math.max(20, Math.max(topicLines.length, srcLines.length, catLines.length) * 11 + padY * 2);
+    const topicLines = wrap(doc, hardBreakWord(r.topic), topicW - padX * 2, "normal", 8);
+    const srcLines = wrap(doc, hardBreakWord(r.source), srcW - padX * 2, "normal", 8);
+    const catLines = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 7);
+    const rowH = Math.max(20, Math.max(topicLines.length, srcLines.length, catLines.length) * 10 + padY * 2);
     if (ctx.y + rowH > CONTENT_BOTTOM) {
       newPage(ctx);
       drawHeader();
@@ -671,13 +672,13 @@ function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeo
     for (const line of catLines) { doc.text(line, pillX + 5, cy); cy += 9; }
     // Source
     doc.setFont(FONT_PDF, "normal");
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     setText(doc, RGB.text);
-    let sy = ctx.y + padY + 10;
-    for (const line of srcLines) { doc.text(line, MARGIN.left + numW + catW + padX, sy); sy += 11; }
+    let sy = ctx.y + padY + 9;
+    for (const line of srcLines) { doc.text(line, MARGIN.left + numW + catW + padX, sy); sy += 10; }
     // Topic
-    let ty = ctx.y + padY + 10;
-    for (const line of topicLines) { doc.text(line, MARGIN.left + numW + catW + srcW + padX, ty); ty += 11; }
+    let ty = ctx.y + padY + 9;
+    for (const line of topicLines) { doc.text(line, MARGIN.left + numW + catW + srcW + padX, ty); ty += 10; }
     ctx.y += rowH;
   });
   ctx.y += 8;
