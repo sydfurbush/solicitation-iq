@@ -267,7 +267,7 @@ function mapRows(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { solicitationId, focusAreas, focusDocumentIds, regenerate, retryRunId } = await req.json();
+    const { solicitationId, focusAreas, focusDocumentIds, retryRunId } = await req.json();
     if (!solicitationId) {
       return new Response(JSON.stringify({ error: "solicitationId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
