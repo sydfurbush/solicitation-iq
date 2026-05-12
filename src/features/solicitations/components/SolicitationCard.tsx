@@ -93,13 +93,18 @@ export function SolicitationCard({ solicitation: s, onArchive, onDelete, onResto
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                {onArchive && (
+                {isDeleted && onRestore && (
+                  <DropdownMenuItem onClick={() => onRestore(s)}>
+                    <RotateCcw className="mr-2 h-4 w-4" /> Restore
+                  </DropdownMenuItem>
+                )}
+                {!isDeleted && onArchive && (
                   <DropdownMenuItem onClick={() => onArchive(s)}>
                     <Archive className="mr-2 h-4 w-4" /> Archive
                   </DropdownMenuItem>
                 )}
-                {onArchive && onDelete && <DropdownMenuSeparator />}
-                {onDelete && (
+                {!isDeleted && onArchive && onDelete && <DropdownMenuSeparator />}
+                {!isDeleted && onDelete && (
                   <DropdownMenuItem
                     onClick={() => onDelete(s)}
                     className="text-destructive focus:text-destructive"
