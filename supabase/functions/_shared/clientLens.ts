@@ -1,13 +1,19 @@
 // Shared helper: builds the "Client Lens" prompt block prepended to every
-// AI analysis function. Profile-only for now; RAG retrieval added in a later phase.
+// AI analysis function. Profile + RAG retrieval over the client knowledge library.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { embedQuery } from "./embeddings.ts";
 
 export interface LensCitation {
+  chunk_id: string;
   document_id: string;
   document_title: string;
   chunk_index: number;
   snippet: string;
+  similarity: number;
+  source_type: string;
+  source_url?: string | null;
+  tags?: string[] | null;
 }
 
 export interface LensSnapshot {
