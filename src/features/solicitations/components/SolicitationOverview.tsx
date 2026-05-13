@@ -42,6 +42,7 @@ import {
   CONTRACT_TYPES,
   SET_ASIDE_TYPES,
 } from "@/lib/validators/solicitation";
+import { LensOverridePanel } from "./LensOverridePanel";
 
 interface Props {
   solicitation: SolicitationRow;
