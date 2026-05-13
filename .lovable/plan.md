@@ -1,116 +1,72 @@
-# Client AI Lens — Option C
+# Client Knowledge Library (RAG)
 
-Per-client AI context that every analysis edge function injects, plus a retrieval-augmented knowledge corpus the AI can cite from.
+A per-client library of past proposal notes and source files. Snippets are auto-retrieved and cited inside every AI analysis (the same buildClientLens helper that already powers the Client Lens).
 
-## Architecture
+## What you get
 
+- New **Knowledge** tab on each Client (next to AI Lens).
+- Two ways to add content:
+  - **Paste a note** (title + body, optional tags + source URL).
+  - **Upload a file** (.txt and .md for v1; PDF/DOCX flagged as a follow-up).
+- Background ingestion: the document is chunked (~800 chars, 100 overlap), embedded with Google `text-embedding-004` via Lovable AI Gateway, and stored.
+- Status pills per document: `pending → embedding → ready` (or `failed` with error).
+- During AI analysis, the top relevant snippets are pulled by semantic similarity, prepended to the prompt under a `## Client Knowledge` block, and surfaced as citations alongside the existing Client Lens block.
+- A “Sources used” section appears on report viewer / section analyses showing which knowledge items shaped the output.
+
+## How retrieval is wired
+
+`buildClientLens` (already invoked from all 10 AI edge functions) is upgraded to:
+1. Accept a `query` string (each caller passes the topic — e.g. solicitation title + agency for win themes, requirement text for gap analysis).
+2. Embed the query, call a Postgres function `match_client_knowledge(client_id, embedding, k)` for top-K chunks, and return them as `citations` plus a markdown block.
+3. Snapshot which knowledge doc IDs were retrieved into the existing report `lens` snapshot, so the badge tooltip can say “shaped by 4 knowledge sources”.
+
+## Database
+
+```text
+client_knowledge_documents
+  id, client_id, title, source_type (note|upload),
+  file_path (nullable), mime_type, byte_size,
+  raw_text (for pasted notes), tags text[], source_url,
+  status (pending|embedding|ready|failed), error,
+  chunk_count, created_by, created_at, updated_at
+
+client_knowledge_chunks
+  id, document_id, client_id, chunk_index,
+  content, token_estimate,
+  embedding vector(768), metadata jsonb,
+  created_at
 ```
-Layer 3: Solicitation context (per-doc)        ← exists
-Layer 2: Client Lens
-         ├─ Structured profile (NAICS, frameworks, voice…)
-         └─ Knowledge corpus (past proposals, capability
-            statements, lessons learned) → embeddings → RAG
-Layer 1: Function system prompt                ← exists
-```
 
-Every AI edge function calls a shared `buildClientLens(clientId, { topic, query })` helper that returns a prompt block + the top-k retrieved knowledge snippets.
+- Enable `vector` extension.
+- IVFFlat index on `embedding` (cosine).
+- RLS: org staff manage, client users read their own client’s docs.
+- Storage bucket `client-knowledge` (private) + per-client folder policies.
+- Postgres RPC `match_client_knowledge(p_client_id, p_query_embedding, p_match_count)` returning chunks + similarity.
 
-## Phase 1 — Structured Client Profile
+## Edge functions
 
-**Schema (`client_profiles`, 1:1 with `clients`):**
-- `naics_codes text[]`, `psc_codes text[]`, `set_asides text[]`
-- `agencies_focus text[]`, `contract_vehicles text[]`
-- `compliance_frameworks text[]` (HIPAA, CMMC L2, FedRAMP Mod, ITAR, SOC2, 508…)
-- `discriminators jsonb` — list of `{title, evidence, proof_point}`
-- `acronym_glossary jsonb` — `{ "C5ISR": "Command…", … }`
-- `always_flag jsonb` — rules like "flag any LPTA evaluation" or "flag DBE subcontracting > 30%"
-- `tone_voice text` (formal / consultative / technical), `reading_level int`
-- `preset_key text` (Healthcare IT, DoD C5ISR, Civilian IT, Construction, R&D…)
-- `version int`, `updated_by`, `updated_at`
-- `solicitation_lens_overrides jsonb` on `solicitations` for per-opportunity overrides
+- `ingest-client-knowledge` — extracts text (paste = direct, .txt/.md = read from storage), chunks, embeds in batches of 64, writes chunks, updates status.
+- `embed-query` — small helper (used inside `buildClientLens`) that calls the gateway’s `/v1/embeddings` endpoint with `google/text-embedding-004`.
 
-**Presets:** seeded JSON in `src/features/clients/lib/lensPresets.ts` (5–7 verticals). "Apply preset" prefills, user edits.
+## Files
 
-**UI:**
-- New "AI Lens" tab on `ClientDetail` page — sections: Identity & Codes, Compliance, Discriminators, Glossary, Voice & Rules, Preset.
-- New `ClientLensBadge` component showing active lens name + version, rendered in `SolicitationDetail` header and on every AI-generated card (RTM rows, questions, risks, win themes, outline). Click opens drawer showing exactly which lens block was injected.
-- Per-solicitation "Override lens" toggle in `SolicitationDetail`.
+- Migration: tables, RPC, bucket, RLS.
+- `supabase/functions/ingest-client-knowledge/index.ts`
+- `supabase/functions/_shared/embeddings.ts` (gateway helper, reused)
+- `supabase/functions/_shared/clientLens.ts` — extend to do RAG retrieval and emit a `## Client Knowledge` block + citations.
+- All 10 AI edge functions get an extra `query:` argument when calling `buildClientLens` (no behavior change if no knowledge exists).
+- UI:
+  - `src/features/clients/components/KnowledgeTab.tsx` (list, upload, paste-note dialog, status, delete).
+  - `src/features/clients/hooks/useClientKnowledge.ts`.
+  - Mount as a new tab on `ClientDetail`.
+  - `LensSnapshotBadge` tooltip extended to show source count when present.
 
-**RLS:** org staff manage; client portal users read-only on their own.
+## Out of scope for this build
 
-## Phase 2 — Knowledge Corpus (RAG)
+- PDF/DOCX text extraction (planned next; needs a parser or worker).
+- Re-embedding on edit (we’ll re-ingest on demand instead).
+- Cross-client knowledge sharing.
 
-**Schema:**
-- `client_knowledge_documents` — `{ id, client_id, title, kind, file_path, file_size, status, uploaded_by, tags[] }`. `kind`: `prior_proposal | capability_statement | past_performance | lessons_learned | resume | white_paper | other`.
-- `client_knowledge_chunks` — `{ id, document_id, client_id, chunk_index, content, token_count, embedding vector(1536), metadata jsonb }`.
-- Enable `pgvector` extension; HNSW index on `embedding`.
-- Storage bucket `client-knowledge` (private), RLS scoped to client + org.
+## Approval
 
-**Ingestion edge function `ingest-client-knowledge`:**
-- Accepts uploaded file (reuses `process-document` text-extraction path)
-- Chunks ~800 tokens with 100 overlap
-- Embeds with `google/text-embedding-004` via Lovable AI Gateway (or `text-embedding-3-small` if needed)
-- Writes chunks + embeddings, updates `status`
-
-**Retrieval helper `supabase/functions/_shared/clientLens.ts`:**
-```ts
-buildClientLens(clientId, {
-  topic: 'win_themes' | 'requirements' | 'questions' | 'gaps' | 'outline' | 'risks',
-  query: string,           // usually the section/requirement text
-  topK?: number,           // default 5
-  override?: Json          // from solicitation override
-}) → { promptBlock: string, citations: KnowledgeCitation[] }
-```
-- Builds Layer-2 prompt: identity → codes → frameworks → discriminators → glossary → always-flag → voice
-- Embeds `query`, runs cosine search filtered by `client_id`, returns top-k with title + chunk text
-- Appends a "Reference material from this client's library:" section with numbered snippets the model can cite as `[K1]`, `[K2]`
-
-**UI:**
-- "Knowledge Library" tab on `ClientDetail` — upload, list, tag, delete, re-ingest, status pills.
-- Citation chips on AI outputs (win themes, gap analysis) link back to the source document with snippet preview.
-
-## Phase 3 — Wire Lens into AI functions
-
-Update each function to call `buildClientLens` and prepend the prompt block + relevant retrieved chunks. Functions to update:
-1. `analyze-solicitation` — full lens, no RAG (fast pass)
-2. `analyze-sections` — lens + RAG by section text
-3. `extract-requirements` — lens (glossary + always-flag matter)
-4. `identify-risks-opportunities` — lens + RAG (past performance signals)
-5. `generate-questions` — lens + RAG
-6. `generate-win-themes` — lens + RAG (heaviest user — cites discriminators + past wins)
-7. `generate-outline` — lens
-8. `analyze-gaps` — lens + RAG (past performance evidence for capability claims)
-9. `compare-solicitations` / revision impact — lens (always-flag rules)
-10. `generate-report` — lens (voice + reading level)
-
-Each AI output row stores `lens_version_used` in metadata so we can recompute on lens changes.
-
-## Phase 4 — Lens-change re-analyze
-
-- DB trigger on `client_profiles` update increments `version`.
-- Banner on affected solicitations: "Client lens updated — re-run analysis to apply." Buttons trigger existing re-run flows.
-- Same banner when `client_knowledge_documents` count changes.
-
-## Settings Help
-
-Add new article `ClientLensArticle.tsx` to Help tab covering: what the lens is, how to fill it, when to use overrides, how RAG citations work, preset library.
-
-## Build Order
-
-1. Migration: `client_profiles`, `solicitations.solicitation_lens_overrides`, presets seed (Phase 1 schema).
-2. Client Detail "AI Lens" tab + `ClientLensBadge`.
-3. `_shared/clientLens.ts` (profile-only first, no RAG yet) + wire into top-3 functions: `generate-win-themes`, `extract-requirements`, `generate-questions`.
-4. Migration: `pgvector`, `client_knowledge_documents`, `client_knowledge_chunks`, storage bucket.
-5. `ingest-client-knowledge` edge function + Knowledge Library UI.
-6. Add RAG retrieval to `clientLens.ts` and wire into remaining functions.
-7. Lens-change re-analyze banner + Help article.
-
-## Technical notes
-
-- Embedding model: `google/text-embedding-004` (1536 dim, free via Lovable AI Gateway).
-- Token budget: cap Layer-2 block at ~1.5k tokens; cap retrieved snippets at ~2k tokens combined.
-- Cost guard: cache `buildClientLens` result per `(clientId, lensVersion)` for the profile block; only retrieval re-runs per call.
-- Backwards compat: if no `client_profiles` row, functions fall back to current behavior with a single-line "No client lens configured" note.
-- All new tables use existing `current_user_org()` / `is_org_staff()` RLS pattern.
-
-Ready to implement on approval.
+This is a sizeable change touching the database, storage, every AI edge function, and adds a new tab. Confirm and I’ll ship it in one pass — starting with the migration so the types regenerate before the code lands.
