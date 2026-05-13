@@ -12,6 +12,7 @@ type Props = {
   onSelect: (id: string) => void;
   onAddRevision?: () => void;
   docCounts?: Record<string, number>;
+  reviewedSet?: Set<string>;
 };
 
 const KIND_TONE: Record<Revision["kind"], string> = {
@@ -22,7 +23,7 @@ const KIND_TONE: Record<Revision["kind"], string> = {
   other: "bg-muted text-muted-foreground border-border",
 };
 
-export function RevisionTimeline({ revisions, selectedAId, selectedBId, onSelect, onAddRevision, docCounts = {} }: Props) {
+export function RevisionTimeline({ revisions, selectedAId, selectedBId, onSelect, onAddRevision, docCounts = {}, reviewedSet }: Props) {
   return (
     <div className="rounded-lg border bg-card p-3">
       <div className="flex items-center justify-between mb-2">
@@ -37,16 +38,20 @@ export function RevisionTimeline({ revisions, selectedAId, selectedBId, onSelect
         {revisions.map((r, i) => {
           const isA = r.id === selectedAId;
           const isB = r.id === selectedBId;
+          const unread = reviewedSet ? !reviewedSet.has(r.id) : false;
           return (
             <div key={r.id} className="flex items-stretch">
               <button
                 type="button"
                 onClick={() => onSelect(r.id)}
                 className={cn(
-                  "min-w-[180px] text-left rounded-md border px-3 py-2 transition hover:border-primary/40",
+                  "min-w-[180px] text-left rounded-md border px-3 py-2 transition hover:border-primary/40 relative",
                   (isA || isB) && "ring-2 ring-primary/40 border-primary/40",
                 )}
               >
+                {unread && reviewedSet && (
+                  <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" title="Unreviewed" />
+                )}
                 <div className="flex items-center gap-2 mb-1">
                   <Badge variant="outline" className={cn("capitalize", KIND_TONE[r.kind])}>
                     {r.kind.replace("_", "-")}

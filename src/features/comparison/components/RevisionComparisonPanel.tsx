@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
+import { useMarkRevisionReviewed, useRevisionReviews, useUnmarkRevisionReviewed } from "../hooks/useRevisionReviews";
+import { Check, Eye } from "lucide-react";
 
 type Props = { solicitationId: string };
 
@@ -45,6 +47,9 @@ export function RevisionComparisonPanel({ solicitationId }: Props) {
   const { data: docCounts } = useRevisionDocCounts(solicitationId);
   const { data: solicitation } = useSolicitation(solicitationId);
   const { changes, summary } = useComparisonResults(solicitationId);
+  const { data: reviewedSet } = useRevisionReviews(solicitationId);
+  const markReviewed = useMarkRevisionReviewed(solicitationId);
+  const unmarkReviewed = useUnmarkRevisionReviewed(solicitationId);
   const [aId, setAId] = useState<string | null>(null);
   const [bId, setBId] = useState<string | null>(null);
   const [mode, setMode] = useState<ComparisonMode>("incremental");
@@ -139,6 +144,7 @@ export function RevisionComparisonPanel({ solicitationId }: Props) {
         onSelect={selectAlternating}
         onAddRevision={() => setAddOpen(true)}
         docCounts={docCounts ?? {}}
+        reviewedSet={reviewedSet}
       />
 
       <Card>
@@ -149,6 +155,29 @@ export function RevisionComparisonPanel({ solicitationId }: Props) {
             </CardTitle>
             <div className="flex items-center gap-3 flex-wrap">
               <ComparisonModeToggle mode={mode} onChange={setMode} />
+              {revB && (
+                reviewedSet?.has(revB.id) ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => unmarkReviewed.mutate(revB.id)}
+                    disabled={unmarkReviewed.isPending}
+                  >
+                    <Eye className="h-4 w-4 mr-1" /> Mark unreviewed
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => markReviewed.mutate(revB.id, {
+                      onSuccess: () => toast({ title: `Marked ${revB.label} reviewed` }),
+                    })}
+                    disabled={markReviewed.isPending}
+                  >
+                    <Check className="h-4 w-4 mr-1" /> Mark revision reviewed
+                  </Button>
+                )
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" variant="outline" disabled={!revA || !revB}>

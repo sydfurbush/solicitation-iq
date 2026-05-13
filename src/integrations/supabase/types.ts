@@ -658,6 +658,45 @@ export type Database = {
           },
         ]
       }
+      document_reviews: {
+        Row: {
+          document_id: string
+          id: string
+          reviewed_at: string
+          reviewed_revision_id: string | null
+          user_id: string
+        }
+        Insert: {
+          document_id: string
+          id?: string
+          reviewed_at?: string
+          reviewed_revision_id?: string | null
+          user_id: string
+        }
+        Update: {
+          document_id?: string
+          id?: string
+          reviewed_at?: string
+          reviewed_revision_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_reviews_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_reviews_reviewed_revision_id_fkey"
+            columns: ["reviewed_revision_id"]
+            isOneToOne: false
+            referencedRelation: "solicitation_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_sections: {
         Row: {
           ai_importance_score: number | null
@@ -1560,6 +1599,35 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      revision_reviews: {
+        Row: {
+          id: string
+          reviewed_at: string
+          revision_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          reviewed_at?: string
+          revision_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          reviewed_at?: string
+          revision_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revision_reviews_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "solicitation_revisions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       risks: {
         Row: {
