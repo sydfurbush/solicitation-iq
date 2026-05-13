@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 import { callAiTool } from "../_shared/aiClient.ts";
+import { buildClientLens } from "../_shared/clientLens.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -79,7 +80,7 @@ const SCHEMA = {
 async function fetchSolicitationContext(supabase: ReturnType<typeof createClient>, solicitationId: string) {
   const { data: sol } = await supabase
     .from("solicitations")
-    .select("id, title, solicitation_number, issuing_agency, ai_summary, key_requirements, evaluation_factors, contract_type, estimated_value_low, estimated_value_high, period_of_performance_start, period_of_performance_end, release_date, questions_due_date, proposal_due_date, expected_award_date, has_incumbent, incumbent_name, incumbent_contract_value")
+    .select("id, title, solicitation_number, issuing_agency, ai_summary, key_requirements, evaluation_factors, contract_type, estimated_value_low, estimated_value_high, period_of_performance_start, period_of_performance_end, release_date, questions_due_date, proposal_due_date, expected_award_date, has_incumbent, incumbent_name, incumbent_contract_value, client_id, lens_overrides")
     .eq("id", solicitationId)
     .maybeSingle();
   if (!sol) return null;
@@ -177,9 +178,12 @@ Deno.serve(async (req) => {
 
     console.log(`[compare-solicitations] current=${currentSolicitationId} prior=${resolvedPriorId ?? "external"} link=${linkRecordId}`);
 
+    const currentSol = (currentCtx as { sol?: { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } } | null)?.sol
+      ?? (currentCtx as { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } | null);
+    const lens = await buildClientLens(currentSol?.client_id ?? null, { topic: "comparison", override: currentSol?.lens_overrides ?? null });
     const parsed = await callAiTool({
       functionName: "compare-solicitations",
-      system: SYSTEM_PROMPT,
+      system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
       user: userPrompt,
       tool: SCHEMA,
     }) as Record<string, any>;

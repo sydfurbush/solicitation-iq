@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { buildClientLens } from "../_shared/clientLens.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, ai_summary")
+      .select("title, ai_summary, client_id, lens_overrides")
       .eq("id", solicitationId)
       .maybeSingle();
 
@@ -108,9 +109,10 @@ Deno.serve(async (req) => {
     // Run AI + DB write in background to avoid 150s edge timeout. Client polls section_analyses.
     const work = (async () => {
       try {
+        const lens = await buildClientLens(sol?.client_id ?? null, { topic: "analysis", override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
         const parsed = await callAiTool({
           functionName: "analyze-sections",
-          system: SYSTEM_PROMPT,
+          system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
           user: userPrompt,
           tool: SCHEMA,
         }) as { sections: Array<Record<string, unknown>> };
