@@ -26,6 +26,14 @@ export type ReportContent = {
   sections: ReportSection[];
   citations?: Array<{ id: string; document: string; section?: string; page?: number; quote?: string }>;
   branding?: ReportOptions["branding"];
+  lens?: {
+    preset_key?: string | null;
+    label?: string | null;
+    version?: number | null;
+    overridden?: boolean | null;
+    topic?: string | null;
+    captured_at?: string | null;
+  } | null;
 };
 
 export type ReportOptions = {
