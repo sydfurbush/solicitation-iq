@@ -29,6 +29,7 @@ export default function SolicitationComparison({ solicitationId }: { solicitatio
   if (!prior) {
     return (
       <div className="space-y-4">
+        <RevisionComparisonPanel solicitationId={solicitationId} />
         <IncumbentSearchPanel solicitationId={solicitationId} />
         <Card>
           <CardContent className="py-12 text-center space-y-4">
@@ -38,7 +39,7 @@ export default function SolicitationComparison({ solicitationId }: { solicitatio
             <div>
               <p className="font-medium">No prior solicitation linked</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Link a previous version to identify what changed and adapt your strategy.
+                Want to compare against a different solicitation entirely? Link one here for AI-powered strategic analysis.
               </p>
             </div>
             <LinkPriorSolicitationDialog solicitationId={solicitationId} />
