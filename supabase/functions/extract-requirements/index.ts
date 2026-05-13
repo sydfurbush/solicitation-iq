@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, client_id")
+      .select("title, client_id, lens_overrides")
       .eq("id", solicitationId)
       .maybeSingle();
 
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
     console.log(`[extract-requirements] sol=${solicitationId} docs=${documents.length}`);
 
-    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "requirements" });
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "requirements", override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
     const systemPrompt = lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
 
     const parsed = await callAiTool({

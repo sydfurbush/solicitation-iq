@@ -351,11 +351,11 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, ai_summary, client_id")
+      .select("title, ai_summary, client_id, lens_overrides")
       .eq("id", solicitationId)
       .maybeSingle();
 
-    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "questions" });
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "questions", override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
     const lensifiedSystem = lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
     const lensifiedCrossDoc = lens.promptBlock ? `${lens.promptBlock}\n\n${CROSS_DOC_SYSTEM_PROMPT}` : CROSS_DOC_SYSTEM_PROMPT;
 
