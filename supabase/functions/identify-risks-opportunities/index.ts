@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
 
     console.log(`[identify-risks-opportunities] sol=${solicitationId} docs=${documents.length} regenerate=${!!regenerate}`);
 
-    const lens = await buildClientLens((sol as { client_id?: string | null } | null)?.client_id ?? null, { topic: "risks", override: ((sol as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
+    const lens = await buildClientLens((sol as { client_id?: string | null } | null)?.client_id ?? null, { topic: "risks", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: ((sol as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
     const parsed = await callAiTool({
       functionName: "identify-risks-opportunities",
       system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
