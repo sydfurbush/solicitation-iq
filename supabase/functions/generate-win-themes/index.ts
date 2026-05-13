@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { buildClientLens } from "../_shared/clientLens.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,9 +108,14 @@ Deno.serve(async (req) => {
 
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\nCLIENT: ${client?.name ?? "?"}\nIndustry: ${client?.industry ?? "?"}\nCapabilities:\n${capText}\n\n${incumbentText}\n\nEVALUATION FACTORS:\n${evalText}\n\nKEY REQUIREMENTS (sample):\n${reqText}\n\nGenerate win themes.`;
 
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "win_themes" });
+    const systemPrompt = lens.promptBlock
+      ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}`
+      : SYSTEM_PROMPT;
+
     const parsed = await callAiTool({
       functionName: "generate-win-themes",
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       user: userPrompt,
       tool: SCHEMA,
     }) as { themes: Array<Record<string, unknown>> };
