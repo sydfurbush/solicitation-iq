@@ -746,6 +746,7 @@ export type Database = {
           processing_error: string | null
           processing_started_at: string | null
           replaces_document_id: string | null
+          revision_id: string | null
           solicitation_id: string
           status: Database["public"]["Enums"]["document_status"] | null
           table_of_contents: Json | null
@@ -771,6 +772,7 @@ export type Database = {
           processing_error?: string | null
           processing_started_at?: string | null
           replaces_document_id?: string | null
+          revision_id?: string | null
           solicitation_id: string
           status?: Database["public"]["Enums"]["document_status"] | null
           table_of_contents?: Json | null
@@ -796,6 +798,7 @@ export type Database = {
           processing_error?: string | null
           processing_started_at?: string | null
           replaces_document_id?: string | null
+          revision_id?: string | null
           solicitation_id?: string
           status?: Database["public"]["Enums"]["document_status"] | null
           table_of_contents?: Json | null
@@ -809,6 +812,13 @@ export type Database = {
             columns: ["replaces_document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documents_revision_id_fkey"
+            columns: ["revision_id"]
+            isOneToOne: false
+            referencedRelation: "solicitation_revisions"
             referencedColumns: ["id"]
           },
           {
@@ -1293,6 +1303,8 @@ export type Database = {
           external_url: string | null
           id: string
           prior_solicitation_id: string | null
+          revision_a_id: string | null
+          revision_b_id: string | null
           solicitation_id: string
           updated_at: string | null
         }
@@ -1305,6 +1317,8 @@ export type Database = {
           external_url?: string | null
           id?: string
           prior_solicitation_id?: string | null
+          revision_a_id?: string | null
+          revision_b_id?: string | null
           solicitation_id: string
           updated_at?: string | null
         }
@@ -1317,6 +1331,8 @@ export type Database = {
           external_url?: string | null
           id?: string
           prior_solicitation_id?: string | null
+          revision_a_id?: string | null
+          revision_b_id?: string | null
           solicitation_id?: string
           updated_at?: string | null
         }
@@ -1326,6 +1342,20 @@ export type Database = {
             columns: ["prior_solicitation_id"]
             isOneToOne: false
             referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prior_solicitations_revision_a_id_fkey"
+            columns: ["revision_a_id"]
+            isOneToOne: false
+            referencedRelation: "solicitation_revisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prior_solicitations_revision_b_id_fkey"
+            columns: ["revision_b_id"]
+            isOneToOne: false
+            referencedRelation: "solicitation_revisions"
             referencedColumns: ["id"]
           },
           {
@@ -1760,6 +1790,59 @@ export type Database = {
           },
           {
             foreignKeyName: "solicitation_phases_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solicitation_revisions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: Database["public"]["Enums"]["revision_kind"]
+          label: string
+          notes: string | null
+          received_at: string
+          sam_notice_id: string | null
+          sequence: number
+          solicitation_id: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["revision_kind"]
+          label: string
+          notes?: string | null
+          received_at?: string
+          sam_notice_id?: string | null
+          sequence?: number
+          solicitation_id: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["revision_kind"]
+          label?: string
+          notes?: string | null
+          received_at?: string
+          sam_notice_id?: string | null
+          sequence?: number
+          solicitation_id?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitation_revisions_solicitation_id_fkey"
             columns: ["solicitation_id"]
             isOneToOne: false
             referencedRelation: "solicitations"
@@ -2302,6 +2385,7 @@ export type Database = {
         | "quantitative_gap"
       question_recommendation: "ask" | "hold" | "monitor" | "internal_only"
       requirement_status: "open" | "in_review" | "covered" | "waived"
+      revision_kind: "pre_sol" | "amendment" | "final" | "draft" | "other"
       risk_severity: "critical" | "high" | "medium" | "low" | "informational"
       solicitation_stage:
         | "pre_solicitation"
@@ -2522,6 +2606,7 @@ export const Constants = {
       ],
       question_recommendation: ["ask", "hold", "monitor", "internal_only"],
       requirement_status: ["open", "in_review", "covered", "waived"],
+      revision_kind: ["pre_sol", "amendment", "final", "draft", "other"],
       risk_severity: ["critical", "high", "medium", "low", "informational"],
       solicitation_stage: [
         "pre_solicitation",

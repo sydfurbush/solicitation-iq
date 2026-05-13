@@ -14,6 +14,7 @@ import { TimelineComparison } from "@/features/comparison/components/TimelineCom
 import { FinancialComparison } from "@/features/comparison/components/FinancialComparison";
 import { ComparisonInsights } from "@/features/comparison/components/ComparisonInsights";
 import { IncumbentSearchPanel } from "@/features/comparison/components/IncumbentSearchPanel";
+import { RevisionComparisonPanel } from "@/features/comparison/components/RevisionComparisonPanel";
 import { toast } from "@/hooks/use-toast";
 
 export default function SolicitationComparison({ solicitationId }: { solicitationId: string }) {
@@ -28,6 +29,7 @@ export default function SolicitationComparison({ solicitationId }: { solicitatio
   if (!prior) {
     return (
       <div className="space-y-4">
+        <RevisionComparisonPanel solicitationId={solicitationId} />
         <IncumbentSearchPanel solicitationId={solicitationId} />
         <Card>
           <CardContent className="py-12 text-center space-y-4">
@@ -37,7 +39,7 @@ export default function SolicitationComparison({ solicitationId }: { solicitatio
             <div>
               <p className="font-medium">No prior solicitation linked</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Link a previous version to identify what changed and adapt your strategy.
+                Want to compare against a different solicitation entirely? Link one here for AI-powered strategic analysis.
               </p>
             </div>
             <LinkPriorSolicitationDialog solicitationId={solicitationId} />
@@ -79,6 +81,7 @@ export default function SolicitationComparison({ solicitationId }: { solicitatio
 
   return (
     <div className="space-y-6">
+      <RevisionComparisonPanel solicitationId={solicitationId} />
       <ComparisonOverview solicitationId={solicitationId} priorRecord={prior} changes={changes} />
 
       <Tabs defaultValue="requirements">

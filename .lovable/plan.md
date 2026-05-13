@@ -1,75 +1,112 @@
-# Plan — Writing Queue (proposal kickoff view)
+# Multi-Revision Comparison & Visual Diff — All 3 Phases
 
-Turns the Phase 3 outline into an actionable, prioritized checklist so writers know exactly where to start, what's due, and what compliance + theme targets each section must hit.
+Builds revision tracking, document-level visual diff, and cumulative/incremental modes for handling pre-sol → amendment → final RFP chains.
 
-## What gets built
+## Phase 1 — Revision Timeline + Document Match Panel
 
-### 1. New tab on Solicitation detail: "Writing Queue"
-Appears once Phase 3 outline exists. Pulls from existing `outline_nodes` + `requirement_items` + `win_themes` + `section_analyses` — no new AI calls.
+**Goal:** Track every package version (pre-sol, amend 0001, amend 0002, final) and instantly see which documents changed between any two.
 
-### 2. Per-section "writing card" showing everything a writer needs
-For each leaf outline node:
-- Section number, title, volume badge
-- **Priority score** (computed, see below) with color chip
-- Page allocation budget
-- Linked RTM requirement count + expandable list (id, shall-text, status)
-- Mapped win themes (from `win_themes.section_mapping` if present)
-- Section L reference
-- Owner / writer assignment (editable inline — writes to `outline_nodes.assigned_to`)
-- Status dropdown: Not started / Drafting / Pink ready / Red ready / Final (new column on outline_nodes)
-- Notes field (existing)
+- New `solicitation_revisions` table: `id, solicitation_id, label, kind (pre_sol|amendment|final|draft), sequence, source (sam|upload|manual), sam_notice_id, received_at, notes`.
+- Add `revision_id uuid` to `documents` (nullable). Backfill: existing docs grouped into a synthetic "Initial" revision per solicitation.
+- Auto-create revision on:
+  - SAM amendment import (extend `sam-import-attachments`)
+  - Manual "Add amendment" upload (new button on Documents tab)
+- New Comparison-tab UI:
+  - **Timeline strip**: horizontal chips `Pre-Sol → Amend 0001 → Amend 0002 → Final` with date + doc count + "new since last view" dot (uses `last_viewed_at` per user via localStorage).
+  - **Compare picker**: two dropdowns (A vs B), defaulted to "previous vs latest".
+  - **Document Match Panel**: pairs documents by filename similarity + `replaces_document_id` + AI-assisted match for renames. Each row shows status chip (Unchanged / Modified / Added / Removed), % changed, page-count delta, "View diff" button.
+- AI re-run scoped per pair: extend `prior_solicitations` to optionally key on `(revision_a_id, revision_b_id)` so each pair caches its own summary.
 
-### 3. Three view modes (tab-bar inside the queue)
-- **By priority** — flat list, highest score first (default — answers "where do I start?")
-- **By owner** — grouped by assignee, shows each writer's queue
-- **By volume** — grouped Vol I / II / III for kickoff briefings
+## Phase 2 — Visual Document Diff
 
-### 4. Priority scoring (deterministic, transparent)
-```
-score = (section_weight_pct × 0.5)
-      + (page_allocation × 2)
-      + (linked_requirement_count × 1.5)
-      + (has_critical_gap ? 10 : 0)
-      + (due_soon_bonus)
-```
-Score and its components are visible on hover so writers understand the ranking.
+**Goal:** Drill from a "Modified" doc into a true side-by-side / stacked text diff.
 
-### 5. Top strip: queue summary
-- Total sections / assigned / in progress / complete
-- Unassigned count (warning chip if > 0)
-- Total pages allocated vs. proposal page limit (if known)
-- "Export writing assignments (Word)" button — generates a writer-ready handoff doc per owner
+- **Section pairing util**: greedy match on `(section_number, section_title)`, fuzzy fallback on title; unmatched flagged added/removed.
+- **Change density** per section: `changedChars / totalChars` → drives a sparkline + heatmap.
+- **Expanded `ComparisonDiffViewer`** with:
+  - Modes: Inline, Side-by-side, Stacked
+  - Granularity: Words / Lines
+  - Filter: Only show changes
+  - Keyboard nav: `j`/`k` for next/prev change, `o` to toggle layout
+- **DocumentDiffModal**: section-by-section diff with TOC sidebar + heatmap mini-map down the right edge (scroll-spy of edit hot spots).
+- All computed client-side from already-parsed `document_sections` (no new AI calls).
+
+## Phase 3 — Cumulative/Incremental Toggle + Change Report
+
+**Goal:** Answer "what's new since the last amendment?" and "what's changed since day one?" with one toggle.
+
+- Header toggle on Comparison tab:
+  - **Incremental**: B vs immediate predecessor of B (e.g., Amend 0002 vs Amend 0001)
+  - **Cumulative**: B vs first revision (e.g., Amend 0002 vs Pre-Sol)
+- Same UI; baseline auto-resolves based on selected revision.
+- **Change Report export** (PDF + Word):
+  - Cover page: solicitation, revision pair, mode, generated date
+  - Executive summary (AI-generated)
+  - Document match table
+  - Section-by-section diff with significance + impact callouts
+  - Strategic recommendations
+- Reuses existing `pdfGenerator.ts` and `wordGenerator.ts`.
+
+---
 
 ## Technical details
 
-**Schema** (one migration):
-- `outline_nodes.writing_status` enum: `not_started | drafting | pink_ready | red_ready | final` (default `not_started`)
-- `outline_nodes.assigned_to` uuid nullable (already exists if owner field present — verify; otherwise add)
-- `outline_nodes.due_date` date nullable
+**Migration** (single):
+```
+CREATE TABLE solicitation_revisions (...);
+ALTER TABLE documents ADD COLUMN revision_id uuid REFERENCES solicitation_revisions(id);
+ALTER TABLE prior_solicitations
+  ADD COLUMN revision_a_id uuid REFERENCES solicitation_revisions(id),
+  ADD COLUMN revision_b_id uuid REFERENCES solicitation_revisions(id);
+-- RLS via solicitation_id chain through clients.organization_id (matches existing pattern)
+-- Backfill: create one "Initial" revision per solicitation, set documents.revision_id
+```
 
 **New files:**
-- `src/pages/SolicitationWritingQueue.tsx` — page shell, registered as new tab in `SolicitationDetail.tsx`
-- `src/features/writing-queue/components/WritingQueueCard.tsx` — per-section card
-- `src/features/writing-queue/components/WritingQueueGroupedView.tsx` — owner/volume grouping
-- `src/features/writing-queue/hooks/useWritingQueue.ts` — joins outline_nodes + requirement_items + win_themes + section_analyses, computes scores
-- `src/features/writing-queue/lib/priority.ts` — scoring function (pure, unit-testable)
-- `src/features/writing-queue/lib/exportAssignments.ts` — Word export per owner using existing exporters
+- `src/features/comparison/hooks/useRevisions.ts` — list/create revisions, current pair selection
+- `src/features/comparison/hooks/useDocumentMatching.ts` — pair docs across two revisions
+- `src/features/comparison/hooks/useSectionDiff.ts` — pair + diff sections of two docs
+- `src/features/comparison/components/RevisionTimeline.tsx`
+- `src/features/comparison/components/RevisionPicker.tsx`
+- `src/features/comparison/components/DocumentMatchPanel.tsx`
+- `src/features/comparison/components/DocumentDiffModal.tsx`
+- `src/features/comparison/components/DiffHeatmap.tsx`
+- `src/features/comparison/components/ComparisonModeToggle.tsx`
+- `src/features/comparison/utils/documentMatcher.ts` — filename + AI-assisted matching
+- `src/features/comparison/utils/sectionMatcher.ts` — section pairing
+- `src/features/comparison/utils/changeReport.ts` — PDF/Word export
+- `supabase/migrations/<ts>_revisions.sql`
+
+**Edited files:**
+- `src/features/comparison/components/ComparisonDiffViewer.tsx` — add stacked mode, only-changes filter, kbd nav
+- `src/features/comparison/utils/diffHelpers.ts` — add `changeDensity()`, `pairSections()`
+- `src/features/comparison/hooks/useRunComparison.ts` — accept `{revisionAId, revisionBId}`
+- `src/pages/SolicitationComparison.tsx` — wire timeline, picker, mode toggle
+- `supabase/functions/compare-solicitations/index.ts` — accept revision pair, pull sections from each revision's docs
+- `supabase/functions/sam-import-attachments/index.ts` — auto-create revision on amendment import
 
 **Reused:**
-- Existing `useOutlineNodes`, `useRequirementItems`, `useWinThemes`, `useOrgMembers`
-- Existing `ExportMenu` pattern from `SolicitationOutline.tsx`
+- `diff` library (already installed via `diffHelpers.ts`)
+- `document_sections` for section content (already parsed)
+- Existing PDF/Word generators
 
-**Out of scope (future):**
-- Actual draft text storage / rich-text editor per section (this is a queue/dashboard, not a writing surface)
-- Pink/Red team review workflow
-- Auto-routing notifications when status changes
-- Client-portal visibility of the queue
+---
 
 ## Build order
-1. Migration (writing_status, due_date, assigned_to if missing)
-2. `priority.ts` + `useWritingQueue.ts`
-3. `WritingQueueCard.tsx` with inline assign/status/due editing
-4. Page + tab registration + grouping views
-5. Export-assignments Word generator
 
-Approve and I'll build it.
+1. Migration + backfill (revisions table, documents.revision_id, prior_solicitations pair keys)
+2. `useRevisions`, `RevisionTimeline`, `RevisionPicker`, hook into Comparison tab
+3. `documentMatcher` + `DocumentMatchPanel` with status chips
+4. SAM import + manual upload auto-create revisions
+5. `sectionMatcher` + expanded `ComparisonDiffViewer` (modes/filters/kbd)
+6. `DocumentDiffModal` + `DiffHeatmap`
+7. `ComparisonModeToggle` (incremental/cumulative) + baseline resolver
+8. `changeReport.ts` (PDF + Word export)
+
+---
+
+## Out of scope
+
+- OCR for scanned amendments not already parsed
+- Auto-watcher for new SAM amendment postings (separate feature)
+- Auto-merging changes back into the proposal outline
