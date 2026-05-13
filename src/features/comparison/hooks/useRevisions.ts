@@ -60,8 +60,10 @@ export function useCreateRevision(solicitationId: string | undefined) {
       const nextSeq = (((existing as { sequence: number }[] | null) ?? [])[0]?.sequence ?? -1) + 1;
 
       const { data: userData } = await supabase.auth.getUser();
-      const { data, error } = await supabase
-        .from("solicitation_revisions" as never)
+      const { data, error } = await (supabase
+        .from("solicitation_revisions" as never) as unknown as {
+          insert: (v: Record<string, unknown>) => { select: () => { single: () => Promise<{ data: unknown; error: { message: string } | null }> } };
+        })
         .insert({
           solicitation_id: solicitationId,
           label: input.label,
