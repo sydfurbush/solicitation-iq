@@ -14,6 +14,7 @@ import { TimelineComparison } from "@/features/comparison/components/TimelineCom
 import { FinancialComparison } from "@/features/comparison/components/FinancialComparison";
 import { ComparisonInsights } from "@/features/comparison/components/ComparisonInsights";
 import { IncumbentSearchPanel } from "@/features/comparison/components/IncumbentSearchPanel";
+import { RevisionComparisonPanel } from "@/features/comparison/components/RevisionComparisonPanel";
 import { toast } from "@/hooks/use-toast";
 
 export default function SolicitationComparison({ solicitationId }: { solicitationId: string }) {
