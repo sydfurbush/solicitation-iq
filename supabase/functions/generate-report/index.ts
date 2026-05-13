@@ -498,7 +498,7 @@ Deno.serve(async (req) => {
 
       const qbLens = await buildClientLens(
         (sol as { client_id?: string | null }).client_id ?? null,
-        { topic: "report", override: (sol as { lens_overrides?: Record<string, unknown> | null }).lens_overrides ?? null },
+        { topic: "report", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} strategic questions brief`, override: (sol as { lens_overrides?: Record<string, unknown> | null }).lens_overrides ?? null },
       );
 
       const content = {
