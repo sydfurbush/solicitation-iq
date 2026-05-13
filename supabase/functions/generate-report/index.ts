@@ -659,6 +659,7 @@ ${JSON.stringify(options ?? {})}`;
       citations,
       options: options ?? {},
       branding: options?.branding ?? null,
+      lens: lens.snapshot,
     };
 
     const { data: report, error } = await supabase
