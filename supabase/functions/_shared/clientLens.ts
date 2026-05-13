@@ -149,8 +149,65 @@ export async function buildClientLens(
     lines.push(`**Additional context** — ${String(merged.extra_notes).slice(0, 1500)}`);
   }
 
+  // ---- Client Knowledge (RAG) -------------------------------------------------
+  const citations: LensCitation[] = [];
+  const knowledgeDocIds: string[] = [];
+  if (opts.query && opts.query.trim().length > 0) {
+    try {
+      const vec = await embedQuery(opts.query);
+      if (vec) {
+        const { data: matches, error: matchErr } = await sb.rpc("match_client_knowledge", {
+          p_client_id: clientId,
+          p_query_embedding: vec as unknown as string,
+          p_match_count: opts.topK ?? 5,
+          p_min_similarity: 0.3,
+        });
+        if (matchErr) {
+          console.warn("[buildClientLens] match rpc failed:", matchErr.message);
+        } else if (Array.isArray(matches) && matches.length > 0) {
+          for (const m of matches as Array<{
+            chunk_id: string;
+            document_id: string;
+            document_title: string;
+            chunk_index: number;
+            content: string;
+            similarity: number;
+            source_type: string;
+            source_url: string | null;
+            tags: string[] | null;
+          }>) {
+            citations.push({
+              chunk_id: m.chunk_id,
+              document_id: m.document_id,
+              document_title: m.document_title,
+              chunk_index: m.chunk_index,
+              snippet: m.content,
+              similarity: m.similarity,
+              source_type: m.source_type,
+              source_url: m.source_url,
+              tags: m.tags,
+            });
+            if (!knowledgeDocIds.includes(m.document_id)) knowledgeDocIds.push(m.document_id);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[buildClientLens] knowledge retrieval failed:", e instanceof Error ? e.message : e);
+    }
+  }
+
+  if (citations.length) {
+    lines.push("");
+    lines.push("## Client Knowledge (retrieved excerpts — cite with [K#] when used)");
+    citations.forEach((c, i) => {
+      const tag = `K${i + 1}`;
+      lines.push(`- [${tag}] **${c.document_title}** (chunk ${c.chunk_index}, sim ${c.similarity.toFixed(2)})`);
+      lines.push(`  > ${c.snippet.replace(/\n+/g, " ").slice(0, 700)}`);
+    });
+  }
+
   lines.push("");
-  lines.push(`(Lens version: v${merged.version ?? 1}. Topic: ${opts.topic}.)`);
+  lines.push(`(Lens version: v${merged.version ?? 1}. Topic: ${opts.topic}. Knowledge sources: ${citations.length}.)`);
   lines.push("");
 
   const overridden = !!opts.override && Object.keys(opts.override).length > 0;
@@ -160,7 +217,7 @@ export async function buildClientLens(
   return {
     promptBlock: lines.join("\n"),
     lensVersion: version,
-    citations: [], // RAG citations added in a later phase.
+    citations,
     snapshot: {
       preset_key: presetKey,
       label: null,
@@ -168,6 +225,8 @@ export async function buildClientLens(
       overridden,
       topic: opts.topic,
       captured_at: new Date().toISOString(),
+      knowledge_doc_ids: knowledgeDocIds,
+      knowledge_count: citations.length,
     },
   };
 }
