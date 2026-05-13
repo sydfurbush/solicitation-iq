@@ -81,6 +81,7 @@ export default function SolicitationComparison({ solicitationId }: { solicitatio
 
   return (
     <div className="space-y-6">
+      <RevisionComparisonPanel solicitationId={solicitationId} />
       <ComparisonOverview solicitationId={solicitationId} priorRecord={prior} changes={changes} />
 
       <Tabs defaultValue="requirements">
