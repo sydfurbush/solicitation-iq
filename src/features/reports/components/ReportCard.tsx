@@ -42,6 +42,7 @@ export function ReportCard({ report, solicitationId, onView }: Props) {
               <Badge variant="secondary" className="text-[10px]">v{report.version ?? 1}</Badge>
               {report.is_published && <Badge className="text-[10px] bg-emerald-500/15 text-emerald-700 border-emerald-500/30">Published</Badge>}
               {report.client_accessible && <Badge className="text-[10px] bg-blue-500/15 text-blue-700 border-blue-500/30">Client</Badge>}
+              <LensSnapshotBadge snapshot={content?.lens ?? null} compact />
             </div>
           </div>
           <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
