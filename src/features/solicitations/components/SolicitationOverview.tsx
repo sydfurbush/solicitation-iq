@@ -775,6 +775,8 @@ export function SolicitationOverview({
           </Card>
         </div>
 
+        <LensOverridePanel solicitationId={s.id} clientId={s.client_id} />
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Quick actions</CardTitle>
