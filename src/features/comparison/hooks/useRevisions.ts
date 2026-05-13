@@ -18,6 +18,10 @@ export type Revision = {
   updated_at: string;
 };
 
+// Untyped client for tables not yet in generated types
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const sb = supabase as any;
+
 const key = (solicitationId: string) => ["solicitation-revisions", solicitationId] as const;
 
 export function useRevisions(solicitationId: string | undefined) {
@@ -25,13 +29,13 @@ export function useRevisions(solicitationId: string | undefined) {
     queryKey: solicitationId ? key(solicitationId) : ["solicitation-revisions", "none"],
     enabled: !!solicitationId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("solicitation_revisions" as never)
+      const { data, error } = await sb
+        .from("solicitation_revisions")
         .select("*")
         .eq("solicitation_id", solicitationId!)
         .order("sequence", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as unknown as Revision[];
+      return (data ?? []) as Revision[];
     },
   });
 }
@@ -50,25 +54,23 @@ export function useCreateRevision(solicitationId: string | undefined) {
   return useMutation({
     mutationFn: async (input: CreateRevisionInput) => {
       if (!solicitationId) throw new Error("Missing solicitationId");
-      // Determine next sequence
-      const { data: existing } = await supabase
-        .from("solicitation_revisions" as never)
+      const { data: existing } = await sb
+        .from("solicitation_revisions")
         .select("sequence")
         .eq("solicitation_id", solicitationId)
         .order("sequence", { ascending: false })
         .limit(1);
-      const nextSeq = (((existing as { sequence: number }[] | null) ?? [])[0]?.sequence ?? -1) + 1;
+      const nextSeq = ((existing as { sequence: number }[] | null) ?? [])[0]?.sequence;
+      const seq = (nextSeq ?? -1) + 1;
 
       const { data: userData } = await supabase.auth.getUser();
-      const { data, error } = await (supabase
-        .from("solicitation_revisions" as never) as unknown as {
-          insert: (v: Record<string, unknown>) => { select: () => { single: () => Promise<{ data: unknown; error: { message: string } | null }> } };
-        })
+      const { data, error } = await sb
+        .from("solicitation_revisions")
         .insert({
           solicitation_id: solicitationId,
           label: input.label,
           kind: input.kind,
-          sequence: nextSeq,
+          sequence: seq,
           source: input.source ?? "manual",
           sam_notice_id: input.sam_notice_id ?? null,
           received_at: input.received_at ?? new Date().toISOString(),
@@ -78,7 +80,7 @@ export function useCreateRevision(solicitationId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
-      return data as unknown as Revision;
+      return data as Revision;
     },
     onSuccess: () => solicitationId && qc.invalidateQueries({ queryKey: key(solicitationId) }),
   });
@@ -88,9 +90,28 @@ export function useDeleteRevision(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("solicitation_revisions" as never).delete().eq("id", id);
+      const { error } = await sb.from("solicitation_revisions").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => solicitationId && qc.invalidateQueries({ queryKey: key(solicitationId) }),
+  });
+}
+
+export function useAssignDocumentsToRevision(solicitationId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { documentIds: string[]; revisionId: string }) => {
+      const { error } = await sb
+        .from("documents")
+        .update({ revision_id: input.revisionId })
+        .in("id", input.documentIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (solicitationId) {
+        qc.invalidateQueries({ queryKey: ["documents", solicitationId] });
+        qc.invalidateQueries({ queryKey: key(solicitationId) });
+      }
+    },
   });
 }
