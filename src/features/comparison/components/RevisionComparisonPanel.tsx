@@ -144,6 +144,7 @@ export function RevisionComparisonPanel({ solicitationId }: Props) {
         onSelect={selectAlternating}
         onAddRevision={() => setAddOpen(true)}
         docCounts={docCounts ?? {}}
+        reviewedSet={reviewedSet}
       />
 
       <Card>
