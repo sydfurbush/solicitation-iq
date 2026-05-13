@@ -290,6 +290,80 @@ export type Database = {
           },
         ]
       }
+      client_profiles: {
+        Row: {
+          acronym_glossary: Json
+          agencies_focus: string[]
+          always_flag: Json
+          client_id: string
+          compliance_frameworks: string[]
+          contract_vehicles: string[]
+          created_at: string
+          discriminators: Json
+          extra_notes: string | null
+          id: string
+          naics_codes: string[]
+          preset_key: string | null
+          psc_codes: string[]
+          reading_level: number
+          set_asides: string[]
+          tone_voice: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          acronym_glossary?: Json
+          agencies_focus?: string[]
+          always_flag?: Json
+          client_id: string
+          compliance_frameworks?: string[]
+          contract_vehicles?: string[]
+          created_at?: string
+          discriminators?: Json
+          extra_notes?: string | null
+          id?: string
+          naics_codes?: string[]
+          preset_key?: string | null
+          psc_codes?: string[]
+          reading_level?: number
+          set_asides?: string[]
+          tone_voice?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          acronym_glossary?: Json
+          agencies_focus?: string[]
+          always_flag?: Json
+          client_id?: string
+          compliance_frameworks?: string[]
+          contract_vehicles?: string[]
+          created_at?: string
+          discriminators?: Json
+          extra_notes?: string | null
+          id?: string
+          naics_codes?: string[]
+          preset_key?: string | null
+          psc_codes?: string[]
+          reading_level?: number
+          set_asides?: string[]
+          tone_voice?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_profiles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_support_messages: {
         Row: {
           client_id: string
@@ -1975,6 +2049,7 @@ export type Database = {
           incumbent_performance_notes: string | null
           issuing_agency: string | null
           key_requirements: Json | null
+          lens_overrides: Json
           metadata: Json | null
           parent_solicitation_id: string | null
           period_of_performance_end: string | null
@@ -2013,6 +2088,7 @@ export type Database = {
           incumbent_performance_notes?: string | null
           issuing_agency?: string | null
           key_requirements?: Json | null
+          lens_overrides?: Json
           metadata?: Json | null
           parent_solicitation_id?: string | null
           period_of_performance_end?: string | null
@@ -2051,6 +2127,7 @@ export type Database = {
           incumbent_performance_notes?: string | null
           issuing_agency?: string | null
           key_requirements?: Json | null
+          lens_overrides?: Json
           metadata?: Json | null
           parent_solicitation_id?: string | null
           period_of_performance_end?: string | null

@@ -31,6 +31,9 @@ import { useDeleteSolicitation } from "@/features/solicitations/hooks/useSolicit
 import { CreateClientDialog } from "@/features/clients/components/CreateClientDialog";
 import { ClientUsersManagement } from "@/features/clients/components/ClientUsersManagement";
 import { CapabilitiesEditor } from "@/features/clients/components/CapabilitiesEditor";
+import { AILensTab } from "@/features/clients/components/AILensTab";
+import { ClientLensBadge } from "@/features/clients/components/ClientLensBadge";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
@@ -50,6 +53,8 @@ function initials(name: string) {
 export default function ClientDetail() {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") ?? "overview";
   const { data: client, isLoading } = useClient(clientId);
   const updateMut = useUpdateClient();
   const queryClient = useQueryClient();
@@ -148,7 +153,10 @@ export default function ClientDetail() {
             </AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold tracking-tight">{client.name}</h1>
+              {clientId && <ClientLensBadge clientId={clientId} />}
+            </div>
             <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
               {client.industry && <Badge variant="secondary">{client.industry}</Badge>}
               {client.website && (
@@ -184,13 +192,18 @@ export default function ClientDetail() {
         <StatCard label="Archived" value={stats.archived} />
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v }, { replace: true })}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="solicitations">Solicitations</TabsTrigger>
+          <TabsTrigger value="ai-lens">AI Lens</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
           <TabsTrigger value="portal">Portal Access</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="ai-lens" className="mt-6">
+          {clientId && <AILensTab clientId={clientId} />}
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
