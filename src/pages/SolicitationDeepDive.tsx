@@ -131,7 +131,7 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
         <TabsContent value="rtm" className="mt-4">
           <RTMTable solicitationId={solicitationId} onExtracted={autoRunGaps} autoGapsPending={analyzeGaps.isPending} />
         </TabsContent>
-        <TabsContent value="sections" className="mt-4"><SectionAccordion solicitationId={solicitationId} /></TabsContent>
+        <TabsContent value="sections" className="mt-4"><SectionAccordion solicitationId={solicitationId} clientId={clientId} /></TabsContent>
         <TabsContent value="gaps" className="mt-4">
           <GapsList
             solicitationId={solicitationId}
