@@ -496,6 +496,11 @@ Deno.serve(async (req) => {
         }
       }
 
+      const qbLens = await buildClientLens(
+        (sol as { client_id?: string | null }).client_id ?? null,
+        { topic: "report", override: (sol as { lens_overrides?: Record<string, unknown> | null }).lens_overrides ?? null },
+      );
+
       const content = {
         title: `${isClientQ ? "Client Strategic Questionnaire" : "Strategic Questions Brief"} – ${sol.title}`,
         subtitle: sol.solicitation_number ?? null,
@@ -511,6 +516,7 @@ Deno.serve(async (req) => {
         citations: citationsQ,
         options: options ?? {},
         branding: options?.branding ?? null,
+        lens: qbLens.snapshot,
       };
 
       console.log(`[generate-report] sol=${solicitationId} type=questions_brief deterministic count=${all.length}`);
