@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 import { callAiTool } from "../_shared/aiClient.ts";
+import { buildClientLens } from "../_shared/clientLens.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -193,7 +194,7 @@ Deno.serve(async (req) => {
     const { data: solicitation } = await supabase
       .from("solicitations")
       .select(
-        "set_aside, solicitation_number, issuing_agency, agency_type, contract_type, incumbent_name, incumbent_contract_number, release_date, questions_due_date, proposal_due_date, period_of_performance_start, period_of_performance_end, estimated_value_low, estimated_value_high, client:clients(name)",
+        "set_aside, solicitation_number, issuing_agency, agency_type, contract_type, incumbent_name, incumbent_contract_number, release_date, questions_due_date, proposal_due_date, period_of_performance_start, period_of_performance_end, estimated_value_low, estimated_value_high, client_id, lens_overrides, client:clients(name)",
       )
       .eq("id", solicitationId)
       .maybeSingle();
@@ -240,9 +241,10 @@ Deno.serve(async (req) => {
 
     console.log(`[analyze-solicitation] sol=${solicitationId} type=${analysisType} docs=${documents.length} promptChars=${userPrompt.length} knownFacts=${knownFacts ? "yes" : "no"}`);
 
+    const lens = await buildClientLens((solicitation as { client_id?: string | null } | null)?.client_id ?? null, { topic: "analysis", override: ((solicitation as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
     const analysis = await callAiTool({
       functionName: "analyze-solicitation",
-      system: SYSTEM_PROMPT,
+      system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
       user: userPrompt,
       tool: ANALYSIS_SCHEMA,
     }) as Record<string, any>;

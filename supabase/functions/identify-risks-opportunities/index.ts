@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 import { callAiTool } from "../_shared/aiClient.ts";
+import { buildClientLens } from "../_shared/clientLens.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -115,7 +116,7 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, ai_summary, key_requirements, evaluation_factors, has_incumbent, incumbent_name")
+      .select("title, ai_summary, key_requirements, evaluation_factors, has_incumbent, incumbent_name, client_id, lens_overrides")
       .eq("id", solicitationId)
       .maybeSingle();
 
@@ -152,9 +153,10 @@ Deno.serve(async (req) => {
 
     console.log(`[identify-risks-opportunities] sol=${solicitationId} docs=${documents.length} regenerate=${!!regenerate}`);
 
+    const lens = await buildClientLens((sol as { client_id?: string | null } | null)?.client_id ?? null, { topic: "risks", override: ((sol as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
     const parsed = await callAiTool({
       functionName: "identify-risks-opportunities",
-      system: SYSTEM_PROMPT,
+      system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
       user: userPrompt,
       tool: SCHEMA,
     }) as Record<string, any>;
