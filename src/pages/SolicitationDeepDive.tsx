@@ -17,6 +17,7 @@ import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 import { PhaseHelpPanel } from "@/features/solicitations/components/PhaseHelpPanel";
+import { ClientLensBadge } from "@/features/clients/components/ClientLensBadge";
 
 const SEV_COLOR: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive border-destructive/30",
@@ -131,7 +132,7 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
         <TabsContent value="rtm" className="mt-4">
           <RTMTable solicitationId={solicitationId} onExtracted={autoRunGaps} autoGapsPending={analyzeGaps.isPending} />
         </TabsContent>
-        <TabsContent value="sections" className="mt-4"><SectionAccordion solicitationId={solicitationId} /></TabsContent>
+        <TabsContent value="sections" className="mt-4"><SectionAccordion solicitationId={solicitationId} clientId={clientId} /></TabsContent>
         <TabsContent value="gaps" className="mt-4">
           <GapsList
             solicitationId={solicitationId}
@@ -148,7 +149,7 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
   );
 }
 
-function SectionAccordion({ solicitationId }: { solicitationId: string }) {
+function SectionAccordion({ solicitationId, clientId }: { solicitationId: string; clientId?: string | null }) {
   const { data: rows = [], isLoading } = useSectionAnalyses(solicitationId);
   const analyze = useAnalyzeSections(solicitationId);
   const run = async () => {
@@ -162,7 +163,10 @@ function SectionAccordion({ solicitationId }: { solicitationId: string }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Section-by-section analysis</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">Section-by-section analysis</CardTitle>
+          <ClientLensBadge clientId={clientId ?? undefined} compact />
+        </div>
         <Button onClick={run} disabled={analyze.isPending}>
           {analyze.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
           {rows.length ? "Regenerate" : "Analyze sections"}

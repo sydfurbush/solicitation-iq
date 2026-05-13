@@ -10,10 +10,20 @@ export interface LensCitation {
   snippet: string;
 }
 
+export interface LensSnapshot {
+  preset_key: string | null;
+  label: string | null;
+  version: number;
+  overridden: boolean;
+  topic: string;
+  captured_at: string;
+}
+
 export interface BuildLensResult {
   promptBlock: string;
   lensVersion: number | null;
   citations: LensCitation[];
+  snapshot: LensSnapshot | null;
 }
 
 export type LensTopic =
@@ -57,7 +67,7 @@ export async function buildClientLens(
   opts: BuildOptions,
 ): Promise<BuildLensResult> {
   if (!clientId) {
-    return { promptBlock: "", lensVersion: null, citations: [] };
+    return { promptBlock: "", lensVersion: null, citations: [], snapshot: null };
   }
   const sb = admin();
   const { data: profile } = await sb
@@ -71,6 +81,7 @@ export async function buildClientLens(
       promptBlock: "## Client Lens\n(No client lens configured. Use general best-practice judgment.)\n",
       lensVersion: null,
       citations: [],
+      snapshot: null,
     };
   }
 
@@ -134,9 +145,21 @@ export async function buildClientLens(
   lines.push(`(Lens version: v${merged.version ?? 1}. Topic: ${opts.topic}.)`);
   lines.push("");
 
+  const overridden = !!opts.override && Object.keys(opts.override).length > 0;
+  const presetKey = (profile as { preset_key?: string | null }).preset_key ?? null;
+  const version = (merged.version as number | undefined) ?? 1;
+
   return {
     promptBlock: lines.join("\n"),
-    lensVersion: merged.version ?? 1,
+    lensVersion: version,
     citations: [], // RAG citations added in a later phase.
+    snapshot: {
+      preset_key: presetKey,
+      label: null,
+      version,
+      overridden,
+      topic: opts.topic,
+      captured_at: new Date().toISOString(),
+    },
   };
 }
