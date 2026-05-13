@@ -268,6 +268,7 @@ Deno.serve(async (req) => {
           const { error: insErr } = await admin.from("documents").insert({
             id: docId,
             solicitation_id: solicitationId,
+            revision_id: targetRevisionId,
             file_name: fileName,
             file_path: path,
             file_size: buf.byteLength,
