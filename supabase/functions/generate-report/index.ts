@@ -577,7 +577,7 @@ ${JSON.stringify(options ?? {})}`;
 
     const reportSol = (ctx as { solicitation?: { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } }).solicitation
       ?? (ctx as { sol?: { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } }).sol;
-    const lens = await buildClientLens(reportSol?.client_id ?? null, { topic: "report", override: reportSol?.lens_overrides ?? null });
+    const lens = await buildClientLens(reportSol?.client_id ?? null, { topic: "report", query: `${sol?.title ?? ""} ${sol?.issuing_agency ?? ""} ${((sol?.ai_summary ?? "") + "").slice(0, 600)} report:${reportType}`, override: reportSol?.lens_overrides ?? null });
     const baseSystem = `You are an expert proposal strategist generating professional client deliverables. ${prompt}`;
     const parsed = await callAiTool({
       functionName: "generate-report",
