@@ -67,7 +67,7 @@ export async function buildClientLens(
   opts: BuildOptions,
 ): Promise<BuildLensResult> {
   if (!clientId) {
-    return { promptBlock: "", lensVersion: null, citations: [] };
+    return { promptBlock: "", lensVersion: null, citations: [], snapshot: null };
   }
   const sb = admin();
   const { data: profile } = await sb
@@ -81,6 +81,7 @@ export async function buildClientLens(
       promptBlock: "## Client Lens\n(No client lens configured. Use general best-practice judgment.)\n",
       lensVersion: null,
       citations: [],
+      snapshot: null,
     };
   }
 
