@@ -146,6 +146,9 @@ export function ReportViewer({ report, open, onOpenChange }: { report: ReportRow
       <SheetContent side="right" className="w-full sm:max-w-4xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{report.title}</SheetTitle>
+          <div className="flex items-center gap-2 pt-1">
+            <LensSnapshotBadge snapshot={content?.lens ?? null} />
+          </div>
         </SheetHeader>
         <div className="flex gap-2 mt-3">
           <Button size="sm" variant="outline" onClick={() => dl("pdf")}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
