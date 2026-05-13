@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
 
     console.log(`[generate-outline] sol=${solicitationId} reqs=${requirements?.length ?? 0}`);
 
-    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "outline", override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "outline", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
     const parsed = await callAiTool({
       functionName: "generate-outline",
       system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,

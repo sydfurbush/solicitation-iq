@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
 
     const currentSol = (currentCtx as { sol?: { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } } | null)?.sol
       ?? (currentCtx as { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } | null);
-    const lens = await buildClientLens(currentSol?.client_id ?? null, { topic: "comparison", override: currentSol?.lens_overrides ?? null });
+    const lens = await buildClientLens(currentSol?.client_id ?? null, { topic: "comparison", query: `${(currentSol as any)?.title ?? ""} ${(currentSol as any)?.issuing_agency ?? ""} ${(((currentSol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: currentSol?.lens_overrides ?? null });
     const parsed = await callAiTool({
       functionName: "compare-solicitations",
       system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
