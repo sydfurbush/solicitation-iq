@@ -32,6 +32,7 @@ import { CreateClientDialog } from "@/features/clients/components/CreateClientDi
 import { ClientUsersManagement } from "@/features/clients/components/ClientUsersManagement";
 import { CapabilitiesEditor } from "@/features/clients/components/CapabilitiesEditor";
 import { AILensTab } from "@/features/clients/components/AILensTab";
+import { KnowledgeTab } from "@/features/clients/components/KnowledgeTab";
 import { ClientLensBadge } from "@/features/clients/components/ClientLensBadge";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
