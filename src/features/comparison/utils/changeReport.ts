@@ -1,5 +1,5 @@
 import { saveAs } from "file-saver";
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, AlignmentType } from "docx";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType } from "docx";
 import jsPDF from "jspdf";
 import type { DocMatch } from "./documentMatcher";
 import type { SectionPair } from "./sectionMatcher";
