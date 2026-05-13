@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { buildClientLens } from "../_shared/clientLens.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title")
+      .select("title, client_id")
       .eq("id", solicitationId)
       .maybeSingle();
 
@@ -116,9 +117,12 @@ Deno.serve(async (req) => {
 
     console.log(`[extract-requirements] sol=${solicitationId} docs=${documents.length}`);
 
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "requirements" });
+    const systemPrompt = lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
+
     const parsed = await callAiTool({
       functionName: "extract-requirements",
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       user: userPrompt,
       tool: SCHEMA,
     }) as { requirements: Array<Record<string, unknown>> };
