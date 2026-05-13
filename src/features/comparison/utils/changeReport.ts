@@ -23,7 +23,7 @@ function fmtDate(d: string) {
 
 export async function exportChangeReportWord(input: ChangeReportInput) {
   const { solicitationTitle, revisionA, revisionB, mode, matches, documentDiffs, aiSummary, recommendations } = input;
-  const docChildren = [
+  const docChildren: Array<Paragraph | Table> = [
     new Paragraph({ text: "Change Report", heading: HeadingLevel.TITLE }),
     new Paragraph({ text: solicitationTitle, heading: HeadingLevel.HEADING_2 }),
     new Paragraph({
