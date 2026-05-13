@@ -8,6 +8,7 @@ import { generatePdf } from "../utils/pdfGenerator";
 import { generateDocx } from "../utils/wordGenerator";
 import { useDeleteReport, usePublishReport, type ReportRow } from "../hooks/useReports";
 import { REPORT_TYPE_BY_ID, type ReportContent, type ReportType } from "../templates/types";
+import { LensSnapshotBadge } from "@/features/clients/components/LensSnapshotBadge";
 import { toast } from "@/hooks/use-toast";
 
 type Props = { report: ReportRow; solicitationId: string; onView: () => void };
