@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
 
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${clientText}\n\nREQUIREMENTS:\n${reqText}\n\nIdentify gaps.`;
 
-    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "gaps", override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "gaps", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
     const parsed = await callAiTool({
       functionName: "analyze-gaps",
       system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,

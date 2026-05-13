@@ -236,6 +236,107 @@ export type Database = {
         }
         Relationships: []
       }
+      client_knowledge_chunks: {
+        Row: {
+          chunk_index: number
+          client_id: string
+          content: string
+          created_at: string
+          document_id: string
+          embedding: string | null
+          id: string
+          metadata: Json
+          token_estimate: number | null
+        }
+        Insert: {
+          chunk_index: number
+          client_id: string
+          content: string
+          created_at?: string
+          document_id: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json
+          token_estimate?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          client_id?: string
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json
+          token_estimate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_knowledge_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "client_knowledge_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_knowledge_documents: {
+        Row: {
+          byte_size: number | null
+          chunk_count: number
+          client_id: string
+          created_at: string
+          created_by: string | null
+          error: string | null
+          file_path: string | null
+          id: string
+          mime_type: string | null
+          raw_text: string | null
+          source_type: string
+          source_url: string | null
+          status: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          byte_size?: number | null
+          chunk_count?: number
+          client_id: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          file_path?: string | null
+          id?: string
+          mime_type?: string | null
+          raw_text?: string | null
+          source_type: string
+          source_url?: string | null
+          status?: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          byte_size?: number | null
+          chunk_count?: number
+          client_id?: string
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          file_path?: string | null
+          id?: string
+          mime_type?: string | null
+          raw_text?: string | null
+          source_type?: string
+          source_url?: string | null
+          status?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client_notifications: {
         Row: {
           client_user_id: string
@@ -2451,6 +2552,25 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      match_client_knowledge: {
+        Args: {
+          p_client_id: string
+          p_match_count?: number
+          p_min_similarity?: number
+          p_query_embedding: string
+        }
+        Returns: {
+          chunk_id: string
+          chunk_index: number
+          content: string
+          document_id: string
+          document_title: string
+          similarity: number
+          source_type: string
+          source_url: string
+          tags: string[]
+        }[]
       }
       search_document_content: {
         Args: { p_search_term: string; p_solicitation_id: string }

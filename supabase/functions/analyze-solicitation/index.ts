@@ -241,7 +241,7 @@ Deno.serve(async (req) => {
 
     console.log(`[analyze-solicitation] sol=${solicitationId} type=${analysisType} docs=${documents.length} promptChars=${userPrompt.length} knownFacts=${knownFacts ? "yes" : "no"}`);
 
-    const lens = await buildClientLens((solicitation as { client_id?: string | null } | null)?.client_id ?? null, { topic: "analysis", override: ((solicitation as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
+    const lens = await buildClientLens((solicitation as { client_id?: string | null } | null)?.client_id ?? null, { topic: "analysis", query: `${(solicitation as any)?.title ?? ""} ${(solicitation as any)?.issuing_agency ?? ""} ${(((solicitation as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: ((solicitation as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
     const analysis = await callAiTool({
       functionName: "analyze-solicitation",
       system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,

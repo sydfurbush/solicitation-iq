@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
 
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\nCLIENT: ${client?.name ?? "?"}\nIndustry: ${client?.industry ?? "?"}\nCapabilities:\n${capText}\n\n${incumbentText}\n\nEVALUATION FACTORS:\n${evalText}\n\nKEY REQUIREMENTS (sample):\n${reqText}\n\nGenerate win themes.`;
 
-    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "win_themes", override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "win_themes", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
     const systemPrompt = lens.promptBlock
       ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}`
       : SYSTEM_PROMPT;

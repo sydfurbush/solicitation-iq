@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
     console.log(`[extract-requirements] sol=${solicitationId} docs=${documents.length}`);
 
-    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "requirements", override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "requirements", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
     const systemPrompt = lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
 
     const parsed = await callAiTool({
