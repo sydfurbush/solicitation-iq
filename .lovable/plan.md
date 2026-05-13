@@ -1,112 +1,112 @@
-# Multi-Revision Comparison & Visual Diff — All 3 Phases
+# Revision Notification & Comparison — Gap Fixes + Help Doc
 
-Builds revision tracking, document-level visual diff, and cumulative/incremental modes for handling pre-sol → amendment → final RFP chains.
-
-## Phase 1 — Revision Timeline + Document Match Panel
-
-**Goal:** Track every package version (pre-sol, amend 0001, amend 0002, final) and instantly see which documents changed between any two.
-
-- New `solicitation_revisions` table: `id, solicitation_id, label, kind (pre_sol|amendment|final|draft), sequence, source (sam|upload|manual), sam_notice_id, received_at, notes`.
-- Add `revision_id uuid` to `documents` (nullable). Backfill: existing docs grouped into a synthetic "Initial" revision per solicitation.
-- Auto-create revision on:
-  - SAM amendment import (extend `sam-import-attachments`)
-  - Manual "Add amendment" upload (new button on Documents tab)
-- New Comparison-tab UI:
-  - **Timeline strip**: horizontal chips `Pre-Sol → Amend 0001 → Amend 0002 → Final` with date + doc count + "new since last view" dot (uses `last_viewed_at` per user via localStorage).
-  - **Compare picker**: two dropdowns (A vs B), defaulted to "previous vs latest".
-  - **Document Match Panel**: pairs documents by filename similarity + `replaces_document_id` + AI-assisted match for renames. Each row shows status chip (Unchanged / Modified / Added / Removed), % changed, page-count delta, "View diff" button.
-- AI re-run scoped per pair: extend `prior_solicitations` to optionally key on `(revision_a_id, revision_b_id)` so each pair caches its own summary.
-
-## Phase 2 — Visual Document Diff
-
-**Goal:** Drill from a "Modified" doc into a true side-by-side / stacked text diff.
-
-- **Section pairing util**: greedy match on `(section_number, section_title)`, fuzzy fallback on title; unmatched flagged added/removed.
-- **Change density** per section: `changedChars / totalChars` → drives a sparkline + heatmap.
-- **Expanded `ComparisonDiffViewer`** with:
-  - Modes: Inline, Side-by-side, Stacked
-  - Granularity: Words / Lines
-  - Filter: Only show changes
-  - Keyboard nav: `j`/`k` for next/prev change, `o` to toggle layout
-- **DocumentDiffModal**: section-by-section diff with TOC sidebar + heatmap mini-map down the right edge (scroll-spy of edit hot spots).
-- All computed client-side from already-parsed `document_sections` (no new AI calls).
-
-## Phase 3 — Cumulative/Incremental Toggle + Change Report
-
-**Goal:** Answer "what's new since the last amendment?" and "what's changed since day one?" with one toggle.
-
-- Header toggle on Comparison tab:
-  - **Incremental**: B vs immediate predecessor of B (e.g., Amend 0002 vs Amend 0001)
-  - **Cumulative**: B vs first revision (e.g., Amend 0002 vs Pre-Sol)
-- Same UI; baseline auto-resolves based on selected revision.
-- **Change Report export** (PDF + Word):
-  - Cover page: solicitation, revision pair, mode, generated date
-  - Executive summary (AI-generated)
-  - Document match table
-  - Section-by-section diff with significance + impact callouts
-  - Strategic recommendations
-- Reuses existing `pdfGenerator.ts` and `wordGenerator.ts`.
+Four gaps to close, plus a new Help tab in **Settings** that documents the step-by-step flow.
 
 ---
 
-## Technical details
+## Phase 1 — Auto-watch & in-app notifications
 
-**Migration** (single):
-```
-CREATE TABLE solicitation_revisions (...);
-ALTER TABLE documents ADD COLUMN revision_id uuid REFERENCES solicitation_revisions(id);
-ALTER TABLE prior_solicitations
-  ADD COLUMN revision_a_id uuid REFERENCES solicitation_revisions(id),
-  ADD COLUMN revision_b_id uuid REFERENCES solicitation_revisions(id);
--- RLS via solicitation_id chain through clients.organization_id (matches existing pattern)
--- Backfill: create one "Initial" revision per solicitation, set documents.revision_id
-```
+**Goal:** When SAM posts an amendment to a watched solicitation, we detect it, import it, create the revision, and notify the team — without anyone clicking "Pull from SAM".
 
-**New files:**
-- `src/features/comparison/hooks/useRevisions.ts` — list/create revisions, current pair selection
-- `src/features/comparison/hooks/useDocumentMatching.ts` — pair docs across two revisions
-- `src/features/comparison/hooks/useSectionDiff.ts` — pair + diff sections of two docs
-- `src/features/comparison/components/RevisionTimeline.tsx`
-- `src/features/comparison/components/RevisionPicker.tsx`
-- `src/features/comparison/components/DocumentMatchPanel.tsx`
-- `src/features/comparison/components/DocumentDiffModal.tsx`
-- `src/features/comparison/components/DiffHeatmap.tsx`
-- `src/features/comparison/components/ComparisonModeToggle.tsx`
-- `src/features/comparison/utils/documentMatcher.ts` — filename + AI-assisted matching
-- `src/features/comparison/utils/sectionMatcher.ts` — section pairing
-- `src/features/comparison/utils/changeReport.ts` — PDF/Word export
-- `supabase/migrations/<ts>_revisions.sql`
+### DB
+- New table `solicitation_watches` (`solicitation_id`, `user_id`, `notify_email`, `notify_in_app`, `created_at`). Auto-subscribe the creator + anyone who has opened the solicitation.
+- New table `notifications` (`id`, `user_id`, `kind`, `title`, `body`, `link`, `solicitation_id`, `revision_id`, `read_at`, `created_at`). RLS: user sees own only.
+- New table `sam_poll_state` (`solicitation_id`, `last_checked_at`, `last_known_resource_hash`, `last_modified_at`).
 
-**Edited files:**
-- `src/features/comparison/components/ComparisonDiffViewer.tsx` — add stacked mode, only-changes filter, kbd nav
-- `src/features/comparison/utils/diffHelpers.ts` — add `changeDensity()`, `pairSections()`
-- `src/features/comparison/hooks/useRunComparison.ts` — accept `{revisionAId, revisionBId}`
-- `src/pages/SolicitationComparison.tsx` — wire timeline, picker, mode toggle
-- `supabase/functions/compare-solicitations/index.ts` — accept revision pair, pull sections from each revision's docs
-- `supabase/functions/sam-import-attachments/index.ts` — auto-create revision on amendment import
+### Edge functions
+- `sam-watch-poll` (scheduled via `pg_cron` every 30 min): for each watched solicitation, call SAM, hash the attachment manifest + `modifiedDate`. If changed, invoke existing `sam-import-attachments` (which already creates the Amendment revision) and then fan out `notifications` rows to watchers.
+- `notify-revision-created` (DB trigger → `pg_net`): backstop so manually-added revisions also notify.
 
-**Reused:**
-- `diff` library (already installed via `diffHelpers.ts`)
-- `document_sections` for section content (already parsed)
-- Existing PDF/Word generators
+### UI
+- Bell icon in `RootLayout` topbar → `NotificationCenter` popover (reuse the portal `NotificationCenter.tsx` pattern). Realtime via `notifications` channel.
+- "Watch" toggle on `SolicitationDetail` header.
+
+---
+
+## Phase 2 — Unified Revision Inbox
+
+**Goal:** One place to triage every new revision across all solicitations.
+
+- New page `/revisions` (sidebar entry "Revision Inbox") listing revisions where `received_at > last_seen_at` for the current user.
+- Columns: Solicitation • Revision label • Source (SAM/manual) • Received • Docs added/modified/removed • [Compare] [Mark reviewed].
+- Filters: unreviewed, source, last 7/30 days, client.
+- "Compare" deep-links into `/solicitations/:id/comparison?a=<prev>&b=<new>`.
+
+---
+
+## Phase 3 — Read / reviewed state
+
+**Goal:** Visually flag what's new since you last looked.
+
+### DB
+- `revision_reviews` (`revision_id`, `user_id`, `reviewed_at`).
+- `document_reviews` (`document_id`, `user_id`, `reviewed_at`, `reviewed_revision_id`).
+
+### UI
+- "New since your last visit" banner on solicitation detail when unreviewed revisions exist.
+- Dot/badge on revision cards in `RevisionTimeline`.
+- "Mark revision reviewed" button in `RevisionComparisonPanel`.
+- Per-document "Reviewed" checkmark in `DocumentMatchPanel`; auto-mark when user opens `DocumentDiffModal` and scrolls through.
+
+---
+
+## Phase 4 — Propagate revision impact into RTM / Outline / Writing Queue
+
+**Goal:** Translate "what changed in the document" into "what changed in our proposal work".
+
+### DB
+- `revision_impacts` (`id`, `revision_id`, `kind` enum: `requirement_added|requirement_modified|requirement_removed|outline_section_affected|assignment_affected`, `entity_id`, `summary`, `severity` enum, `acknowledged_at`, `acknowledged_by`).
+- Add `source_revision_id` to `requirement_items`, `proposal_outline_sections`, `writing_assignments` (track when entities were created/last touched by which revision).
+
+### Edge function
+- `analyze-revision-impact` (triggered after `sam-import-attachments` finishes a new amendment): 
+  1. Re-runs `extract-requirements` on changed sections only.
+  2. Diffs new requirement set vs. existing → emits `requirement_added/modified/removed` impact rows.
+  3. Maps changed sections → affected outline sections (via `source_section_ref`) → emits `outline_section_affected`.
+  4. Maps affected outline sections → `writing_assignments` → emits `assignment_affected`.
+  5. Severity heuristic: removed/added requirement = high; wording-only edit = medium; whitespace = low.
+
+### UI
+- New "Impact" tab inside `RevisionComparisonPanel` showing impact rows grouped by kind, with [Open in RTM] / [Open in Outline] / [Open assignment] / [Acknowledge] actions.
+- Badges on RTM rows ("Changed in Amendment 0002"), outline cards, and writing-queue cards when `source_revision_id` matches an unacknowledged impact.
+- Toast/notification when impact analysis completes: "Amendment 0002 affects 6 requirements, 3 outline sections, 2 assignments."
+
+---
+
+## Help Doc — Settings → Help tab
+
+Add a new `Help` tab to `src/pages/Settings.tsx` (between Notifications and Integrations). Implementation:
+
+- New folder `src/features/settings/help/` with one component per article using existing `HelpSection`/`HelpSteps`/`HelpCallout`/`HelpBullets` primitives from `src/features/solicitations/help/primitives.tsx`.
+- First article: **"Handling a revision notification"** with these steps:
+  1. You get notified (bell icon, email, or Revision Inbox).
+  2. Open the solicitation → review the "New since your last visit" banner.
+  3. Go to the **Comparison** tab → the new revision is preselected as B, predecessor as A.
+  4. Switch between **Incremental** (vs. previous) and **Cumulative** (vs. original) modes.
+  5. Use Side-by-side / Stacked / Inline + "Only changes" filter; press `j`/`k` to jump.
+  6. Open the **Impact** tab to see affected requirements, outline sections, and assignments.
+  7. Acknowledge each impact, update RTM/outline/queue as needed.
+  8. Mark the revision **Reviewed**; export a Change Report (PDF/Word) for the team.
+- Sidebar list of articles (left) + article body (right), so we can grow the library later (e.g., "Adding a manual revision", "Wiring SAM auto-watch").
+
+---
+
+## Technical notes
+
+- Reuse existing `RevisionTimeline`, `RevisionComparisonPanel`, `DocumentDiffModal`, `changeReport.ts`.
+- Notifications use Supabase Realtime on `public.notifications`.
+- `pg_cron` job uses the documented `net.http_post` pattern (insert tool, not migration, so remixers don't inherit our keys).
+- All new tables get RLS scoped via `current_user_org()` / `auth.uid()`.
+- No changes to `client.ts` / `types.ts` — types regenerate after migration.
 
 ---
 
 ## Build order
 
-1. Migration + backfill (revisions table, documents.revision_id, prior_solicitations pair keys)
-2. `useRevisions`, `RevisionTimeline`, `RevisionPicker`, hook into Comparison tab
-3. `documentMatcher` + `DocumentMatchPanel` with status chips
-4. SAM import + manual upload auto-create revisions
-5. `sectionMatcher` + expanded `ComparisonDiffViewer` (modes/filters/kbd)
-6. `DocumentDiffModal` + `DiffHeatmap`
-7. `ComparisonModeToggle` (incremental/cumulative) + baseline resolver
-8. `changeReport.ts` (PDF + Word export)
+1. Help tab + "Handling a revision notification" article (immediate user value, no backend).
+2. Phase 3 (read state) — small, unlocks UX wins.
+3. Phase 1 (watch + notify + cron).
+4. Phase 2 (Revision Inbox) — depends on Phase 1 data.
+5. Phase 4 (impact propagation) — heaviest, last.
 
----
-
-## Out of scope
-
-- OCR for scanned amendments not already parsed
-- Auto-watcher for new SAM amendment postings (separate feature)
-- Auto-merging changes back into the proposal outline
+Reply **"build all"** to execute in this order, or name the phases you want first.
