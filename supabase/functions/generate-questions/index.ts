@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 import { callAiTool } from "../_shared/aiClient.ts";
+import { buildClientLens } from "../_shared/clientLens.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -350,9 +351,13 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, ai_summary")
+      .select("title, ai_summary, client_id")
       .eq("id", solicitationId)
       .maybeSingle();
+
+    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "questions" });
+    const lensifiedSystem = lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
+    const lensifiedCrossDoc = lens.promptBlock ? `${lens.promptBlock}\n\n${CROSS_DOC_SYSTEM_PROMPT}` : CROSS_DOC_SYSTEM_PROMPT;
 
     let docQuery = supabase
       .from("documents")
@@ -518,7 +523,7 @@ Deno.serve(async (req) => {
         try {
           const parsed = (await callAiTool({
             functionName: "generate-questions",
-            system: SYSTEM_PROMPT,
+            system: lensifiedSystem,
             user: userPrompt,
             tool: SCHEMA,
           })) as Record<string, any>;
@@ -643,7 +648,7 @@ Deno.serve(async (req) => {
               try {
                 parsed = (await callAiTool({
                   functionName: "generate-questions",
-                  system: CROSS_DOC_SYSTEM_PROMPT,
+                  system: lensifiedCrossDoc,
                   user: prompt,
                   tool: SCHEMA,
                 })) as Record<string, any>;
