@@ -148,7 +148,7 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
   );
 }
 
-function SectionAccordion({ solicitationId }: { solicitationId: string }) {
+function SectionAccordion({ solicitationId, clientId }: { solicitationId: string; clientId?: string | null }) {
   const { data: rows = [], isLoading } = useSectionAnalyses(solicitationId);
   const analyze = useAnalyzeSections(solicitationId);
   const run = async () => {
@@ -162,7 +162,10 @@ function SectionAccordion({ solicitationId }: { solicitationId: string }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Section-by-section analysis</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle className="text-base">Section-by-section analysis</CardTitle>
+          <ClientLensBadge clientId={clientId ?? undefined} compact />
+        </div>
         <Button onClick={run} disabled={analyze.isPending}>
           {analyze.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
           {rows.length ? "Regenerate" : "Analyze sections"}
