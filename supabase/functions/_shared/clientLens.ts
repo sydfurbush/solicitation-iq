@@ -10,10 +10,20 @@ export interface LensCitation {
   snippet: string;
 }
 
+export interface LensSnapshot {
+  preset_key: string | null;
+  label: string | null;
+  version: number;
+  overridden: boolean;
+  topic: string;
+  captured_at: string;
+}
+
 export interface BuildLensResult {
   promptBlock: string;
   lensVersion: number | null;
   citations: LensCitation[];
+  snapshot: LensSnapshot | null;
 }
 
 export type LensTopic =
