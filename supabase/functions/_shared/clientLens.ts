@@ -23,6 +23,8 @@ export interface LensSnapshot {
   overridden: boolean;
   topic: string;
   captured_at: string;
+  knowledge_doc_ids?: string[];
+  knowledge_count?: number;
 }
 
 export interface BuildLensResult {
