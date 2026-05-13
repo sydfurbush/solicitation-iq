@@ -154,6 +154,53 @@ Deno.serve(async (req) => {
     type Result = { href: string; ok: boolean; documentId?: string; error?: string; fileName?: string; status?: number };
     const results: Result[] = [];
 
+    // Auto-create an "Amendment" revision when this batch contains any amendment files.
+    // All docs in the batch get assigned to that new revision so the comparison timeline
+    // can pair them as a coherent package. Non-amendment imports fall back to the latest
+    // existing revision (typically the synthetic "Initial" one).
+    const batchHasAmendment = attachments.some(
+      (a) => classify(a.fileName || a.href) === "amendment",
+    );
+
+    let targetRevisionId: string | null = null;
+    try {
+      const { data: existingRevs } = await admin
+        .from("solicitation_revisions")
+        .select("id, kind, sequence, label")
+        .eq("solicitation_id", solicitationId)
+        .order("sequence", { ascending: false });
+
+      const revs = (existingRevs ?? []) as { id: string; kind: string; sequence: number; label: string }[];
+
+      if (batchHasAmendment) {
+        const amendmentCount = revs.filter((r) => r.kind === "amendment").length;
+        const nextSeq = (revs[0]?.sequence ?? 0) + 1;
+        const label = `Amendment ${String(amendmentCount + 1).padStart(4, "0")}`;
+        const { data: newRev, error: revErr } = await admin
+          .from("solicitation_revisions")
+          .insert({
+            solicitation_id: solicitationId,
+            label,
+            kind: "amendment",
+            sequence: nextSeq,
+            source: "sam",
+            received_at: new Date().toISOString(),
+            created_by: userId,
+          })
+          .select("id")
+          .single();
+        if (revErr) {
+          console.warn("revision auto-create failed", revErr);
+        } else {
+          targetRevisionId = (newRev as { id: string }).id;
+        }
+      } else if (revs.length > 0) {
+        targetRevisionId = revs[0].id;
+      }
+    } catch (e) {
+      console.warn("revision lookup failed", e);
+    }
+
     const queue = [...attachments];
     async function worker() {
       while (queue.length) {
