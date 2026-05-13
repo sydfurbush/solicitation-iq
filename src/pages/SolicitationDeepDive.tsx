@@ -17,6 +17,7 @@ import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 import { PhaseHelpPanel } from "@/features/solicitations/components/PhaseHelpPanel";
+import { ClientLensBadge } from "@/features/clients/components/ClientLensBadge";
 
 const SEV_COLOR: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive border-destructive/30",
