@@ -197,12 +197,17 @@ export default function ClientDetail() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="solicitations">Solicitations</TabsTrigger>
           <TabsTrigger value="ai-lens">AI Lens</TabsTrigger>
+          <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
           <TabsTrigger value="portal">Portal Access</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ai-lens" className="mt-6">
           {clientId && <AILensTab clientId={clientId} />}
+        </TabsContent>
+
+        <TabsContent value="knowledge" className="mt-6">
+          {clientId && <KnowledgeTab clientId={clientId} />}
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
