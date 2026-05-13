@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.match_client_knowledge(uuid, vector, integer, real) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.match_client_knowledge(uuid, vector, integer, real) TO service_role;
