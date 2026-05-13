@@ -1,112 +1,116 @@
-# Revision Notification & Comparison — Gap Fixes + Help Doc
+# Client AI Lens — Option C
 
-Four gaps to close, plus a new Help tab in **Settings** that documents the step-by-step flow.
+Per-client AI context that every analysis edge function injects, plus a retrieval-augmented knowledge corpus the AI can cite from.
 
----
+## Architecture
 
-## Phase 1 — Auto-watch & in-app notifications
+```
+Layer 3: Solicitation context (per-doc)        ← exists
+Layer 2: Client Lens
+         ├─ Structured profile (NAICS, frameworks, voice…)
+         └─ Knowledge corpus (past proposals, capability
+            statements, lessons learned) → embeddings → RAG
+Layer 1: Function system prompt                ← exists
+```
 
-**Goal:** When SAM posts an amendment to a watched solicitation, we detect it, import it, create the revision, and notify the team — without anyone clicking "Pull from SAM".
+Every AI edge function calls a shared `buildClientLens(clientId, { topic, query })` helper that returns a prompt block + the top-k retrieved knowledge snippets.
 
-### DB
-- New table `solicitation_watches` (`solicitation_id`, `user_id`, `notify_email`, `notify_in_app`, `created_at`). Auto-subscribe the creator + anyone who has opened the solicitation.
-- New table `notifications` (`id`, `user_id`, `kind`, `title`, `body`, `link`, `solicitation_id`, `revision_id`, `read_at`, `created_at`). RLS: user sees own only.
-- New table `sam_poll_state` (`solicitation_id`, `last_checked_at`, `last_known_resource_hash`, `last_modified_at`).
+## Phase 1 — Structured Client Profile
 
-### Edge functions
-- `sam-watch-poll` (scheduled via `pg_cron` every 30 min): for each watched solicitation, call SAM, hash the attachment manifest + `modifiedDate`. If changed, invoke existing `sam-import-attachments` (which already creates the Amendment revision) and then fan out `notifications` rows to watchers.
-- `notify-revision-created` (DB trigger → `pg_net`): backstop so manually-added revisions also notify.
+**Schema (`client_profiles`, 1:1 with `clients`):**
+- `naics_codes text[]`, `psc_codes text[]`, `set_asides text[]`
+- `agencies_focus text[]`, `contract_vehicles text[]`
+- `compliance_frameworks text[]` (HIPAA, CMMC L2, FedRAMP Mod, ITAR, SOC2, 508…)
+- `discriminators jsonb` — list of `{title, evidence, proof_point}`
+- `acronym_glossary jsonb` — `{ "C5ISR": "Command…", … }`
+- `always_flag jsonb` — rules like "flag any LPTA evaluation" or "flag DBE subcontracting > 30%"
+- `tone_voice text` (formal / consultative / technical), `reading_level int`
+- `preset_key text` (Healthcare IT, DoD C5ISR, Civilian IT, Construction, R&D…)
+- `version int`, `updated_by`, `updated_at`
+- `solicitation_lens_overrides jsonb` on `solicitations` for per-opportunity overrides
 
-### UI
-- Bell icon in `RootLayout` topbar → `NotificationCenter` popover (reuse the portal `NotificationCenter.tsx` pattern). Realtime via `notifications` channel.
-- "Watch" toggle on `SolicitationDetail` header.
+**Presets:** seeded JSON in `src/features/clients/lib/lensPresets.ts` (5–7 verticals). "Apply preset" prefills, user edits.
 
----
+**UI:**
+- New "AI Lens" tab on `ClientDetail` page — sections: Identity & Codes, Compliance, Discriminators, Glossary, Voice & Rules, Preset.
+- New `ClientLensBadge` component showing active lens name + version, rendered in `SolicitationDetail` header and on every AI-generated card (RTM rows, questions, risks, win themes, outline). Click opens drawer showing exactly which lens block was injected.
+- Per-solicitation "Override lens" toggle in `SolicitationDetail`.
 
-## Phase 2 — Unified Revision Inbox
+**RLS:** org staff manage; client portal users read-only on their own.
 
-**Goal:** One place to triage every new revision across all solicitations.
+## Phase 2 — Knowledge Corpus (RAG)
 
-- New page `/revisions` (sidebar entry "Revision Inbox") listing revisions where `received_at > last_seen_at` for the current user.
-- Columns: Solicitation • Revision label • Source (SAM/manual) • Received • Docs added/modified/removed • [Compare] [Mark reviewed].
-- Filters: unreviewed, source, last 7/30 days, client.
-- "Compare" deep-links into `/solicitations/:id/comparison?a=<prev>&b=<new>`.
+**Schema:**
+- `client_knowledge_documents` — `{ id, client_id, title, kind, file_path, file_size, status, uploaded_by, tags[] }`. `kind`: `prior_proposal | capability_statement | past_performance | lessons_learned | resume | white_paper | other`.
+- `client_knowledge_chunks` — `{ id, document_id, client_id, chunk_index, content, token_count, embedding vector(1536), metadata jsonb }`.
+- Enable `pgvector` extension; HNSW index on `embedding`.
+- Storage bucket `client-knowledge` (private), RLS scoped to client + org.
 
----
+**Ingestion edge function `ingest-client-knowledge`:**
+- Accepts uploaded file (reuses `process-document` text-extraction path)
+- Chunks ~800 tokens with 100 overlap
+- Embeds with `google/text-embedding-004` via Lovable AI Gateway (or `text-embedding-3-small` if needed)
+- Writes chunks + embeddings, updates `status`
 
-## Phase 3 — Read / reviewed state
+**Retrieval helper `supabase/functions/_shared/clientLens.ts`:**
+```ts
+buildClientLens(clientId, {
+  topic: 'win_themes' | 'requirements' | 'questions' | 'gaps' | 'outline' | 'risks',
+  query: string,           // usually the section/requirement text
+  topK?: number,           // default 5
+  override?: Json          // from solicitation override
+}) → { promptBlock: string, citations: KnowledgeCitation[] }
+```
+- Builds Layer-2 prompt: identity → codes → frameworks → discriminators → glossary → always-flag → voice
+- Embeds `query`, runs cosine search filtered by `client_id`, returns top-k with title + chunk text
+- Appends a "Reference material from this client's library:" section with numbered snippets the model can cite as `[K1]`, `[K2]`
 
-**Goal:** Visually flag what's new since you last looked.
+**UI:**
+- "Knowledge Library" tab on `ClientDetail` — upload, list, tag, delete, re-ingest, status pills.
+- Citation chips on AI outputs (win themes, gap analysis) link back to the source document with snippet preview.
 
-### DB
-- `revision_reviews` (`revision_id`, `user_id`, `reviewed_at`).
-- `document_reviews` (`document_id`, `user_id`, `reviewed_at`, `reviewed_revision_id`).
+## Phase 3 — Wire Lens into AI functions
 
-### UI
-- "New since your last visit" banner on solicitation detail when unreviewed revisions exist.
-- Dot/badge on revision cards in `RevisionTimeline`.
-- "Mark revision reviewed" button in `RevisionComparisonPanel`.
-- Per-document "Reviewed" checkmark in `DocumentMatchPanel`; auto-mark when user opens `DocumentDiffModal` and scrolls through.
+Update each function to call `buildClientLens` and prepend the prompt block + relevant retrieved chunks. Functions to update:
+1. `analyze-solicitation` — full lens, no RAG (fast pass)
+2. `analyze-sections` — lens + RAG by section text
+3. `extract-requirements` — lens (glossary + always-flag matter)
+4. `identify-risks-opportunities` — lens + RAG (past performance signals)
+5. `generate-questions` — lens + RAG
+6. `generate-win-themes` — lens + RAG (heaviest user — cites discriminators + past wins)
+7. `generate-outline` — lens
+8. `analyze-gaps` — lens + RAG (past performance evidence for capability claims)
+9. `compare-solicitations` / revision impact — lens (always-flag rules)
+10. `generate-report` — lens (voice + reading level)
 
----
+Each AI output row stores `lens_version_used` in metadata so we can recompute on lens changes.
 
-## Phase 4 — Propagate revision impact into RTM / Outline / Writing Queue
+## Phase 4 — Lens-change re-analyze
 
-**Goal:** Translate "what changed in the document" into "what changed in our proposal work".
+- DB trigger on `client_profiles` update increments `version`.
+- Banner on affected solicitations: "Client lens updated — re-run analysis to apply." Buttons trigger existing re-run flows.
+- Same banner when `client_knowledge_documents` count changes.
 
-### DB
-- `revision_impacts` (`id`, `revision_id`, `kind` enum: `requirement_added|requirement_modified|requirement_removed|outline_section_affected|assignment_affected`, `entity_id`, `summary`, `severity` enum, `acknowledged_at`, `acknowledged_by`).
-- Add `source_revision_id` to `requirement_items`, `proposal_outline_sections`, `writing_assignments` (track when entities were created/last touched by which revision).
+## Settings Help
 
-### Edge function
-- `analyze-revision-impact` (triggered after `sam-import-attachments` finishes a new amendment): 
-  1. Re-runs `extract-requirements` on changed sections only.
-  2. Diffs new requirement set vs. existing → emits `requirement_added/modified/removed` impact rows.
-  3. Maps changed sections → affected outline sections (via `source_section_ref`) → emits `outline_section_affected`.
-  4. Maps affected outline sections → `writing_assignments` → emits `assignment_affected`.
-  5. Severity heuristic: removed/added requirement = high; wording-only edit = medium; whitespace = low.
+Add new article `ClientLensArticle.tsx` to Help tab covering: what the lens is, how to fill it, when to use overrides, how RAG citations work, preset library.
 
-### UI
-- New "Impact" tab inside `RevisionComparisonPanel` showing impact rows grouped by kind, with [Open in RTM] / [Open in Outline] / [Open assignment] / [Acknowledge] actions.
-- Badges on RTM rows ("Changed in Amendment 0002"), outline cards, and writing-queue cards when `source_revision_id` matches an unacknowledged impact.
-- Toast/notification when impact analysis completes: "Amendment 0002 affects 6 requirements, 3 outline sections, 2 assignments."
+## Build Order
 
----
-
-## Help Doc — Settings → Help tab
-
-Add a new `Help` tab to `src/pages/Settings.tsx` (between Notifications and Integrations). Implementation:
-
-- New folder `src/features/settings/help/` with one component per article using existing `HelpSection`/`HelpSteps`/`HelpCallout`/`HelpBullets` primitives from `src/features/solicitations/help/primitives.tsx`.
-- First article: **"Handling a revision notification"** with these steps:
-  1. You get notified (bell icon, email, or Revision Inbox).
-  2. Open the solicitation → review the "New since your last visit" banner.
-  3. Go to the **Comparison** tab → the new revision is preselected as B, predecessor as A.
-  4. Switch between **Incremental** (vs. previous) and **Cumulative** (vs. original) modes.
-  5. Use Side-by-side / Stacked / Inline + "Only changes" filter; press `j`/`k` to jump.
-  6. Open the **Impact** tab to see affected requirements, outline sections, and assignments.
-  7. Acknowledge each impact, update RTM/outline/queue as needed.
-  8. Mark the revision **Reviewed**; export a Change Report (PDF/Word) for the team.
-- Sidebar list of articles (left) + article body (right), so we can grow the library later (e.g., "Adding a manual revision", "Wiring SAM auto-watch").
-
----
+1. Migration: `client_profiles`, `solicitations.solicitation_lens_overrides`, presets seed (Phase 1 schema).
+2. Client Detail "AI Lens" tab + `ClientLensBadge`.
+3. `_shared/clientLens.ts` (profile-only first, no RAG yet) + wire into top-3 functions: `generate-win-themes`, `extract-requirements`, `generate-questions`.
+4. Migration: `pgvector`, `client_knowledge_documents`, `client_knowledge_chunks`, storage bucket.
+5. `ingest-client-knowledge` edge function + Knowledge Library UI.
+6. Add RAG retrieval to `clientLens.ts` and wire into remaining functions.
+7. Lens-change re-analyze banner + Help article.
 
 ## Technical notes
 
-- Reuse existing `RevisionTimeline`, `RevisionComparisonPanel`, `DocumentDiffModal`, `changeReport.ts`.
-- Notifications use Supabase Realtime on `public.notifications`.
-- `pg_cron` job uses the documented `net.http_post` pattern (insert tool, not migration, so remixers don't inherit our keys).
-- All new tables get RLS scoped via `current_user_org()` / `auth.uid()`.
-- No changes to `client.ts` / `types.ts` — types regenerate after migration.
+- Embedding model: `google/text-embedding-004` (1536 dim, free via Lovable AI Gateway).
+- Token budget: cap Layer-2 block at ~1.5k tokens; cap retrieved snippets at ~2k tokens combined.
+- Cost guard: cache `buildClientLens` result per `(clientId, lensVersion)` for the profile block; only retrieval re-runs per call.
+- Backwards compat: if no `client_profiles` row, functions fall back to current behavior with a single-line "No client lens configured" note.
+- All new tables use existing `current_user_org()` / `is_org_staff()` RLS pattern.
 
----
-
-## Build order
-
-1. Help tab + "Handling a revision notification" article (immediate user value, no backend).
-2. Phase 3 (read state) — small, unlocks UX wins.
-3. Phase 1 (watch + notify + cron).
-4. Phase 2 (Revision Inbox) — depends on Phase 1 data.
-5. Phase 4 (impact propagation) — heaviest, last.
-
-Reply **"build all"** to execute in this order, or name the phases you want first.
+Ready to implement on approval.
