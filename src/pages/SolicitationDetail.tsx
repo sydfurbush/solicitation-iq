@@ -58,6 +58,7 @@ import SolicitationReports from "./SolicitationReports";
 import SolicitationDeepDive from "./SolicitationDeepDive";
 import SolicitationOutline from "./SolicitationOutline";
 import SolicitationWinThemes from "./SolicitationWinThemes";
+import SolicitationWritingQueue from "./SolicitationWritingQueue";
 import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
 import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
@@ -83,8 +84,9 @@ const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   "win-themes": { tab: "phase-4" },
 };
 
-type WorkspaceKey = "reports" | "comparison" | "activity";
+type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity";
 const WORKSPACE_LABELS: Record<WorkspaceKey, string> = {
+  "writing-queue": "Writing Queue",
   reports: "Reports",
   comparison: "Comparison",
   activity: "Activity",
@@ -458,7 +460,7 @@ export default function SolicitationDetail() {
           </PhaseNavBtn>
 
           <WorkspaceNavMenu
-            active={tab === "reports" || tab === "comparison" || tab === "activity"}
+            active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity"}
             currentKey={(tab as WorkspaceKey) || undefined}
             onPick={(k) => goTab(k)}
           />
@@ -520,6 +522,14 @@ export default function SolicitationDetail() {
           </PhaseShell>
         )}
 
+        {tab === "writing-queue" && (
+          <SolicitationWritingQueue
+            solicitationId={s.id}
+            currentPhase={currentPhase}
+            solicitationTitle={s.title}
+            clientName={clientName}
+          />
+        )}
         {tab === "reports" && <SolicitationReports solicitationId={s.id} />}
         {tab === "comparison" && <SolicitationComparison solicitationId={s.id} />}
         {tab === "activity" && <SolicitationActivity solicitationId={s.id} />}
@@ -699,6 +709,7 @@ function WorkspaceNavMenu({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onPick("writing-queue")}>Writing Queue</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("reports")}>Reports</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("comparison")}>Comparison</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("activity")}>Activity</DropdownMenuItem>

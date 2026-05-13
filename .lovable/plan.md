@@ -1,56 +1,75 @@
-## Plan B — Token-based Client Invite Links
+# Plan — Writing Queue (proposal kickoff view)
 
-The `client_user_invitations` table already has a unique `token` column auto-generated on insert. We just need to (1) expose that token as a shareable link, (2) build a public acceptance page, and (3) wire up an edge function to safely create the auth user + `client_users` row.
+Turns the Phase 3 outline into an actionable, prioritized checklist so writers know exactly where to start, what's due, and what compliance + theme targets each section must hit.
 
-### 1. Edge Functions (2 new, public — `verify_jwt = false`)
+## What gets built
 
-**`accept-client-invitation`**
-- Input: `{ token: string }`
-- Looks up invitation by token using service-role client
-- Returns: invitation status (`valid` / `expired` / `revoked` / `already_accepted`), client name, invitee email, full name. Does NOT require auth — used to render the accept page.
+### 1. New tab on Solicitation detail: "Writing Queue"
+Appears once Phase 3 outline exists. Pulls from existing `outline_nodes` + `requirement_items` + `win_themes` + `section_analyses` — no new AI calls.
 
-**`complete-client-invitation`**
-- Input: `{ token: string, password: string }`
-- Validates token (pending + not expired)
-- Creates Supabase auth user via `admin.createUser` (email_confirm: true, password)
-- Inserts `client_users` row using the new auth user id, copies `email`, `full_name`, `client_id` from invitation
-- Marks invitation `status = 'accepted'`, `accepted_at = now()`
-- Returns success — frontend then signs the user in with email/password
+### 2. Per-section "writing card" showing everything a writer needs
+For each leaf outline node:
+- Section number, title, volume badge
+- **Priority score** (computed, see below) with color chip
+- Page allocation budget
+- Linked RTM requirement count + expandable list (id, shall-text, status)
+- Mapped win themes (from `win_themes.section_mapping` if present)
+- Section L reference
+- Owner / writer assignment (editable inline — writes to `outline_nodes.assigned_to`)
+- Status dropdown: Not started / Drafting / Pink ready / Red ready / Final (new column on outline_nodes)
+- Notes field (existing)
 
-### 2. New Public Page — `/portal/accept-invite`
+### 3. Three view modes (tab-bar inside the queue)
+- **By priority** — flat list, highest score first (default — answers "where do I start?")
+- **By owner** — grouped by assignee, shows each writer's queue
+- **By volume** — grouped Vol I / II / III for kickoff briefings
 
-Route added to `App.tsx` (public, outside auth guard).
+### 4. Priority scoring (deterministic, transparent)
+```
+score = (section_weight_pct × 0.5)
+      + (page_allocation × 2)
+      + (linked_requirement_count × 1.5)
+      + (has_critical_gap ? 10 : 0)
+      + (due_soon_bonus)
+```
+Score and its components are visible on hover so writers understand the ranking.
 
-Flow:
-1. Read `?token=...` from URL
-2. On mount, call `accept-client-invitation` to validate
-3. Show one of:
-   - **Valid** → form with read-only email + full name, password + confirm password fields, "Create account & sign in" button
-   - **Expired/Revoked/Accepted** → friendly message + link to `/portal/login`
-4. On submit: call `complete-client-invitation`, then `signIn(email, password)`, redirect to `/portal`
+### 5. Top strip: queue summary
+- Total sections / assigned / in progress / complete
+- Unassigned count (warning chip if > 0)
+- Total pages allocated vs. proposal page limit (if known)
+- "Export writing assignments (Word)" button — generates a writer-ready handoff doc per owner
 
-Uses existing portal styling (matches `PortalLogin.tsx` split-panel layout).
+## Technical details
 
-### 3. UI changes — `ClientUsersManagement.tsx`
+**Schema** (one migration):
+- `outline_nodes.writing_status` enum: `not_started | drafting | pink_ready | red_ready | final` (default `not_started`)
+- `outline_nodes.assigned_to` uuid nullable (already exists if owner field present — verify; otherwise add)
+- `outline_nodes.due_date` date nullable
 
-In the Invitations table:
-- Add a **Copy invite link** action to the row dropdown (alongside Refresh / Revoke)
-- Generates `${window.location.origin}/portal/accept-invite?token=${invitation.token}`
-- Toast confirmation: "Invite link copied — share with the invitee"
+**New files:**
+- `src/pages/SolicitationWritingQueue.tsx` — page shell, registered as new tab in `SolicitationDetail.tsx`
+- `src/features/writing-queue/components/WritingQueueCard.tsx` — per-section card
+- `src/features/writing-queue/components/WritingQueueGroupedView.tsx` — owner/volume grouping
+- `src/features/writing-queue/hooks/useWritingQueue.ts` — joins outline_nodes + requirement_items + win_themes + section_analyses, computes scores
+- `src/features/writing-queue/lib/priority.ts` — scoring function (pure, unit-testable)
+- `src/features/writing-queue/lib/exportAssignments.ts` — Word export per owner using existing exporters
 
-Replace the existing "Copy portal link" button (which copies the useless generic `/portal/login`) with a help hint: "Use the per-invite link in each row's menu."
+**Reused:**
+- Existing `useOutlineNodes`, `useRequirementItems`, `useWinThemes`, `useOrgMembers`
+- Existing `ExportMenu` pattern from `SolicitationOutline.tsx`
 
-Also: after creating an invitation in `InviteClientUserDialog.tsx`, immediately copy the new invite link to clipboard and show: "Invitation created and link copied to clipboard."
+**Out of scope (future):**
+- Actual draft text storage / rich-text editor per section (this is a queue/dashboard, not a writing surface)
+- Pink/Red team review workflow
+- Auto-routing notifications when status changes
+- Client-portal visibility of the queue
 
-### 4. Out of scope (deferred to future Option C)
-- Automated email sending — agent will paste/share manually for now
-- Custom branded email templates
-- Resend-via-email button
+## Build order
+1. Migration (writing_status, due_date, assigned_to if missing)
+2. `priority.ts` + `useWritingQueue.ts`
+3. `WritingQueueCard.tsx` with inline assign/status/due editing
+4. Page + tab registration + grouping views
+5. Export-assignments Word generator
 
-### Build order
-1. Edge function `accept-client-invitation`
-2. Edge function `complete-client-invitation`
-3. `/portal/accept-invite` page + route
-4. UI updates in `ClientUsersManagement.tsx` + `InviteClientUserDialog.tsx`
-
-No DB migration required — `token`, `expires_at`, and `status` already exist.
+Approve and I'll build it.
