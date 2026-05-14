@@ -1,0 +1,1 @@
+ALTER TABLE public.outline_nodes ADD COLUMN IF NOT EXISTS source_document_sections jsonb NOT NULL DEFAULT '[]'::jsonb;
