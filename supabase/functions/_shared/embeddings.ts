@@ -4,10 +4,21 @@ const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
 const MODEL = "google/text-embedding-004";
 export const EMBEDDING_DIMS = 768;
 
+export class EmbeddingsUnavailableError extends Error {
+  constructor(msg: string) { super(msg); this.name = "EmbeddingsUnavailableError"; }
+}
+
+let embeddingsDisabled = false;
+
+export function embeddingsAvailable(): boolean {
+  return !embeddingsDisabled;
+}
+
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) throw new Error("LOVABLE_API_KEY missing");
   if (!texts.length) return [];
+  if (embeddingsDisabled) throw new EmbeddingsUnavailableError("embeddings endpoint unavailable for this workspace");
 
   const res = await fetch(GATEWAY_URL, {
     method: "POST",
@@ -20,10 +31,14 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
+    // Workspace doesn't have embeddings entitlement — disable for the rest of this invocation.
+    if (res.status === 404 || /route_not_found|not available/i.test(body)) {
+      embeddingsDisabled = true;
+      throw new EmbeddingsUnavailableError(`embeddings endpoint unavailable: ${body.slice(0, 200)}`);
+    }
     throw new Error(`embeddings failed (${res.status}): ${body.slice(0, 300)}`);
   }
   const json = await res.json() as { data: Array<{ embedding: number[]; index: number }> };
-  // Make sure ordering matches the input order.
   const sorted = [...(json.data ?? [])].sort((a, b) => a.index - b.index);
   return sorted.map((d) => d.embedding);
 }

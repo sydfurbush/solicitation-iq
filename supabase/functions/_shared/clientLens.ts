@@ -269,41 +269,66 @@ export async function buildClientLens(
   if (opts.query && opts.query.trim().length > 0) {
     try {
       const vec = await embedQuery(opts.query);
+      let matches: Array<{
+        chunk_id: string; document_id: string; document_title: string;
+        chunk_index: number; content: string; similarity: number;
+        source_type: string; source_url: string | null; tags: string[] | null;
+      }> = [];
       if (vec) {
-        const { data: matches, error: matchErr } = await sb.rpc("match_client_knowledge", {
+        const { data, error: matchErr } = await sb.rpc("match_client_knowledge", {
           p_client_id: clientId,
           p_query_embedding: vec as unknown as string,
           p_match_count: opts.topK ?? 5,
           p_min_similarity: 0.3,
         });
-        if (matchErr) {
-          console.warn("[buildClientLens] match rpc failed:", matchErr.message);
-        } else if (Array.isArray(matches) && matches.length > 0) {
-          for (const m of matches as Array<{
-            chunk_id: string;
-            document_id: string;
-            document_title: string;
-            chunk_index: number;
-            content: string;
-            similarity: number;
-            source_type: string;
-            source_url: string | null;
-            tags: string[] | null;
-          }>) {
-            citations.push({
-              chunk_id: m.chunk_id,
-              document_id: m.document_id,
-              document_title: m.document_title,
-              chunk_index: m.chunk_index,
-              snippet: m.content,
-              similarity: m.similarity,
-              source_type: m.source_type,
-              source_url: m.source_url,
-              tags: m.tags,
-            });
-            if (!knowledgeDocIds.includes(m.document_id)) knowledgeDocIds.push(m.document_id);
-          }
+        if (matchErr) console.warn("[buildClientLens] match rpc failed:", matchErr.message);
+        else if (Array.isArray(data)) matches = data as typeof matches;
+      } else {
+        // Embeddings unavailable — fall back to keyword search over chunk content.
+        const terms = opts.query.toLowerCase().match(/[a-z0-9]{4,}/g) ?? [];
+        const uniq = Array.from(new Set(terms)).slice(0, 6);
+        if (uniq.length) {
+          const orFilter = uniq.map((t) => `content.ilike.%${t}%`).join(",");
+          const { data: chunks } = await sb
+            .from("client_knowledge_chunks")
+            .select("id, document_id, chunk_index, content")
+            .eq("client_id", clientId)
+            .or(orFilter)
+            .limit((opts.topK ?? 5) * 3);
+          const docIds = Array.from(new Set((chunks ?? []).map((c) => c.document_id)));
+          const { data: docs } = docIds.length
+            ? await sb.from("client_knowledge_documents")
+                .select("id, title, source_type, source_url, tags")
+                .in("id", docIds)
+            : { data: [] as Array<{ id: string; title: string; source_type: string; source_url: string | null; tags: string[] | null }> };
+          const docMap = new Map((docs ?? []).map((d) => [d.id, d]));
+          // Rank by number of distinct term hits.
+          const scored = (chunks ?? []).map((c) => {
+            const lower = c.content.toLowerCase();
+            const hits = uniq.reduce((n, t) => n + (lower.includes(t) ? 1 : 0), 0);
+            return { c, hits };
+          }).sort((a, b) => b.hits - a.hits).slice(0, opts.topK ?? 5);
+          matches = scored.map(({ c, hits }) => {
+            const d = docMap.get(c.document_id);
+            return {
+              chunk_id: c.id, document_id: c.document_id,
+              document_title: d?.title ?? "Untitled",
+              chunk_index: c.chunk_index, content: c.content,
+              similarity: hits / Math.max(uniq.length, 1),
+              source_type: d?.source_type ?? "note",
+              source_url: d?.source_url ?? null, tags: d?.tags ?? null,
+            };
+          });
         }
+      }
+      for (const m of matches) {
+        citations.push({
+          chunk_id: m.chunk_id, document_id: m.document_id,
+          document_title: m.document_title, chunk_index: m.chunk_index,
+          snippet: m.content, similarity: m.similarity,
+          source_type: m.source_type, source_url: m.source_url, tags: m.tags,
+        });
+        if (!knowledgeDocIds.includes(m.document_id)) knowledgeDocIds.push(m.document_id);
       }
     } catch (e) {
       console.warn("[buildClientLens] knowledge retrieval failed:", e instanceof Error ? e.message : e);

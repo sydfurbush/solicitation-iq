@@ -4,7 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
-import { chunkText, embedTexts } from "../_shared/embeddings.ts";
+import { chunkText, embedTexts, EmbeddingsUnavailableError } from "../_shared/embeddings.ts";
 
 const Body = z.object({ documentId: z.string().uuid() });
 
@@ -65,14 +65,29 @@ Deno.serve(async (req) => {
     const chunks = chunkText(text, 800, 100);
     if (!chunks.length) throw new Error("Text produced no chunks");
 
-    // Embed in batches to stay under provider limits
+    // Embed in batches; if the workspace lacks the embeddings endpoint, fall back
+    // to keyword-only chunks (embedding column left NULL) so RAG still works via ILIKE.
     const BATCH = 32;
     let inserted = 0;
+    let embedded = true;
     for (let i = 0; i < chunks.length; i += BATCH) {
       const batch = chunks.slice(i, i + BATCH);
-      const vectors = await embedTexts(batch);
-      if (vectors.length !== batch.length) {
-        throw new Error(`embedding count mismatch (${vectors.length} vs ${batch.length})`);
+      let vectors: number[][] | null = null;
+      if (embedded) {
+        try {
+          vectors = await embedTexts(batch);
+          if (vectors.length !== batch.length) {
+            throw new Error(`embedding count mismatch (${vectors.length} vs ${batch.length})`);
+          }
+        } catch (e) {
+          if (e instanceof EmbeddingsUnavailableError) {
+            console.warn("[ingest-client-knowledge] embeddings unavailable; storing chunks without vectors");
+            embedded = false;
+            vectors = null;
+          } else {
+            throw e;
+          }
+        }
       }
       const rows = batch.map((content, j) => ({
         document_id: documentId,
@@ -80,7 +95,7 @@ Deno.serve(async (req) => {
         chunk_index: i + j,
         content,
         token_estimate: Math.ceil(content.length / 4),
-        embedding: vectors[j] as unknown as string,
+        embedding: vectors ? (vectors[j] as unknown as string) : null,
         metadata: { source_type: doc.source_type, title: doc.title },
       }));
       const { error: insErr } = await sb.from("client_knowledge_chunks").insert(rows);
@@ -89,7 +104,11 @@ Deno.serve(async (req) => {
     }
 
     await sb.from("client_knowledge_documents")
-      .update({ status: "ready", chunk_count: inserted, error: null })
+      .update({
+        status: "ready",
+        chunk_count: inserted,
+        error: embedded ? null : "Stored without embeddings (workspace embeddings endpoint unavailable). Keyword search active.",
+      })
       .eq("id", documentId);
 
     return new Response(JSON.stringify({ success: true, chunks: inserted }), {
