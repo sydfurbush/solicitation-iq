@@ -407,7 +407,7 @@ Deno.serve(async (req) => {
               index: idx,
               tone,
               categoryLabel: TONE_LABEL[tone],
-              source: q.source_citation ?? "—",
+              source: q.source_citation ?? docNameFor(q.source_document_id) ?? "—",
               topic: truncated,
             };
           });
