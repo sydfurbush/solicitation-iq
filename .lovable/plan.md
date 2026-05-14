@@ -1,101 +1,25 @@
-## AI-Generated Service Presets
+## Problem
 
-Add a "Generate with AI" path in the Service Presets tab. The user fills a short guided form, the AI returns a complete preset with reasoning notes, and the existing create dialog opens pre-filled for review and edits before saving as v1.
+In the **New service preset** dialog, the "Key" field is empty (the `my_preset_key` text is just a placeholder). When you press Create, Zod rejects it with **"String must contain at least 2 characters"** because `key` is required (`z.string().min(2)`).
 
----
+The toast surfaces only the raw Zod message, so it isn't obvious which field is wrong.
 
-### User flow
+## Fix
 
-1. In **Settings → Service Presets**, the "New preset" button gets a split: `New preset ▾` with two options:
-   - **Blank** (current behavior)
-   - **Generate with AI** ✨
-2. "Generate with AI" opens a small dialog with the guided form (4 fields). Submit shows a streaming progress state (5–15s).
-3. When generation finishes, the existing **CreateDialog** opens pre-filled with every field. A subtle banner reads *"AI-generated draft — review before saving."*
-4. Each AI-populated section (codes, agencies, vehicles, compliance, discriminators, flags, glossary) shows a small `i` icon → hovering reveals the AI's reasoning for that section.
-5. User edits anything, then clicks **Create** — saved as a normal custom preset v1 (uses the existing `useCreatePreset` hook, no new write path).
+Two small, frontend-only changes in `src/features/presets/components/PresetsTab.tsx`:
 
----
+1. **Auto-derive the key from the label** in `CreateDialog`, the same way the AI-draft path already does via `slugify(label)`.
+   - As the user types a Label, if they haven't manually edited the Key, set Key = `slugify(label)`.
+   - Once the user edits the Key field directly, stop auto-syncing (track a `keyTouched` flag).
+   - This also fixes the AI flow when the AI returns a label that slugs to <2 chars or invalid chars.
 
-### Guided input form (4 fields)
+2. **Friendlier validation messages** on the schema so any remaining failure tells you which field:
+   - `key`: "Key must be 2–64 characters (lowercase letters, digits, underscores)."
+   - `label`: "Label must be at least 2 characters."
+   - Pre-trim Label/Key before validating; if Key is still empty after auto-derive, surface "Add a label first" instead of the raw Zod message.
 
-| Field | Type | Example |
-|---|---|---|
-| Service category | Text | "Federal Cybersecurity Services" |
-| Family | Federal / Utility | Federal |
-| Primary buyers | Text (1 line) | "DoD, DHS CISA, civilian CIOs" |
-| Differentiators / context (optional) | Textarea | "FedRAMP High, CMMC L3, cleared workforce" |
+No schema, RLS, or backend changes. No behavior change for the AI-generated draft path beyond message clarity.
 
-Family steers the prompt toward the right vocabulary (NAICS vs. utility regulatory bodies, etc.).
+## Files touched
 
----
-
-### Generation contract
-
-The edge function returns a strict JSON object matching `PresetContent` plus a `reasoning` map:
-
-```text
-{
-  label, description, family,
-  content: {
-    naics_codes[], psc_codes[], set_asides[], agencies_focus[],
-    contract_vehicles[], compliance_frameworks[],
-    discriminators[{title, evidence, proof_point}],
-    acronym_glossary{},
-    always_flag[{rule, reason}],
-    tone_voice, reading_level, keywords[]
-  },
-  reasoning: {
-    naics_codes: "Why these codes...",
-    agencies_focus: "Why these buyers...",
-    compliance_frameworks: "...",
-    discriminators: "...",
-    always_flag: "..."
-  }
-}
-```
-
-Used via AI SDK `generateText` + `Output.object` for structured output (no manual JSON parsing).
-
----
-
-### Grounding (few-shot)
-
-Before calling the model, the function:
-1. Loads all built-in presets matching the chosen `family` from `lens_presets` + their current versions.
-2. Picks the 3 closest by simple keyword overlap between user category and `label`/`description`.
-3. Includes them as compact JSON examples in the system prompt: *"Match this format exactly. Examples follow."*
-
-This keeps NAICS/vehicle/agency naming consistent with the existing library at near-zero token cost.
-
----
-
-### Technical details
-
-**New edge function**: `supabase/functions/generate-preset/index.ts`
-- Auth: standard JWT validation (admin/owner only — same gate as `lens_presets` write RLS).
-- Input: Zod-validated `{ category, family, buyers, context? }`.
-- Loads few-shot examples via service-role client.
-- Calls Lovable AI Gateway with `openai/gpt-5` (best for niche regulatory accuracy + reasoning quality). Falls back to `google/gemini-3-flash-preview` on 429.
-- Returns the structured object. Surfaces 402/429 cleanly to the UI.
-
-**New client files**:
-- `src/features/presets/hooks/useGeneratePreset.ts` — wraps `supabase.functions.invoke('generate-preset')`.
-- `src/features/presets/components/AIGenerateDialog.tsx` — guided form + progress state.
-
-**Modified files**:
-- `src/features/presets/components/PresetsTab.tsx`:
-  - Split-button trigger (Blank / Generate with AI).
-  - Pass an `initialDraft` + `initialReasoning` prop into `CreateDialog`.
-  - Render reasoning tooltips next to each populated section header.
-- No DB schema changes. No new tables. Reasoning is only shown during the review step — not persisted (keeps `lens_preset_versions.content` clean).
-
-**Reuse**: the AI flow ends by handing off to the existing `useCreatePreset` mutation, so versioning, RLS, and audit trail all behave identically to a hand-built preset.
-
----
-
-### Out of scope (can add later if useful)
-
-- Web-search grounding via sam.gov / census.gov to verify codes — adds latency + tool-loop complexity. Defer until first round of generated presets shows real hallucinations.
-- Persisting reasoning into version history.
-- Re-generating individual sections ("regenerate just the NAICS codes").
-- Bulk "generate 5 candidates and pick one" mode.
+- `src/features/presets/components/PresetsTab.tsx` — `CreateDialog` state wiring, `presetSchema` messages, `submit()` error mapping.

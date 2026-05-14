@@ -31,9 +31,13 @@ import { toast } from "sonner";
 
 const keyRegex = /^[a-z0-9_]+$/;
 const presetSchema = z.object({
-  key: z.string().min(2).max(64).regex(keyRegex, "lowercase letters, digits, underscores only"),
-  label: z.string().min(2).max(120),
-  description: z.string().max(500).optional(),
+  key: z
+    .string()
+    .min(2, "Key must be at least 2 characters")
+    .max(64, "Key must be 64 characters or fewer")
+    .regex(keyRegex, "Key may only contain lowercase letters, digits, and underscores"),
+  label: z.string().min(2, "Label must be at least 2 characters").max(120, "Label must be 120 characters or fewer"),
+  description: z.string().max(500, "Description must be 500 characters or fewer").optional(),
   family: z.enum(["federal", "utility"]),
 });
 
