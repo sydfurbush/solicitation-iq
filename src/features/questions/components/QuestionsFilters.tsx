@@ -43,7 +43,7 @@ interface Props {
   documents?: Array<{ id: string; file_name: string }>;
 }
 
-export function QuestionsFilters({ filters, onChange, counts }: Props) {
+export function QuestionsFilters({ filters, onChange, counts, documents = [] }: Props) {
   const toggle = <T extends string>(arr: T[] | undefined, v: T): T[] => {
     const set = new Set(arr ?? []);
     if (set.has(v)) set.delete(v); else set.add(v);
