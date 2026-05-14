@@ -59,6 +59,7 @@ import SolicitationDeepDive from "./SolicitationDeepDive";
 import SolicitationOutline from "./SolicitationOutline";
 import SolicitationWinThemes from "./SolicitationWinThemes";
 import SolicitationWritingQueue from "./SolicitationWritingQueue";
+import { Phase5Workspace } from "@/features/drafting/components/Phase5Workspace";
 import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
 import { TeamPresence } from "@/features/collaboration/components/TeamPresence";
