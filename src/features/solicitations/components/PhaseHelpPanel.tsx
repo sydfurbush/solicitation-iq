@@ -10,6 +10,7 @@ import { phase1Doc } from "../help/phase1";
 import { phase2Doc } from "../help/phase2";
 import { phase3Doc } from "../help/phase3";
 import { phase4Doc } from "../help/phase4";
+import { phase5Doc } from "../help/phase5";
 
 const DOCS = {
   phase_1_initial: phase1Doc,
