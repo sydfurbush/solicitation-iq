@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Bell, BookOpen, Users } from "lucide-react";
+import { Bell, BookOpen, ClipboardCheck, Users } from "lucide-react";
 import { RevisionNotificationFlowArticle } from "../help/RevisionNotificationFlowArticle";
 import { KnowledgeLibraryArticle } from "../help/KnowledgeLibraryArticle";
 import { TeamAccessArticle } from "../help/TeamAccessArticle";
+import { ClientQuestionWorkflowArticle } from "../help/ClientQuestionWorkflowArticle";
 
 type Article = {
   id: string;
@@ -21,6 +22,13 @@ const ARTICLES: Article[] = [
     description: "Org → Client → Solicitation, the Lead/Analyst/Contributor model, and recommended team patterns.",
     icon: Users,
     body: <TeamAccessArticle />,
+  },
+  {
+    id: "client-question-workflow",
+    title: "Client question review & clarification workflow",
+    description: "Triage → AI-drafted clarifications → analyst-compiled package → client submission to the agency.",
+    icon: ClipboardCheck,
+    body: <ClientQuestionWorkflowArticle />,
   },
   {
     id: "knowledge-library",

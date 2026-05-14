@@ -296,6 +296,76 @@ export type Database = {
         }
         Relationships: []
       }
+      clarification_packages: {
+        Row: {
+          compiled_at: string | null
+          compiled_by: string | null
+          created_at: string
+          docx_path: string | null
+          id: string
+          notes: string | null
+          pdf_path: string | null
+          solicitation_id: string
+          status: Database["public"]["Enums"]["clarification_package_status"]
+          submission_reference: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          compiled_at?: string | null
+          compiled_by?: string | null
+          created_at?: string
+          docx_path?: string | null
+          id?: string
+          notes?: string | null
+          pdf_path?: string | null
+          solicitation_id: string
+          status?: Database["public"]["Enums"]["clarification_package_status"]
+          submission_reference?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          compiled_at?: string | null
+          compiled_by?: string | null
+          created_at?: string
+          docx_path?: string | null
+          id?: string
+          notes?: string | null
+          pdf_path?: string | null
+          solicitation_id?: string
+          status?: Database["public"]["Enums"]["clarification_package_status"]
+          submission_reference?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clarification_packages_compiled_by_fkey"
+            columns: ["compiled_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clarification_packages_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clarification_packages_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "client_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_assignments: {
         Row: {
           assigned_at: string
@@ -2755,6 +2825,13 @@ export type Database = {
         Row: {
           agency_response: string | null
           category: Database["public"]["Enums"]["question_category"]
+          clarification_draft: string | null
+          clarification_package_id: string | null
+          clarification_status: Database["public"]["Enums"]["clarification_item_status"]
+          client_decided_at: string | null
+          client_decision: Database["public"]["Enums"]["client_question_decision"]
+          client_decision_by: string | null
+          client_note: string | null
           created_at: string | null
           created_by: string | null
           id: string
@@ -2779,6 +2856,13 @@ export type Database = {
         Insert: {
           agency_response?: string | null
           category: Database["public"]["Enums"]["question_category"]
+          clarification_draft?: string | null
+          clarification_package_id?: string | null
+          clarification_status?: Database["public"]["Enums"]["clarification_item_status"]
+          client_decided_at?: string | null
+          client_decision?: Database["public"]["Enums"]["client_question_decision"]
+          client_decision_by?: string | null
+          client_note?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -2803,6 +2887,13 @@ export type Database = {
         Update: {
           agency_response?: string | null
           category?: Database["public"]["Enums"]["question_category"]
+          clarification_draft?: string | null
+          clarification_package_id?: string | null
+          clarification_status?: Database["public"]["Enums"]["clarification_item_status"]
+          client_decided_at?: string | null
+          client_decision?: Database["public"]["Enums"]["client_question_decision"]
+          client_decision_by?: string | null
+          client_note?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -2825,6 +2916,20 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "strategic_questions_clarification_package_fk"
+            columns: ["clarification_package_id"]
+            isOneToOne: false
+            referencedRelation: "clarification_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "strategic_questions_client_decision_by_fkey"
+            columns: ["client_decision_by"]
+            isOneToOne: false
+            referencedRelation: "client_users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "strategic_questions_created_by_fkey"
             columns: ["created_by"]
@@ -3104,8 +3209,16 @@ export type Database = {
         | "win_theme"
         | "discriminator"
       app_role: "owner" | "admin" | "analyst" | "viewer"
+      clarification_item_status: "none" | "drafting" | "ready" | "submitted"
+      clarification_package_status: "draft" | "ready" | "submitted"
       client_access_level: "full" | "summary" | "restricted"
       client_assignment_role: "lead" | "analyst"
+      client_question_decision:
+        | "pending"
+        | "remove"
+        | "clarify"
+        | "hold"
+        | "deferred"
       document_status:
         | "uploading"
         | "processing"
@@ -3325,8 +3438,17 @@ export const Constants = {
         "discriminator",
       ],
       app_role: ["owner", "admin", "analyst", "viewer"],
+      clarification_item_status: ["none", "drafting", "ready", "submitted"],
+      clarification_package_status: ["draft", "ready", "submitted"],
       client_access_level: ["full", "summary", "restricted"],
       client_assignment_role: ["lead", "analyst"],
+      client_question_decision: [
+        "pending",
+        "remove",
+        "clarify",
+        "hold",
+        "deferred",
+      ],
       document_status: [
         "uploading",
         "processing",
