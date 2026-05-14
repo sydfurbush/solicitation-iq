@@ -171,17 +171,17 @@ function PresetRowItem({ preset, onEdit, onHistory }: { preset: PresetRow; onEdi
   };
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded border p-3">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium truncate min-w-0">{preset.label}</span>
-          <Badge variant="outline" className="text-xs">{preset.family}</Badge>
-          {preset.is_builtin && <Badge variant="secondary" className="text-xs">built-in</Badge>}
-          {current && <Badge variant="outline" className="text-xs">v{current.version}</Badge>}
+    <div className="grid max-w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded border p-3">
+      <div className="min-w-0 overflow-hidden">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 flex-1 truncate font-medium">{preset.label}</span>
+          <Badge variant="outline" className="shrink-0 text-xs">{preset.family}</Badge>
+          {preset.is_builtin && <Badge variant="secondary" className="shrink-0 text-xs">built-in</Badge>}
+          {current && <Badge variant="outline" className="shrink-0 text-xs">v{current.version}</Badge>}
         </div>
         {preset.description && <p className="text-xs text-muted-foreground mt-1 truncate">{preset.description}</p>}
       </div>
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex shrink-0 items-center gap-1">
         <Button variant="ghost" size="sm" onClick={onHistory}><History className="h-4 w-4" /></Button>
         <Button variant="ghost" size="sm" onClick={doClone}><Copy className="h-4 w-4" /></Button>
         <Button variant="ghost" size="sm" onClick={onEdit} disabled={preset.is_builtin}>
