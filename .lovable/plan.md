@@ -131,3 +131,13 @@ Tell me to proceed with Phase 1 (or all phases) and I'll implement.
 - Lane is auto-detected from `preset_key` prefix; nudges only render when utility context is active. **Zero edits needed in individual analysis edge functions** — they inherit nudges via `buildClientLens`.
 
 Phase 3 (Knowledge taxonomy + Utility Bid Snapshot report block) ready when approved.
+
+---
+
+## Phase 3 — IMPLEMENTED
+
+- New `src/features/clients/lib/knowledgeTaxonomy.ts` — 13 tag groups (Federal Contracting + 12 utility-vertical groups: cross-cutting, IT/OT, engineering, electric, gas, water, civil, renewables/EPC, staffing, prof services, field services, equipment).
+- `KnowledgeTab.tsx` — Add Note dialog gets a scrollable quick-pick chip strip grouped by taxonomy; clicking toggles tags in/out of the comma-separated field.
+- `generate-report/index.ts` — Executive Summary template gets an OPTIONAL 8th section "Utility Bid Snapshot" (single `kv` block: regulatory regime, ISO/RTO, voltage/pressure/GPM class, delivery model match, prequal grade, bonding, safety vs. EMR/TRIR, PE jurisdiction coverage, diversity/tier, Buy America/PWA, outage/SLA, mutual-aid). Auto-included only when the Client Lens contains a Utility-supplier context block; reuses existing `kv` renderer (no PDF/Word changes needed).
+
+All three phases now shipped. Federal contracting workflows are unchanged.
