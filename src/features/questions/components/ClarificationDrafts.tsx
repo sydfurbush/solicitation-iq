@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useDocuments } from "@/features/documents/hooks/useDocuments";
 import {
   useStrategicQuestions,
 } from "../hooks/useStrategicQuestions";
@@ -46,6 +47,12 @@ export function ClarificationDrafts({ solicitationId }: Props) {
   const { user } = useAuth();
   const { data: allQuestions = [], isLoading } = useStrategicQuestions(solicitationId);
   const { data: packages = [] } = useClarificationPackages(solicitationId);
+  const { data: documents = [] } = useDocuments(solicitationId);
+  const docMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const d of documents as Array<{ id: string; file_name: string }>) m[d.id] = d.file_name;
+    return m;
+  }, [documents]);
 
   const { data: solicitation } = useQuery({
     queryKey: ["solicitation-meta-clarif", solicitationId],
@@ -130,8 +137,8 @@ export function ClarificationDrafts({ solicitationId }: Props) {
         clientName: (solicitation as any).clients?.name ?? null,
         preparedAt: new Date(),
       };
-      const pdfBlob = generateClarificationPdf(clarifyQs, ctx);
-      const docxBlob = await generateClarificationDocx(clarifyQs, ctx);
+      const pdfBlob = generateClarificationPdf(clarifyQs, ctx, docMap);
+      const docxBlob = await generateClarificationDocx(clarifyQs, ctx, docMap);
 
       const stamp = Date.now();
       const base = `clarifications/${solicitationId}/${stamp}`;

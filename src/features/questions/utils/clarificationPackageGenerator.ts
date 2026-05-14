@@ -57,7 +57,8 @@ const CONTENT_W = PAGE.w - MARGIN.left - MARGIN.right;
 
 export function generateClarificationPdf(
   questions: QuestionRow[],
-  ctx: ClarificationContext
+  ctx: ClarificationContext,
+  docMap: Record<string, string> = {},
 ): Blob {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const preparedAt = ctx.preparedAt ?? new Date();
@@ -131,10 +132,14 @@ export function generateClarificationPdf(
     writeWrapped(`Item ${idx + 1}`, { size: 13, bold: true, gap: 6 });
     writeWrapped(q.question_text, { size: 11, color: 30, gap: 10 });
 
-    if (parsed.reference || q.source_citation) {
-      writeWrapped("Reference", { size: 10, bold: true, color: 90, gap: 2 });
-      writeWrapped(parsed.reference || q.source_citation || "", { size: 10, gap: 8 });
+    const sectionRef = parsed.reference || q.source_citation || "";
+    if (sectionRef) {
+      writeWrapped("Section", { size: 10, bold: true, color: 90, gap: 2 });
+      writeWrapped(sectionRef, { size: 10, gap: 6 });
     }
+    const docName = q.source_document_id ? (docMap[q.source_document_id] ?? "(unknown document)") : "Not specified";
+    writeWrapped("Document", { size: 10, bold: true, color: 90, gap: 2 });
+    writeWrapped(docName, { size: 10, gap: 8 });
     if (parsed.quotedText || q.source_quote) {
       writeWrapped("Quoted Text", { size: 10, bold: true, color: 90, gap: 2 });
       writeWrapped(`"${parsed.quotedText || q.source_quote}"`, { size: 10, color: 50, gap: 8 });
@@ -178,7 +183,8 @@ function p(text: string, opts: { bold?: boolean; size?: number; color?: string; 
 
 export async function generateClarificationDocx(
   questions: QuestionRow[],
-  ctx: ClarificationContext
+  ctx: ClarificationContext,
+  docMap: Record<string, string> = {},
 ): Promise<Blob> {
   const preparedAt = ctx.preparedAt ?? new Date();
 
@@ -220,7 +226,9 @@ export async function generateClarificationDocx(
       children.push(p(label, { bold: true, size: 20, color: "666666", spacing: 60 }));
       children.push(p(body, { size: 20, spacing: 200 }));
     };
-    block("Reference", parsed.reference || q.source_citation || "");
+    block("Section", parsed.reference || q.source_citation || "");
+    const docName = q.source_document_id ? (docMap[q.source_document_id] ?? "(unknown document)") : "Not specified";
+    block("Document", docName);
     block("Quoted Text", parsed.quotedText ? `"${parsed.quotedText}"` : q.source_quote ? `"${q.source_quote}"` : "");
     block("Concern", parsed.concern);
     block("Requested Clarification", parsed.requestedClarification);

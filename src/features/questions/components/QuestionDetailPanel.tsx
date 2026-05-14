@@ -109,9 +109,6 @@ export function QuestionDetailPanel({ question, documents, onClose, onUpdate }: 
 
             <div>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">Source</Label>
-              <div className="mt-1.5">
-                <SourceDocumentLink documentId={question.source_document_id} documents={documents} />
-              </div>
               {question.source_quote && (
                 <blockquote className="mt-2 border-l-2 border-primary/40 pl-3 text-sm italic text-muted-foreground">
                   <Quote className="inline h-3 w-3 mr-1" />
@@ -124,6 +121,9 @@ export function QuestionDetailPanel({ question, documents, onClose, onUpdate }: 
                   {question.source_citation}
                 </p>
               )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                <SourceDocumentLink documentId={question.source_document_id} documents={documents} />
+              </p>
             </div>
 
             <div>
