@@ -29,6 +29,9 @@ export function DocumentViewer({ document: doc, open, onOpenChange }: Props) {
   const [tab, setTab] = useState("content");
   const [highlight, setHighlight] = useState("");
   const [search, setSearch] = useState("");
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [matchCount, setMatchCount] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!doc || !open) {
@@ -46,17 +49,32 @@ export function DocumentViewer({ document: doc, open, onOpenChange }: Props) {
 
   const isPdf = doc?.file_type?.includes("pdf") || doc?.file_name.toLowerCase().endsWith(".pdf");
   const isProcessing = doc?.status === "uploading" || doc?.status === "processing";
+  const term = (highlight || search).trim();
+  const hasExtractedText = !!doc?.extracted_text;
+  const showIframe = !!url && isPdf && !hasExtractedText;
 
-  const highlighted = useMemo(() => {
-    const text = doc?.extracted_text ?? "";
-    const term = (highlight || search).trim();
-    if (!term || term.length < 2) return text;
-    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return text.replace(
-      new RegExp(`(${escaped})`, "gi"),
-      `<<<MARK>>>$1<<<ENDMARK>>>`
-    );
-  }, [doc?.extracted_text, highlight, search]);
+  // Reset active match on term change
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [term]);
+
+  // Scroll active match into view
+  useEffect(() => {
+    if (matchCount === 0) return;
+    const root = scrollRef.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLElement>(`mark[data-match-index="${activeIdx}"]`);
+    if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [activeIdx, matchCount, term]);
+
+  const goNext = () => {
+    if (matchCount === 0) return;
+    setActiveIdx((i) => (i + 1) % matchCount);
+  };
+  const goPrev = () => {
+    if (matchCount === 0) return;
+    setActiveIdx((i) => (i - 1 + matchCount) % matchCount);
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -110,23 +128,82 @@ export function DocumentViewer({ document: doc, open, onOpenChange }: Props) {
               )}
               {!loading && (
                 <div className="h-full flex flex-col">
-                  <div className="px-6 pb-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search in document text…"
-                        className="pl-9 h-9"
-                      />
+                  {hasExtractedText && (
+                    <div className="px-6 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (e.shiftKey) goPrev();
+                                else goNext();
+                              } else if (e.key === "Escape") {
+                                setSearch("");
+                                setHighlight("");
+                              }
+                            }}
+                            placeholder="Search in document text…"
+                            className="pl-9 pr-9 h-9"
+                          />
+                          {(search || highlight) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSearch("");
+                                setHighlight("");
+                              }}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              aria-label="Clear search"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        {term.length >= 2 && (
+                          <>
+                            <span className="text-xs text-muted-foreground tabular-nums min-w-[64px] text-right">
+                              {matchCount === 0 ? "No matches" : `${activeIdx + 1} of ${matchCount}`}
+                            </span>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-9 w-9"
+                              onClick={goPrev}
+                              disabled={matchCount === 0}
+                              aria-label="Previous match"
+                            >
+                              <ChevronUp className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-9 w-9"
+                              onClick={goNext}
+                              disabled={matchCount === 0}
+                              aria-label="Next match"
+                            >
+                              <ChevronDown className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {url && isPdf && !doc?.extracted_text ? (
-                    <iframe src={url} title={doc?.file_name} className="w-full flex-1 border-0" />
+                  )}
+                  {showIframe ? (
+                    <iframe src={url!} title={doc?.file_name} className="w-full flex-1 border-0" />
                   ) : (
-                    <ScrollArea className="flex-1 px-6 pb-6">
-                      {doc?.extracted_text ? (
-                        <HighlightedText html={highlighted} />
+                    <ScrollArea className="flex-1 px-6 pb-6" viewportRef={scrollRef}>
+                      {hasExtractedText ? (
+                        <HighlightedText
+                          text={doc!.extracted_text!}
+                          term={term}
+                          activeIdx={activeIdx}
+                          onMatchCount={setMatchCount}
+                        />
                       ) : (
                         <p className="text-sm text-muted-foreground py-8 text-center">
                           No extracted text yet.{" "}
@@ -177,20 +254,54 @@ export function DocumentViewer({ document: doc, open, onOpenChange }: Props) {
   );
 }
 
-function HighlightedText({ html }: { html: string }) {
-  // Convert sentinel markers to <mark> tags safely (we only inserted these markers around the search term)
-  const parts = html.split(/<<<MARK>>>|<<<ENDMARK>>>/);
+function HighlightedText({
+  text,
+  term,
+  activeIdx,
+  onMatchCount,
+}: {
+  text: string;
+  term: string;
+  activeIdx: number;
+  onMatchCount: (n: number) => void;
+}) {
+  const segments = useMemo(() => {
+    if (!term || term.length < 2) return { parts: [text], matches: 0 };
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(${escaped})`, "gi");
+    const parts = text.split(re);
+    // odd indices are matches
+    const matches = Math.floor(parts.length / 2);
+    return { parts, matches };
+  }, [text, term]);
+
+  useEffect(() => {
+    onMatchCount(segments.matches);
+  }, [segments.matches, onMatchCount]);
+
+  let matchIdx = -1;
   return (
     <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">
-      {parts.map((p, i) =>
-        i % 2 === 1 ? (
-          <mark key={i} className="bg-amber-200 dark:bg-amber-500/40 rounded px-0.5">
-            {p}
-          </mark>
-        ) : (
-          <span key={i}>{p}</span>
-        )
-      )}
+      {segments.parts.map((p, i) => {
+        if (i % 2 === 1) {
+          matchIdx += 1;
+          const isActive = matchIdx === activeIdx;
+          return (
+            <mark
+              key={i}
+              data-match-index={matchIdx}
+              className={
+                isActive
+                  ? "bg-amber-400 dark:bg-amber-500/70 rounded px-0.5 ring-2 ring-amber-500"
+                  : "bg-amber-200 dark:bg-amber-500/40 rounded px-0.5"
+              }
+            >
+              {p}
+            </mark>
+          );
+        }
+        return <span key={i}>{p}</span>;
+      })}
     </pre>
   );
 }
