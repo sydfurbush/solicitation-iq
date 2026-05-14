@@ -1,12 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { callAiTool } from "../_shared/aiClient.ts";
+import { buildClientLens } from "../_shared/clientLens.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-import { callAiTool } from "../_shared/aiClient.ts";
-import { buildClientLens } from "../_shared/clientLens.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -15,7 +15,7 @@ const SYSTEM_PROMPT = `You are an expert federal proposal strategist performing 
 Be thorough. It is far better to surface a borderline question than to omit a real one. Generate as many questions as the documents in this batch warrant.
 
 For EACH question, you MUST:
-- Provide the exact question text as it would be submitted to the agency (professional, neutral tone).
+- Provide the exact question text as it would be submitted to the agency (professional, neutral tone). MINIMUM 20 characters; never return placeholder fragments like "Is the" or "The MOU mentions that".
 - Explain WHY it matters strategically.
 - Cite the EXACT source: document filename, section number, page number, and a verbatim quote (up to 280 chars).
 - For cross-document questions, ALSO cite the second source in conflict_with_document / conflict_with_section.
@@ -25,32 +25,24 @@ For EACH question, you MUST:
 
 CATEGORIES — use the most specific one that fits:
 - drafting_error: Typos, anachronisms, outdated dates, broken/incorrect regulatory citations, duplicate or near-duplicate language across sections, internally contradictory sentences.
-- contradiction: A real conflict BETWEEN two sources — PWS vs. Technical Exhibit, Section X vs. Section Y, CLIN vs. PWS schedule, KPI threshold vs. task requirement, place-of-performance list vs. staffing rule. ALWAYS name BOTH sources in conflict_with_document/conflict_with_section.
-- quantitative_gap: A numeric requirement (percentage, day count, headcount, dollar cap, ratio, threshold) is stated but its BASIS, FLOOR, CAP, or ADJUSTMENT MECHANISM is missing.
-- compliance: FAR/DFARS/agency-specific regulatory or certification questions; security clearance, background-investigation timing vs. phase-in; foreign-law compliance burdens.
-- risk_concern: Cost/risk allocation gaps — who bears cost if assumption X fails; force-majeure/disaster/disruption coverage; vacancy gaps in key personnel; performance standards during transition.
-- scope_expansion: Opportunities to grow scope, add value-add services, surge capacity, optional CLINs.
-- strategic: Questions to HOLD that reveal incumbent advantages, evaluation-criteria interpretation, pricing-structure flexibility.
+- contradiction: A real conflict BETWEEN two sources. ALWAYS name BOTH sources in conflict_with_document/conflict_with_section.
+- quantitative_gap: A numeric requirement is stated but its BASIS, FLOOR, CAP, or ADJUSTMENT MECHANISM is missing.
+- compliance: FAR/DFARS/agency regulatory or certification questions.
+- risk_concern: Cost/risk allocation gaps, force-majeure, key-personnel vacancy gaps.
+- scope_expansion: Opportunities to grow scope, surge capacity, optional CLINs.
+- strategic: Questions to HOLD that reveal incumbent advantages or pricing flexibility.
 - clarification: Genuine ambiguity that doesn't fit the more specific buckets above.
 - other: Only if truly none of the above apply.
-
-CRITICAL TECHNIQUES — apply ALL of these systematically:
-1. CROSS-REFERENCE every Technical Exhibit against the PWS section it supports. Flag KPI/timing/quantity conflicts.
-2. SCAN for drafting errors: invalid regulatory cites; dates older than ~3 years; anachronistic agency names; duplicate paragraphs.
-3. For every NUMBER (%, days, headcount, $, ratio), ask: basis? cap/floor/adjustment?
-4. For every CONTRACTOR OBLIGATION, ask: who pays if assumption X breaks? consequence of delay?
-5. For every KEY-PERSONNEL or LOCATION rule, ask: vacancies, simultaneous-presence, OCONUS variations?
-6. For every SCHEDULE or PHASE-IN/OUT timing, ask: feasibility given upstream dependencies?
 
 Return ONLY the JSON via the tool call. Do not narrate.`;
 
 const CROSS_DOC_SYSTEM_PROMPT = `You are an expert federal proposal strategist performing a CROSS-DOCUMENT contradiction review across an entire solicitation package.
 
-You will receive: each document's table of contents and key extracted snippets (KPIs, numeric thresholds, dates, places of performance, staffing minimums, deliverable timelines).
+You will receive each document's table of contents and key extracted snippets. Your ONLY job is to surface questions about CONTRADICTIONS, INCONSISTENCIES, and CROSS-DOCUMENT GAPS between two or more documents. Do NOT repeat single-document questions.
 
-Your ONLY job is to surface questions about CONTRADICTIONS, INCONSISTENCIES, and CROSS-DOCUMENT GAPS between two or more documents. Do NOT repeat single-document questions — those have already been generated.
+Question text MUST be at least 20 characters and a complete, well-formed question. Do not return fragments.
 
-For every contradiction, name BOTH sources (document + section) and quote the conflicting language. Use the "contradiction" category. Be exhaustive — borderline conflicts are valuable.
+For every contradiction, name BOTH sources (document + section) and quote the conflicting language. Use the "contradiction" category.
 
 Return ONLY the JSON via the tool call.`;
 
@@ -108,16 +100,15 @@ type Section = {
   sort_order: number | null;
 };
 
-const PER_BATCH_BUDGET = 50_000; // chars of doc body per AI call (lowered from 70K for headroom)
+const PER_BATCH_BUDGET = 50_000;
 const PER_SECTION_HEAD = 2400;
 const PER_SECTION_TAIL = 1200;
-const SECTION_SPLIT_THRESHOLD = 8_000; // sections larger than this are split into sub-chunks
+const SECTION_SPLIT_THRESHOLD = 8_000;
 const SUB_CHUNK_SIZE = 6_000;
 const SUB_CHUNK_OVERLAP = 500;
 
-// Split oversized sections into overlapping sub-chunks so the model sees the
-// full verbatim middle of giant sections (e.g., 89K-char Site Management Manual sections)
-// instead of a head+tail truncation that drops 80K chars in the middle.
+const CHUNKS_PER_CALL = 2;
+
 function expandSections(sections: Section[]): Section[] {
   const out: Section[] = [];
   for (const s of sections) {
@@ -145,7 +136,7 @@ function expandSections(sections: Section[]): Section[] {
   return out;
 }
 
-function buildDocBlock(doc: Doc, sections: Section[], budget: number): { text: string; used: number } {
+function buildDocBlock(doc: Doc, sections: Section[], budget: number): { text: string } {
   const toc = sections
     .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
     .join("\n");
@@ -166,36 +157,30 @@ function buildDocBlock(doc: Doc, sections: Section[], budget: number): { text: s
     parts.push(chunk);
     used += chunk.length;
   }
-  return { text: parts.join(""), used };
+  return { text: parts.join("") };
 }
 
-// Pack documents into batches: ≤3 docs per batch, ≤PER_BATCH_BUDGET projected chars.
-// Oversized docs may also be split across multiple batches via packDocSlices below.
 function packBatches(docs: Doc[], sectionsByDoc: Map<string, Section[]>): Doc[][] {
-  // Estimate cost per doc by total content length (capped per section).
   const cost = new Map<string, number>();
   for (const d of docs) {
     const ds = sectionsByDoc.get(d.id) ?? [];
-    let c = 200; // header overhead
+    let c = 200;
     for (const s of ds) {
       const len = (s.content ?? "").length;
       c += Math.min(len, PER_SECTION_HEAD + PER_SECTION_TAIL + 40) + 100;
     }
     cost.set(d.id, c);
   }
-  // Sort by cost desc so big docs go in their own / small batches.
   const sorted = [...docs].sort((a, b) => (cost.get(b.id) ?? 0) - (cost.get(a.id) ?? 0));
   const batches: Doc[][] = [];
   const totals: number[] = [];
   for (const d of sorted) {
     const c = cost.get(d.id) ?? 0;
-    // Big doc gets own batch.
     if (c > PER_BATCH_BUDGET * 0.7) {
       batches.push([d]);
       totals.push(c);
       continue;
     }
-    // Try to fit into an existing batch with room and <3 docs.
     let placed = false;
     for (let i = 0; i < batches.length; i++) {
       if (batches[i].length < 3 && totals[i] + c <= PER_BATCH_BUDGET) {
@@ -213,9 +198,7 @@ function packBatches(docs: Doc[], sectionsByDoc: Map<string, Section[]>): Doc[][
   return batches;
 }
 
-// For an oversized single doc, slice its (already-expanded) sections into
-// multiple batches so each AI call stays under the per-batch budget.
-function sliceOversizedDoc(doc: Doc, sections: Section[]): Section[][] {
+function sliceOversizedDoc(sections: Section[]): Section[][] {
   const slices: Section[][] = [];
   let current: Section[] = [];
   let used = 0;
@@ -233,52 +216,61 @@ function sliceOversizedDoc(doc: Doc, sections: Section[]): Section[][] {
   return slices.length > 0 ? slices : [sections];
 }
 
+function normalizeQuestionText(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function isUsableQuestion(text: string | undefined | null): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length < 20) return false;
+  if (!/[a-z]{4,}/i.test(trimmed)) return false;
+  return true;
+}
+
 function mapRows(
   questions: Array<Record<string, unknown>>,
   solicitationId: string,
   docByName: Map<string, string>,
 ) {
-  return questions.map((q) => {
-    const sourceDocId = q.source_document ? docByName.get(q.source_document as string) : null;
-    let category = (q.category as string) ?? "other";
-    if (!VALID_CATEGORIES.has(category)) category = "other";
-    const conflictDoc = q.conflict_with_document as string | undefined;
-    const conflictSec = q.conflict_with_section as string | undefined;
-    const baseCitation = q.source_section
-      ? `Section ${q.source_section}${q.source_page ? `, p.${q.source_page}` : ""}`
-      : null;
-    const conflictCitation = conflictDoc ? ` ↔ ${conflictDoc}${conflictSec ? ` §${conflictSec}` : ""}` : "";
-    return {
-      solicitation_id: solicitationId,
-      question_text: q.question_text as string,
-      question_rationale: (q.question_rationale as string) ?? null,
-      category,
-      recommendation: (q.recommendation as string) ?? "monitor",
-      priority: Math.max(1, Math.min(100, Math.round(Number(q.priority) || 50))),
-      source_document_id: sourceDocId ?? null,
-      source_citation: baseCitation ? `${baseCitation}${conflictCitation}` : (conflictCitation || null),
-      source_quote: (q.source_quote as string) ?? null,
-      strategic_advantage_notes: (q.strategic_advantage_notes as string) ?? null,
-      potential_answer_insight: (q.potential_answer_insight as string) ?? null,
-      is_ai_generated: true,
-    };
-  });
+  return questions
+    .filter((q) => isUsableQuestion(q.question_text as string))
+    .map((q) => {
+      const sourceDocId = q.source_document ? docByName.get(q.source_document as string) : null;
+      let category = (q.category as string) ?? "other";
+      if (!VALID_CATEGORIES.has(category)) category = "other";
+      const conflictDoc = q.conflict_with_document as string | undefined;
+      const conflictSec = q.conflict_with_section as string | undefined;
+      const baseCitation = q.source_section
+        ? `Section ${q.source_section}${q.source_page ? `, p.${q.source_page}` : ""}`
+        : null;
+      const conflictCitation = conflictDoc ? ` ↔ ${conflictDoc}${conflictSec ? ` §${conflictSec}` : ""}` : "";
+      return {
+        solicitation_id: solicitationId,
+        question_text: (q.question_text as string).trim(),
+        question_rationale: (q.question_rationale as string) ?? null,
+        category,
+        recommendation: (q.recommendation as string) ?? "monitor",
+        priority: Math.max(1, Math.min(100, Math.round(Number(q.priority) || 50))),
+        source_document_id: sourceDocId ?? null,
+        source_citation: baseCitation ? `${baseCitation}${conflictCitation}` : (conflictCitation || null),
+        source_quote: (q.source_quote as string) ?? null,
+        strategic_advantage_notes: (q.strategic_advantage_notes as string) ?? null,
+        potential_answer_insight: (q.potential_answer_insight as string) ?? null,
+        is_ai_generated: true,
+      };
+    });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { solicitationId, focusAreas, focusDocumentIds, retryRunId } = await req.json();
-    if (!solicitationId) {
-      return new Response(JSON.stringify({ error: "solicitationId required" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const body = await req.json();
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Helper: emit a structured event for the run timeline (best-effort).
     const logEvent = async (
       runIdForEvent: string | null | undefined,
+      solicitationId: string,
       eventType: string,
       message: string | null,
       metadata: Record<string, unknown> = {},
@@ -297,500 +289,43 @@ Deno.serve(async (req) => {
       }
     };
 
-    // Reap any orphaned "running" rows for this solicitation (worker died mid-run, no terminal status was written).
-    // Threshold: 8 minutes without an updated_at bump.
-    try {
-      const cutoff = new Date(Date.now() - 8 * 60 * 1000).toISOString();
-      const { data: stale } = await supabase
-        .from("question_generation_runs")
-        .select("id, current_step")
-        .eq("solicitation_id", solicitationId)
-        .eq("status", "running")
-        .lt("updated_at", cutoff);
-      for (const row of stale ?? []) {
-        const wasCrossDoc = (row.current_step ?? "").toLowerCase().includes("cross-document");
-        await supabase
-          .from("question_generation_runs")
-          .update({
-            status: "failed",
-            cross_doc_failed: wasCrossDoc ? true : undefined,
-            failed_batches: 1,
-            error_message: "Run timed out (worker terminated). Retry to resume.",
-            current_step: null,
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", row.id)
-          .eq("status", "running");
-        await logEvent(row.id, "reaped",
-          "Run marked as failed because the worker had not reported progress.",
-          { was_cross_doc: wasCrossDoc, last_step: row.current_step ?? null });
-        console.warn(`[generate-questions] reaped stalled run=${row.id} (cross_doc=${wasCrossDoc})`);
-      }
-    } catch (e) {
-      console.warn("[generate-questions] reaper failed (non-fatal)", e);
+    if (body.continue && body.runId) {
+      const out = await processNextChunks(supabase, body.runId as string, logEvent);
+      return new Response(JSON.stringify(out), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Retry mode: load prior run and restrict scope to its failed batches.
-    let retryDocIds: string[] | null = null;
-    let retryCrossDoc = false;
-    let parentRunId: string | null = null;
-    let retryUnknownScope = false;
-    if (retryRunId) {
-      const { data: prior, error: priorErr } = await supabase
-        .from("question_generation_runs")
-        .select("id, solicitation_id, status, failed_doc_ids, cross_doc_failed, failed_batches")
-        .eq("id", retryRunId)
-        .maybeSingle();
-      if (priorErr || !prior) {
-        return new Response(JSON.stringify({ error: "Prior run not found" }), {
-          status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (prior.solicitation_id !== solicitationId) {
-        return new Response(JSON.stringify({ error: "Prior run does not match solicitation" }), {
+    if (body.retryRunId) {
+      const retryOut = await prepareRetry(supabase, body.retryRunId as string, logEvent);
+      if ("error" in retryOut) {
+        return new Response(JSON.stringify(retryOut), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      retryDocIds = (prior.failed_doc_ids ?? []) as string[];
-      retryCrossDoc = !!prior.cross_doc_failed;
-      parentRunId = prior.id;
-      const priorFailedBatches = (prior.failed_batches ?? 0) as number;
-      if (retryDocIds.length === 0 && !retryCrossDoc) {
-        if (priorFailedBatches > 0) {
-          // Failure scope wasn't recorded — re-run everything in append-only mode.
-          retryUnknownScope = true;
-          retryDocIds = null; // process all eligible docs
-          retryCrossDoc = true;
-          console.log(
-            `[generate-questions] retry unknown scope for run=${retryRunId} (failed_batches=${priorFailedBatches}) — falling back to full re-run`,
-          );
-        } else {
-          return new Response(JSON.stringify({ error: "Prior run has no failed batches to retry" }), {
-            status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-      }
+      const out = await processNextChunks(supabase, retryOut.runId, logEvent);
+      return new Response(JSON.stringify({ ...out, parentRunId: retryOut.parentRunId }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const { data: sol } = await supabase
-      .from("solicitations")
-      .select("title, ai_summary, client_id, lens_overrides")
-      .eq("id", solicitationId)
-      .maybeSingle();
-
-    const lens = await buildClientLens(sol?.client_id ?? null, { topic: "questions", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
-    const lensifiedSystem = lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
-    const lensifiedCrossDoc = lens.promptBlock ? `${lens.promptBlock}\n\n${CROSS_DOC_SYSTEM_PROMPT}` : CROSS_DOC_SYSTEM_PROMPT;
-
-    let docQuery = supabase
-      .from("documents")
-      .select("id, file_name")
-      .eq("solicitation_id", solicitationId)
-      .is("deleted_at", null)
-      .in("status", ["parsed", "analyzed"]);
-    if (retryDocIds !== null) {
-      if (retryDocIds.length === 0) {
-        // cross-doc-only retry; load all docs (cross pass needs them) but skip per-doc batches
-        // (no extra filter)
-      } else {
-        docQuery = docQuery.in("id", retryDocIds);
-      }
-    } else if (focusDocumentIds?.length) {
-      docQuery = docQuery.in("id", focusDocumentIds);
-    }
-    const { data: documents } = await docQuery;
-
-    if (!documents || documents.length === 0) {
-      return new Response(JSON.stringify({ error: "No processed documents available." }), {
+    const { solicitationId, focusAreas, focusDocumentIds } = body;
+    if (!solicitationId) {
+      return new Response(JSON.stringify({ error: "solicitationId required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const docIds = documents.map((d) => d.id);
-    const docByName = new Map<string, string>();
-    documents.forEach((d) => docByName.set(d.file_name, d.id));
-
-    const { data: sections } = await supabase
-      .from("document_sections")
-      .select("document_id, section_number, section_title, content, page_start, sort_order")
-      .in("document_id", docIds)
-      .order("sort_order", { ascending: true });
-
-    const rawSectionsByDoc = new Map<string, Section[]>();
-    for (const d of documents) rawSectionsByDoc.set(d.id, []);
-    for (const s of (sections ?? []) as Section[]) rawSectionsByDoc.get(s.document_id)?.push(s);
-    // Expand giant sections into overlapping sub-chunks so we don't lose middle content.
-    const sectionsByDoc = new Map<string, Section[]>();
-    for (const [docId, secs] of rawSectionsByDoc) sectionsByDoc.set(docId, expandSections(secs));
-
-    const isRetry = retryRunId !== undefined && retryRunId !== null;
-    const isCrossDocOnlyRetry = isRetry && !retryUnknownScope && retryDocIds !== null && retryDocIds.length === 0;
-    const runCrossDoc = !isRetry || retryCrossDoc;
-
-    // Build "work units" — each is one AI call. A normal batch contains 1-3 docs.
-    // An oversized doc is split into multiple slices, each its own work unit so
-    // its body is not truncated and a single chunk failure is recoverable.
-    type WorkUnit = { docs: Doc[]; sectionsByDoc: Map<string, Section[]>; label: string };
-    const workUnits: WorkUnit[] = [];
-    if (!isCrossDocOnlyRetry) {
-      const baseBatches = packBatches(documents as Doc[], sectionsByDoc);
-      for (const batch of baseBatches) {
-        // If single oversized doc, slice it.
-        if (batch.length === 1) {
-          const d = batch[0];
-          const ds = sectionsByDoc.get(d.id) ?? [];
-          const totalCost = ds.reduce(
-            (sum, s) => sum + Math.min((s.content ?? "").length, PER_SECTION_HEAD + PER_SECTION_TAIL + 40) + 100,
-            200,
-          );
-          if (totalCost > PER_BATCH_BUDGET) {
-            const slices = sliceOversizedDoc(d, ds);
-            slices.forEach((slice, idx) => {
-              const m = new Map<string, Section[]>();
-              m.set(d.id, slice);
-              workUnits.push({
-                docs: [d],
-                sectionsByDoc: m,
-                label: `${d.file_name} (part ${idx + 1}/${slices.length})`,
-              });
-            });
-            continue;
-          }
-        }
-        workUnits.push({
-          docs: batch,
-          sectionsByDoc,
-          label: batch.map((d) => d.file_name).join(", "),
-        });
-      }
-    }
-    const batches = workUnits;
-    const totalBatches = batches.length + (runCrossDoc ? 1 : 0);
-
-    // Create the run record
-    const { data: runRow } = await supabase
-      .from("question_generation_runs")
-      .insert({
-        solicitation_id: solicitationId,
-        status: "running",
-        total_batches: totalBatches,
-        completed_batches: 0,
-        failed_batches: 0,
-        inserted_count: 0,
-        current_step: isRetry
-          ? `Retrying ${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""}`
-          : `Preparing ${batches.length} document batch(es)`,
-        parent_run_id: parentRunId,
-      })
-      .select("id")
-      .single();
-    const runId = runRow?.id;
-
-    console.log(
-      `[generate-questions] sol=${solicitationId} docs=${documents.length} sections=${(sections ?? []).length} batches=${batches.length} retry=${isRetry} crossDoc=${runCrossDoc} runId=${runId} parentRunId=${parentRunId ?? "-"}`,
-    );
-
-    const focusText = focusAreas?.length
-      ? `\n\nFOCUS AREAS (emphasize these but do NOT skip other issues): ${focusAreas.join(", ")}`
-      : "";
-    const summaryText = sol?.ai_summary ? `\n\nEXISTING ANALYSIS SUMMARY:\n${sol.ai_summary}` : "";
-
-    // Fresh runs always wipe prior AI-generated questions before generating, so re-runs
-    // start from a clean slate (manual questions are preserved). Retries only append.
-    if (!isRetry) {
-      const { error: wipeErr } = await supabase
-        .from("strategic_questions")
-        .delete()
-        .eq("solicitation_id", solicitationId)
-        .eq("is_ai_generated", true);
-      if (wipeErr) console.error("[generate-questions] pre-run wipe error", wipeErr);
-      else console.log(`[generate-questions] sol=${solicitationId} wiped prior AI questions before run`);
-    }
-
-    await logEvent(runId, "started",
-      isRetry
-        ? `Retry started (${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""})`
-        : `Run started (${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""})`,
-      { docs: documents.length, total_batches: totalBatches, retry: isRetry, parent_run_id: parentRunId });
-
-    const work = (async () => {
-      let totalInserted = 0;
-      let completed = 0;
-      let failed = 0;
-      const failedDocIds: string[] = [];
-      let crossDocFailed = false;
-
-      const updateRun = async (patch: Record<string, unknown>) => {
-        if (!runId) return;
-        await supabase
-          .from("question_generation_runs")
-          .update({ ...patch, updated_at: new Date().toISOString() })
-          .eq("id", runId);
-      };
-      for (let i = 0; i < batches.length; i++) {
-        const unit = batches[i];
-        const batch = unit.docs;
-        const unitSections = unit.sectionsByDoc;
-        const batchLabel = `${i + 1}/${batches.length}`;
-        const batchNames = unit.label;
-        await updateRun({ current_step: `Batch ${batchLabel}: ${batchNames}` });
-        await logEvent(runId, "batch_started", `Batch ${batchLabel}: ${batchNames}`, { index: i + 1, total: batches.length });
-
-        // Build prompt for this batch
-        const perDocBudget = Math.floor(PER_BATCH_BUDGET / batch.length);
-        let docBlocks = "";
-        for (const d of batch) {
-          const ds = unitSections.get(d.id) ?? [];
-          const { text } = buildDocBlock(d, ds, perDocBudget);
-          docBlocks += text;
-        }
-        const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}${focusText}\n\nThis is batch ${batchLabel} of ${batches.length}. Documents in this batch: ${batchNames}.\n${docBlocks}\n\nGenerate the FULL exhaustive list of strategic questions for THESE documents now.`;
-
-        console.log(
-          `[generate-questions] batch=${batchLabel} docs=[${batchNames}] promptChars=${userPrompt.length}`,
-        );
-
-        try {
-          const parsed = (await callAiTool({
-            functionName: "generate-questions",
-            system: lensifiedSystem,
-            user: userPrompt,
-            tool: SCHEMA,
-          })) as Record<string, any>;
-          const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
-          const rows = mapRows(questions, solicitationId, docByName);
-          console.log(`[generate-questions] batch=${batchLabel} got ${rows.length} questions`);
-
-          // Note: prior AI rows were already wiped up-front for fresh runs.
-
-          if (rows.length > 0) {
-            const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
-            if (insErr) {
-              console.error(`[generate-questions] batch=${batchLabel} insert error`, insErr);
-              failed++;
-              for (const d of batch) failedDocIds.push(d.id);
-              await logEvent(runId, "batch_failed", `Batch ${batchLabel} insert failed: ${insErr.message ?? insErr}`,
-                { index: i + 1, total: batches.length, doc_ids: batch.map((d) => d.id) });
-            } else {
-              totalInserted += rows.length;
-              completed++;
-              await logEvent(runId, "batch_completed", `Batch ${batchLabel} added ${rows.length} question(s)`,
-                { index: i + 1, total: batches.length, inserted: rows.length });
-            }
-          } else {
-            completed++;
-            await logEvent(runId, "batch_completed", `Batch ${batchLabel} returned 0 questions`,
-              { index: i + 1, total: batches.length, inserted: 0 });
-          }
-        } catch (err) {
-          console.error(`[generate-questions] batch=${batchLabel} failed`, err);
-          failed++;
-          for (const d of batch) failedDocIds.push(d.id);
-          await logEvent(runId, "batch_failed",
-            `Batch ${batchLabel} failed: ${err instanceof Error ? err.message : String(err)}`,
-            { index: i + 1, total: batches.length, doc_ids: batch.map((d) => d.id) });
-        }
-
-        await updateRun({
-          completed_batches: completed,
-          failed_batches: failed,
-          inserted_count: totalInserted,
-          failed_doc_ids: failedDocIds,
-        });
-      }
-
-      // Cross-document contradiction pass (skipped in retries that don't need it).
-      // Tightened caps + auto-split into halves when prompt is large + heartbeat updates.
-      if (runCrossDoc) {
-        const PER_DOC_ENTITY_CAP = 40;
-        const TOC_CAP = 25;
-        const SNIPPET_CAP = 60;
-        const SPLIT_PROMPT_THRESHOLD = 60_000;
-        const HARD_PROMPT_CAP = 100_000;
-
-        // Pre-fetch all entities once.
-        const entitiesByDoc = new Map<string, Array<Record<string, unknown>>>();
-        for (const id of docIds) entitiesByDoc.set(id, []);
-        try {
-          const { data: entities } = await supabase
-            .from("extracted_entities")
-            .select("document_id, entity_type, entity_value, page_number, context_snippet")
-            .in("document_id", docIds)
-            .limit(2000);
-          for (const e of entities ?? []) {
-            const list = entitiesByDoc.get(e.document_id as string);
-            if (list && list.length < PER_DOC_ENTITY_CAP) list.push(e as Record<string, unknown>);
-          }
-        } catch (e) {
-          console.warn("[generate-questions] cross-doc entity fetch failed (continuing)", e);
-        }
-        const docName = new Map<string, string>();
-        documents.forEach((d) => docName.set(d.id, d.file_name));
-
-        const buildCrossPrompt = (subset: Doc[]) => {
-          let prompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
-          for (const d of subset) {
-            const ds = rawSectionsByDoc.get(d.id) ?? [];
-            const toc = ds
-              .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
-              .slice(0, TOC_CAP)
-              .join("\n");
-            prompt += `\n--- ${d.file_name} ---\n${toc}\n`;
-          }
-          let entityCount = 0;
-          let entitiesBlock = "";
-          for (const d of subset) {
-            const list = entitiesByDoc.get(d.id) ?? [];
-            for (const e of list) {
-              const snip = e.context_snippet ? ` — ${String(e.context_snippet).slice(0, SNIPPET_CAP)}` : "";
-              entitiesBlock += `[${docName.get(d.id) ?? "?"} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${snip}\n`;
-              entityCount++;
-            }
-          }
-          if (entityCount > 0) {
-            prompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS (${entityCount} facts, capped at ${PER_DOC_ENTITY_CAP}/doc) ---\n${entitiesBlock}`;
-          }
-          prompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
-          if (prompt.length > HARD_PROMPT_CAP) prompt = prompt.slice(0, HARD_PROMPT_CAP) + "\n…[truncated]…";
-          return { prompt, entityCount };
-        };
-
-        // Decide whether to split into two halves of documents.
-        const fullProbe = buildCrossPrompt(documents as Doc[]);
-        const subsets: Array<{ docs: Doc[]; label: string }> = [];
-        if (fullProbe.prompt.length > SPLIT_PROMPT_THRESHOLD && documents.length >= 4) {
-          const mid = Math.ceil(documents.length / 2);
-          subsets.push({ docs: documents.slice(0, mid) as Doc[], label: "cross-doc pass A (docs 1–" + mid + ")" });
-          subsets.push({ docs: documents.slice(mid) as Doc[], label: `cross-doc pass B (docs ${mid + 1}–${documents.length})` });
-        } else {
-          subsets.push({ docs: documents as Doc[], label: "cross-doc pass" });
-        }
-
-        // Bump total_batches if we split, so UI math (X/Y) stays correct.
-        if (subsets.length > 1) {
-          await updateRun({ total_batches: totalBatches + (subsets.length - 1) });
-        }
-        let anySubsetFailed = false;
-        for (let si = 0; si < subsets.length; si++) {
-          const sub = subsets[si];
-          await updateRun({
-            current_step: `Cross-document contradiction pass${subsets.length > 1 ? ` (${si + 1}/${subsets.length})` : ""}`,
-          });
-          await logEvent(runId, "cross_doc_started", sub.label, { index: si + 1, total: subsets.length });
-          try {
-            const { prompt, entityCount } = buildCrossPrompt(sub.docs);
-            console.log(`[generate-questions] ${sub.label} promptChars=${prompt.length} entities=${entityCount}`);
-
-            // Heartbeat between attempts so reaper doesn't kill a slow-but-alive run.
-            let parsed: Record<string, any> | null = null;
-            let lastErr: unknown = null;
-            for (let attempt = 1; attempt <= 2; attempt++) {
-              try {
-                parsed = (await callAiTool({
-                  functionName: "generate-questions",
-                  system: lensifiedCrossDoc,
-                  user: prompt,
-                  tool: SCHEMA,
-                  modelOverride: { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 },
-                })) as Record<string, any>;
-                lastErr = null;
-                break;
-              } catch (err) {
-                lastErr = err;
-                console.warn(`[generate-questions] ${sub.label} attempt ${attempt} failed`, err);
-                if (attempt < 2) {
-                  await updateRun({}); // heartbeat
-                  await new Promise((r) => setTimeout(r, 1000));
-                }
-              }
-            }
-            if (lastErr || !parsed) throw lastErr ?? new Error("cross-doc pass returned no result");
-            await updateRun({}); // heartbeat after AI call
-
-            const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
-            const rows = mapRows(questions, solicitationId, docByName);
-            console.log(`[generate-questions] ${sub.label} got ${rows.length} questions`);
-            if (rows.length > 0) {
-              const { error: insErr } = await supabase.from("strategic_questions").insert(rows);
-              if (insErr) {
-                console.error(`[generate-questions] ${sub.label} insert error`, insErr);
-                failed++;
-                anySubsetFailed = true;
-                await logEvent(runId, "cross_doc_failed",
-                  `${sub.label} insert failed: ${insErr.message ?? insErr}`,
-                  { index: si + 1, total: subsets.length });
-              } else {
-                totalInserted += rows.length;
-                completed++;
-                await logEvent(runId, "cross_doc_completed",
-                  `${sub.label} added ${rows.length} contradiction question(s)`,
-                  { index: si + 1, total: subsets.length, inserted: rows.length });
-              }
-            } else {
-              completed++;
-              await logEvent(runId, "cross_doc_completed",
-                `${sub.label} returned 0 contradictions`,
-                { index: si + 1, total: subsets.length, inserted: 0 });
-            }
-          } catch (err) {
-            console.error(`[generate-questions] ${sub.label} failed`, err);
-            failed++;
-            anySubsetFailed = true;
-            await logEvent(runId, "cross_doc_failed",
-              `${sub.label} failed: ${err instanceof Error ? err.message : String(err)}`,
-              { index: si + 1, total: subsets.length });
-          }
-        }
-        if (anySubsetFailed) crossDocFailed = true;
-      }
-
-      const finalStatus =
-        failed === 0 ? "completed" : completed > 0 ? "partial" : "failed";
-      if (failed > 0 && failedDocIds.length === 0 && !crossDocFailed) {
-        console.warn(
-          `[generate-questions] failure flags not recorded: runId=${runId} failed=${failed} — retry will fall back to full re-run`,
-        );
-      }
-      await updateRun({
-        completed_batches: completed,
-        failed_batches: failed,
-        inserted_count: totalInserted,
-        failed_doc_ids: failedDocIds,
-        cross_doc_failed: crossDocFailed,
-        status: finalStatus,
-        current_step: null,
-        completed_at: new Date().toISOString(),
-        error_message: failed > 0 ? `${failed} batch(es) failed` : null,
+    const planResult = await planRun(supabase, solicitationId, focusDocumentIds, focusAreas, logEvent);
+    if ("error" in planResult) {
+      return new Response(JSON.stringify(planResult), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-      await logEvent(runId, finalStatus,
-        `Run ${finalStatus} · inserted=${totalInserted} ok=${completed} failed=${failed}`,
-        { inserted: totalInserted, completed, failed });
+    }
 
-      // If retry succeeded fully, mark the parent run as completed and clear its failure markers.
-      if (isRetry && parentRunId && finalStatus === "completed") {
-        await supabase
-          .from("question_generation_runs")
-          .update({
-            status: "completed",
-            failed_doc_ids: [],
-            cross_doc_failed: false,
-            error_message: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", parentRunId);
-      }
-
-      console.log(
-        `[generate-questions] DONE sol=${solicitationId} status=${finalStatus} inserted=${totalInserted} ok=${completed} failed=${failed} retry=${isRetry}`,
-      );
-    })();
-
-    // @ts-ignore - EdgeRuntime is provided by Supabase edge runtime
-    if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(work);
-
-    return new Response(JSON.stringify({ status: "processing", runId, totalBatches }), {
-      status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const out = await processNextChunks(supabase, planResult.runId, logEvent);
+    return new Response(JSON.stringify(out), {
+      status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
     console.error("[generate-questions] error", e);
@@ -799,3 +334,596 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+type Supa = ReturnType<typeof createClient>;
+type LogFn = (
+  runId: string | null | undefined,
+  solicitationId: string,
+  eventType: string,
+  message: string | null,
+  metadata?: Record<string, unknown>,
+) => Promise<void>;
+
+async function planRun(
+  supabase: Supa,
+  solicitationId: string,
+  focusDocumentIds: string[] | undefined,
+  focusAreas: string[] | undefined,
+  logEvent: LogFn,
+): Promise<{ runId: string } | { error: string }> {
+  let docQuery = supabase
+    .from("documents")
+    .select("id, file_name")
+    .eq("solicitation_id", solicitationId)
+    .is("deleted_at", null)
+    .in("status", ["parsed", "analyzed"]);
+  if (focusDocumentIds?.length) docQuery = docQuery.in("id", focusDocumentIds);
+  const { data: documents } = await docQuery;
+  if (!documents || documents.length === 0) {
+    return { error: "No processed documents available." };
+  }
+  const docIds = documents.map((d) => d.id);
+
+  const { data: sections } = await supabase
+    .from("document_sections")
+    .select("document_id, section_number, section_title, content, page_start, sort_order")
+    .in("document_id", docIds)
+    .order("sort_order", { ascending: true });
+
+  const rawSectionsByDoc = new Map<string, Section[]>();
+  for (const d of documents) rawSectionsByDoc.set(d.id, []);
+  for (const s of (sections ?? []) as Section[]) rawSectionsByDoc.get(s.document_id)?.push(s);
+  const sectionsByDoc = new Map<string, Section[]>();
+  for (const [docId, secs] of rawSectionsByDoc) sectionsByDoc.set(docId, expandSections(secs));
+
+  type PlannedChunk = {
+    kind: "doc_batch" | "cross_doc";
+    label: string;
+    doc_ids: string[];
+    section_slice: { sort_orders?: number[] | null };
+  };
+  const planned: PlannedChunk[] = [];
+  const baseBatches = packBatches(documents as Doc[], sectionsByDoc);
+  for (const batch of baseBatches) {
+    if (batch.length === 1) {
+      const d = batch[0];
+      const ds = sectionsByDoc.get(d.id) ?? [];
+      const totalCost = ds.reduce(
+        (sum, s) => sum + Math.min((s.content ?? "").length, PER_SECTION_HEAD + PER_SECTION_TAIL + 40) + 100,
+        200,
+      );
+      if (totalCost > PER_BATCH_BUDGET) {
+        const slices = sliceOversizedDoc(ds);
+        slices.forEach((slice, idx) => {
+          planned.push({
+            kind: "doc_batch",
+            label: `${d.file_name} (part ${idx + 1}/${slices.length})`,
+            doc_ids: [d.id],
+            section_slice: {
+              sort_orders: slice.map((s) => s.sort_order ?? -1).filter((n) => n >= 0),
+            },
+          });
+        });
+        continue;
+      }
+    }
+    planned.push({
+      kind: "doc_batch",
+      label: batch.map((d) => d.file_name).join(", "),
+      doc_ids: batch.map((d) => d.id),
+      section_slice: {},
+    });
+  }
+  planned.push({
+    kind: "cross_doc",
+    label: "Cross-document contradiction pass",
+    doc_ids: docIds,
+    section_slice: {},
+  });
+
+  const { error: wipeErr } = await supabase
+    .from("strategic_questions")
+    .delete()
+    .eq("solicitation_id", solicitationId)
+    .eq("is_ai_generated", true);
+  if (wipeErr) console.error("[generate-questions] pre-run wipe error", wipeErr);
+
+  const { data: runRow, error: runErr } = await supabase
+    .from("question_generation_runs")
+    .insert({
+      solicitation_id: solicitationId,
+      status: "running",
+      total_batches: planned.length,
+      completed_batches: 0,
+      failed_batches: 0,
+      inserted_count: 0,
+      current_step: `Planned ${planned.length} chunk(s)`,
+    })
+    .select("id")
+    .single();
+  if (runErr || !runRow) return { error: runErr?.message ?? "Failed to create run" };
+  const runId = runRow.id as string;
+
+  const chunkRows = planned.map((p, i) => ({
+    run_id: runId,
+    solicitation_id: solicitationId,
+    chunk_index: i,
+    kind: p.kind,
+    label: p.label,
+    doc_ids: p.doc_ids,
+    section_slice: p.section_slice,
+    status: "pending",
+  }));
+  const { error: chunkErr } = await supabase.from("question_generation_run_chunks").insert(chunkRows);
+  if (chunkErr) {
+    await supabase.from("question_generation_runs").update({
+      status: "failed",
+      error_message: `Failed to plan chunks: ${chunkErr.message}`,
+      completed_at: new Date().toISOString(),
+    }).eq("id", runId);
+    return { error: chunkErr.message };
+  }
+
+  if (focusAreas?.length) {
+    await logEvent(runId, solicitationId, "started",
+      `Run started with focus areas: ${focusAreas.join(", ")}`,
+      { focus_areas: focusAreas, total_chunks: planned.length });
+  } else {
+    await logEvent(runId, solicitationId, "started",
+      `Run started (${planned.length} chunk(s))`,
+      { total_chunks: planned.length });
+  }
+
+  return { runId };
+}
+
+async function prepareRetry(
+  supabase: Supa,
+  retryRunId: string,
+  logEvent: LogFn,
+): Promise<{ runId: string; parentRunId: string } | { error: string }> {
+  const { data: prior } = await supabase
+    .from("question_generation_runs")
+    .select("id, solicitation_id, status")
+    .eq("id", retryRunId)
+    .maybeSingle();
+  if (!prior) return { error: "Prior run not found" };
+
+  await supabase
+    .from("question_generation_runs")
+    .update({
+      status: "running",
+      error_message: null,
+      current_step: "Resuming…",
+      completed_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", retryRunId);
+
+  const { data: chunks } = await supabase
+    .from("question_generation_run_chunks")
+    .select("id, status")
+    .eq("run_id", retryRunId);
+  const toReset = (chunks ?? []).filter((c) => c.status === "failed" || c.status === "running");
+  if (toReset.length === 0) {
+    return { error: "No failed chunks to retry on this run." };
+  }
+  await supabase
+    .from("question_generation_run_chunks")
+    .update({ status: "pending", error_message: null, started_at: null, completed_at: null })
+    .in("id", toReset.map((c) => c.id));
+
+  await logEvent(retryRunId, prior.solicitation_id as string, "retry_started",
+    `Retrying ${toReset.length} chunk(s)`,
+    { reset_count: toReset.length });
+
+  return { runId: retryRunId, parentRunId: retryRunId };
+}
+
+async function processNextChunks(
+  supabase: Supa,
+  runId: string,
+  logEvent: LogFn,
+): Promise<{
+  runId: string;
+  status: string;
+  done: boolean;
+  processed: number;
+  remaining: number;
+  totalChunks: number;
+  insertedThisCall: number;
+  insertedTotal: number;
+}> {
+  const { data: run } = await supabase
+    .from("question_generation_runs")
+    .select("id, solicitation_id, status, inserted_count")
+    .eq("id", runId)
+    .maybeSingle();
+  if (!run) throw new Error("Run not found");
+  const solicitationId = run.solicitation_id as string;
+
+  const { data: allChunks } = await supabase
+    .from("question_generation_run_chunks")
+    .select("id, chunk_index, kind, label, doc_ids, section_slice, status, attempts")
+    .eq("run_id", runId)
+    .order("chunk_index", { ascending: true });
+  const chunks = allChunks ?? [];
+  const totalChunks = chunks.length;
+
+  const pending = chunks.filter((c) => c.status === "pending");
+  if (pending.length === 0) {
+    await finalizeRunStatus(supabase, runId, logEvent);
+    const remainingDone = await loadRunSummary(supabase, runId);
+    return {
+      runId,
+      status: remainingDone.status,
+      done: true,
+      processed: 0,
+      remaining: 0,
+      totalChunks,
+      insertedThisCall: 0,
+      insertedTotal: remainingDone.insertedTotal,
+    };
+  }
+
+  const { data: sol } = await supabase
+    .from("solicitations")
+    .select("title, ai_summary, client_id, lens_overrides")
+    .eq("id", solicitationId)
+    .maybeSingle();
+  const lens = await buildClientLens(sol?.client_id ?? null, {
+    topic: "questions",
+    query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`,
+    override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null,
+  });
+  const lensifiedSystem = lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
+  const lensifiedCrossDoc = lens.promptBlock ? `${lens.promptBlock}\n\n${CROSS_DOC_SYSTEM_PROMPT}` : CROSS_DOC_SYSTEM_PROMPT;
+  const summaryText = sol?.ai_summary ? `\n\nEXISTING ANALYSIS SUMMARY:\n${sol.ai_summary}` : "";
+
+  const existingNorms = new Set<string>();
+  const { data: existingRows } = await supabase
+    .from("strategic_questions")
+    .select("question_text")
+    .eq("solicitation_id", solicitationId);
+  for (const r of existingRows ?? []) existingNorms.add(normalizeQuestionText(r.question_text as string));
+
+  const { data: allDocs } = await supabase
+    .from("documents")
+    .select("id, file_name")
+    .eq("solicitation_id", solicitationId)
+    .is("deleted_at", null);
+  const docByName = new Map<string, string>();
+  const docById = new Map<string, Doc>();
+  for (const d of allDocs ?? []) {
+    docByName.set(d.file_name, d.id);
+    docById.set(d.id, d as Doc);
+  }
+
+  let insertedThisCall = 0;
+  let processed = 0;
+
+  const slice = pending.slice(0, CHUNKS_PER_CALL);
+  for (const chunk of slice) {
+    await supabase
+      .from("question_generation_run_chunks")
+      .update({
+        status: "running",
+        attempts: (chunk.attempts ?? 0) + 1,
+        started_at: new Date().toISOString(),
+        error_message: null,
+      })
+      .eq("id", chunk.id);
+
+    await supabase
+      .from("question_generation_runs")
+      .update({
+        current_step: `Chunk ${chunk.chunk_index + 1}/${totalChunks}: ${chunk.label}`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", runId);
+    await logEvent(runId, solicitationId, "batch_started",
+      `Chunk ${chunk.chunk_index + 1}/${totalChunks}: ${chunk.label}`,
+      { index: chunk.chunk_index + 1, total: totalChunks, kind: chunk.kind });
+
+    try {
+      const inserted = await runChunk(supabase, {
+        chunk,
+        sol,
+        solicitationId,
+        docByName,
+        docById,
+        lensifiedSystem,
+        lensifiedCrossDoc,
+        summaryText,
+        existingNorms,
+      });
+      insertedThisCall += inserted;
+      await supabase
+        .from("question_generation_run_chunks")
+        .update({
+          status: "completed",
+          inserted_count: inserted,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", chunk.id);
+      await logEvent(runId, solicitationId, "batch_completed",
+        `Chunk ${chunk.chunk_index + 1}/${totalChunks} added ${inserted} question(s)`,
+        { index: chunk.chunk_index + 1, total: totalChunks, inserted });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[generate-questions] chunk ${chunk.chunk_index} failed`, err);
+      await supabase
+        .from("question_generation_run_chunks")
+        .update({
+          status: "failed",
+          error_message: msg,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", chunk.id);
+      await logEvent(runId, solicitationId, "batch_failed",
+        `Chunk ${chunk.chunk_index + 1}/${totalChunks} failed: ${msg}`,
+        { index: chunk.chunk_index + 1, total: totalChunks });
+    }
+    processed++;
+    await refreshRunAggregates(supabase, runId);
+  }
+
+  const { data: remainingChunks } = await supabase
+    .from("question_generation_run_chunks")
+    .select("id")
+    .eq("run_id", runId)
+    .eq("status", "pending");
+  const remaining = (remainingChunks ?? []).length;
+
+  if (remaining === 0) {
+    await finalizeRunStatus(supabase, runId, logEvent);
+  }
+
+  const summary = await loadRunSummary(supabase, runId);
+  return {
+    runId,
+    status: summary.status,
+    done: remaining === 0,
+    processed,
+    remaining,
+    totalChunks,
+    insertedThisCall,
+    insertedTotal: summary.insertedTotal,
+  };
+}
+
+async function loadRunSummary(supabase: Supa, runId: string) {
+  const { data } = await supabase
+    .from("question_generation_runs")
+    .select("status, inserted_count")
+    .eq("id", runId)
+    .maybeSingle();
+  return {
+    status: (data?.status as string) ?? "unknown",
+    insertedTotal: (data?.inserted_count as number) ?? 0,
+  };
+}
+
+async function refreshRunAggregates(supabase: Supa, runId: string) {
+  const { data: chunks } = await supabase
+    .from("question_generation_run_chunks")
+    .select("status, inserted_count")
+    .eq("run_id", runId);
+  const list = chunks ?? [];
+  const completed = list.filter((c) => c.status === "completed").length;
+  const failed = list.filter((c) => c.status === "failed").length;
+  const inserted = list.reduce((s, c) => s + ((c.inserted_count as number) ?? 0), 0);
+  await supabase
+    .from("question_generation_runs")
+    .update({
+      completed_batches: completed,
+      failed_batches: failed,
+      inserted_count: inserted,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", runId);
+}
+
+async function finalizeRunStatus(supabase: Supa, runId: string, logEvent: LogFn) {
+  const { data: chunks } = await supabase
+    .from("question_generation_run_chunks")
+    .select("status, kind, doc_ids, inserted_count")
+    .eq("run_id", runId);
+  const list = chunks ?? [];
+  if (list.some((c) => c.status === "pending" || c.status === "running")) return;
+
+  const completed = list.filter((c) => c.status === "completed").length;
+  const failed = list.filter((c) => c.status === "failed");
+  const inserted = list.reduce((s, c) => s + ((c.inserted_count as number) ?? 0), 0);
+  const failedDocIds = new Set<string>();
+  let crossDocFailed = false;
+  for (const f of failed) {
+    if (f.kind === "cross_doc") crossDocFailed = true;
+    for (const id of (f.doc_ids as string[]) ?? []) failedDocIds.add(id);
+  }
+  const status =
+    failed.length === 0 ? "completed" : completed > 0 ? "partial" : "failed";
+
+  const { data: run } = await supabase
+    .from("question_generation_runs")
+    .select("solicitation_id")
+    .eq("id", runId)
+    .maybeSingle();
+
+  await supabase
+    .from("question_generation_runs")
+    .update({
+      status,
+      completed_batches: completed,
+      failed_batches: failed.length,
+      inserted_count: inserted,
+      failed_doc_ids: Array.from(failedDocIds),
+      cross_doc_failed: crossDocFailed,
+      current_step: null,
+      completed_at: new Date().toISOString(),
+      error_message: failed.length > 0 ? `${failed.length} chunk(s) failed` : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", runId);
+
+  if (run) {
+    await logEvent(runId, run.solicitation_id as string, status,
+      `Run ${status} · inserted=${inserted} ok=${completed} failed=${failed.length}`,
+      { inserted, completed, failed: failed.length });
+  }
+}
+
+async function runChunk(
+  supabase: Supa,
+  ctx: {
+    chunk: any;
+    sol: any;
+    solicitationId: string;
+    docByName: Map<string, string>;
+    docById: Map<string, Doc>;
+    lensifiedSystem: string;
+    lensifiedCrossDoc: string;
+    summaryText: string;
+    existingNorms: Set<string>;
+  },
+): Promise<number> {
+  const { chunk, sol, solicitationId, docByName, docById, lensifiedSystem, lensifiedCrossDoc, summaryText, existingNorms } = ctx;
+  const docIds = (chunk.doc_ids as string[]) ?? [];
+  if (docIds.length === 0) return 0;
+
+  if (chunk.kind === "doc_batch") {
+    const docs = docIds.map((id) => docById.get(id)).filter(Boolean) as Doc[];
+    if (docs.length === 0) throw new Error("Chunk references missing documents");
+
+    const { data: rawSections } = await supabase
+      .from("document_sections")
+      .select("document_id, section_number, section_title, content, page_start, sort_order")
+      .in("document_id", docIds)
+      .order("sort_order", { ascending: true });
+    const rawByDoc = new Map<string, Section[]>();
+    for (const d of docs) rawByDoc.set(d.id, []);
+    for (const s of (rawSections ?? []) as Section[]) rawByDoc.get(s.document_id)?.push(s);
+    const expandedByDoc = new Map<string, Section[]>();
+    for (const [id, secs] of rawByDoc) expandedByDoc.set(id, expandSections(secs));
+
+    const sliceOrders: number[] | null =
+      chunk.section_slice && Array.isArray(chunk.section_slice.sort_orders)
+        ? chunk.section_slice.sort_orders as number[]
+        : null;
+    const unitSections = new Map<string, Section[]>();
+    for (const [id, secs] of expandedByDoc) {
+      if (sliceOrders) {
+        const orderSet = new Set(sliceOrders);
+        unitSections.set(id, secs.filter((s) => orderSet.has(s.sort_order ?? -1)));
+      } else {
+        unitSections.set(id, secs);
+      }
+    }
+
+    const perDocBudget = Math.floor(PER_BATCH_BUDGET / docs.length);
+    let docBlocks = "";
+    for (const d of docs) {
+      const ds = unitSections.get(d.id) ?? [];
+      const { text } = buildDocBlock(d, ds, perDocBudget);
+      docBlocks += text;
+    }
+    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in this batch: ${docs.map((d) => d.file_name).join(", ")}.\n${docBlocks}\n\nGenerate the FULL exhaustive list of strategic questions for THESE documents now.`;
+
+    const parsed = (await callAiTool({
+      functionName: "generate-questions",
+      system: lensifiedSystem,
+      user: userPrompt,
+      tool: SCHEMA,
+    })) as Record<string, any>;
+    const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
+    return await insertDeduped(supabase, solicitationId, questions, docByName, existingNorms);
+  }
+
+  const PER_DOC_ENTITY_CAP = 40;
+  const TOC_CAP = 25;
+  const SNIPPET_CAP = 60;
+  const HARD_PROMPT_CAP = 100_000;
+
+  const docs = docIds.map((id) => docById.get(id)).filter(Boolean) as Doc[];
+  const { data: rawSections } = await supabase
+    .from("document_sections")
+    .select("document_id, section_number, section_title, page_start")
+    .in("document_id", docIds)
+    .order("sort_order", { ascending: true });
+  const rawByDoc = new Map<string, any[]>();
+  for (const d of docs) rawByDoc.set(d.id, []);
+  for (const s of rawSections ?? []) rawByDoc.get(s.document_id as string)?.push(s);
+
+  const entitiesByDoc = new Map<string, Array<Record<string, unknown>>>();
+  for (const id of docIds) entitiesByDoc.set(id, []);
+  try {
+    const { data: entities } = await supabase
+      .from("extracted_entities")
+      .select("document_id, entity_type, entity_value, page_number, context_snippet")
+      .in("document_id", docIds)
+      .limit(2000);
+    for (const e of entities ?? []) {
+      const list = entitiesByDoc.get(e.document_id as string);
+      if (list && list.length < PER_DOC_ENTITY_CAP) list.push(e as Record<string, unknown>);
+    }
+  } catch (e) {
+    console.warn("[generate-questions] cross-doc entity fetch failed (continuing)", e);
+  }
+
+  let prompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}\n\nDocuments in package:\n`;
+  for (const d of docs) {
+    const ds = rawByDoc.get(d.id) ?? [];
+    const toc = ds
+      .map((s) => `  ${s.section_number ?? "?"}  ${s.section_title ?? ""} (p.${s.page_start ?? "?"})`)
+      .slice(0, TOC_CAP)
+      .join("\n");
+    prompt += `\n--- ${d.file_name} ---\n${toc}\n`;
+  }
+  let entityCount = 0;
+  let entitiesBlock = "";
+  for (const d of docs) {
+    const list = entitiesByDoc.get(d.id) ?? [];
+    for (const e of list) {
+      const snip = e.context_snippet ? ` — ${String(e.context_snippet).slice(0, SNIPPET_CAP)}` : "";
+      entitiesBlock += `[${d.file_name} p.${e.page_number ?? "?"}] ${e.entity_type}: ${e.entity_value}${snip}\n`;
+      entityCount++;
+    }
+  }
+  if (entityCount > 0) {
+    prompt += `\n\n--- KEY EXTRACTED FACTS ACROSS DOCUMENTS (${entityCount} facts) ---\n${entitiesBlock}`;
+  }
+  prompt += `\n\nFind every contradiction, inconsistency, or cross-document gap. Skip questions about a single document in isolation.`;
+  if (prompt.length > HARD_PROMPT_CAP) prompt = prompt.slice(0, HARD_PROMPT_CAP) + "\n…[truncated]…";
+
+  const parsed = (await callAiTool({
+    functionName: "generate-questions",
+    system: lensifiedCrossDoc,
+    user: prompt,
+    tool: SCHEMA,
+    modelOverride: { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 },
+  })) as Record<string, any>;
+  const questions = (parsed?.questions ?? []) as Array<Record<string, unknown>>;
+  return await insertDeduped(supabase, solicitationId, questions, docByName, existingNorms);
+}
+
+async function insertDeduped(
+  supabase: Supa,
+  solicitationId: string,
+  questions: Array<Record<string, unknown>>,
+  docByName: Map<string, string>,
+  existingNorms: Set<string>,
+): Promise<number> {
+  const candidates = mapRows(questions, solicitationId, docByName);
+  const fresh: typeof candidates = [];
+  for (const row of candidates) {
+    const norm = normalizeQuestionText(row.question_text);
+    if (!norm) continue;
+    if (existingNorms.has(norm)) continue;
+    existingNorms.add(norm);
+    fresh.push(row);
+  }
+  if (fresh.length === 0) return 0;
+  const { error } = await supabase.from("strategic_questions").insert(fresh);
+  if (error) throw new Error(`insert failed: ${error.message}`);
+  return fresh.length;
+}
