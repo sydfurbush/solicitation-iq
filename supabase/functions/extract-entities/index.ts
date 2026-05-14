@@ -193,6 +193,25 @@ Deno.serve(async (req) => {
       })
       .eq("id", documentId);
 
+    // Trigger overview reconciliation (fire and forget)
+    const { data: docRow } = await supabase
+      .from("documents")
+      .select("solicitation_id")
+      .eq("id", documentId)
+      .maybeSingle();
+    if (docRow?.solicitation_id) {
+      EdgeRuntime.waitUntil(
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/reconcile-solicitation-overview`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ solicitationId: docRow.solicitation_id }),
+        }).catch((e) => console.error("reconcile trigger failed:", e))
+      );
+    }
+
     return new Response(JSON.stringify({ ok: true, entities: entities.length }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

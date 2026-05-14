@@ -44,6 +44,7 @@ import {
 } from "@/lib/validators/solicitation";
 import { LensOverridePanel } from "./LensOverridePanel";
 import { SolicitationAssignmentsCard } from "@/features/team/components/AssignmentsCard";
+import { OverviewProposalsCard, AutofillChip } from "./OverviewProposalsCard";
 
 interface Props {
   solicitation: SolicitationRow;
@@ -52,12 +53,23 @@ interface Props {
   onGenerateQuestions?: () => void;
 }
 
-function DateRow({ label, value }: { label: string; value: string | null | undefined }) {
+function DateRow({
+  label,
+  value,
+  field,
+  autofill,
+}: {
+  label: string;
+  value: string | null | undefined;
+  field?: string;
+  autofill?: Record<string, unknown> | null;
+}) {
   return (
     <div className="flex justify-between text-sm py-1.5 border-b last:border-0">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">
+      <span className="font-medium flex items-center">
         {value ? format(new Date(value), "MMM d, yyyy") : "—"}
+        {field && <AutofillChip field={field} autofill={autofill} />}
       </span>
     </div>
   );
@@ -268,6 +280,9 @@ export function SolicitationOverview({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-3">
+        <OverviewProposalsCard solicitationId={s.id} />
+      </div>
       <div className="lg:col-span-1 space-y-6">
         {/* Assigned team */}
         <SolicitationAssignmentsCard solicitationId={s.id} />
@@ -330,12 +345,12 @@ export function SolicitationOverview({
               </>
             ) : (
               <>
-                <DateRow label="Released" value={s.release_date} />
-                <DateRow label="Questions due" value={s.questions_due_date} />
-                <DateRow label="Proposal due" value={s.proposal_due_date} />
-                <DateRow label="Expected award" value={s.expected_award_date} />
-                <DateRow label="PoP start" value={s.period_of_performance_start} />
-                <DateRow label="PoP end" value={s.period_of_performance_end} />
+                <DateRow label="Released" value={s.release_date} field="release_date" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="Questions due" value={s.questions_due_date} field="questions_due_date" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="Proposal due" value={s.proposal_due_date} field="proposal_due_date" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="Expected award" value={s.expected_award_date} field="expected_award_date" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="PoP start" value={s.period_of_performance_start} field="period_of_performance_start" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="PoP end" value={s.period_of_performance_end} field="period_of_performance_end" autofill={s.overview_autofill as Record<string, unknown> | null} />
               </>
             )}
           </CardContent>
@@ -459,21 +474,31 @@ export function SolicitationOverview({
               <>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Estimated value</span>
-                  <span className="font-medium">
+                  <span className="font-medium flex items-center">
                     {formatRange(s.estimated_value_low, s.estimated_value_high)}
+                    <AutofillChip field="estimated_value_low" autofill={s.overview_autofill as Record<string, unknown> | null} />
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Contract type</span>
-                  <span className="font-medium">{s.contract_type ?? "—"}</span>
+                  <span className="font-medium flex items-center">
+                    {s.contract_type ?? "—"}
+                    <AutofillChip field="contract_type" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Agency type</span>
-                  <span className="font-medium">{s.agency_type ?? "—"}</span>
+                  <span className="font-medium flex items-center">
+                    {s.agency_type ?? "—"}
+                    <AutofillChip field="agency_type" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Set-aside</span>
-                  <span className="font-medium">{setAside ?? "—"}</span>
+                  <span className="font-medium flex items-center">
+                    {setAside ?? "—"}
+                    <AutofillChip field="set_aside" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                  </span>
                 </div>
               </>
             )}

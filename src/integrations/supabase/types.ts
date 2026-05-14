@@ -2538,6 +2538,57 @@ export type Database = {
           },
         ]
       }
+      solicitation_field_proposals: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          current_value: Json | null
+          decided_at: string | null
+          decided_by: string | null
+          field_name: string
+          id: string
+          proposed_value: Json
+          solicitation_id: string
+          source_document_id: string | null
+          source_quote: string | null
+          source_section_id: string | null
+          status: Database["public"]["Enums"]["field_proposal_status"]
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          current_value?: Json | null
+          decided_at?: string | null
+          decided_by?: string | null
+          field_name: string
+          id?: string
+          proposed_value: Json
+          solicitation_id: string
+          source_document_id?: string | null
+          source_quote?: string | null
+          source_section_id?: string | null
+          status?: Database["public"]["Enums"]["field_proposal_status"]
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          current_value?: Json | null
+          decided_at?: string | null
+          decided_by?: string | null
+          field_name?: string
+          id?: string
+          proposed_value?: Json
+          solicitation_id?: string
+          source_document_id?: string | null
+          source_quote?: string | null
+          source_section_id?: string | null
+          status?: Database["public"]["Enums"]["field_proposal_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       solicitation_phases: {
         Row: {
           completed_at: string | null
@@ -2708,6 +2759,7 @@ export type Database = {
           key_requirements: Json | null
           lens_overrides: Json
           metadata: Json | null
+          overview_autofill: Json
           parent_solicitation_id: string | null
           period_of_performance_end: string | null
           period_of_performance_start: string | null
@@ -2748,6 +2800,7 @@ export type Database = {
           key_requirements?: Json | null
           lens_overrides?: Json
           metadata?: Json | null
+          overview_autofill?: Json
           parent_solicitation_id?: string | null
           period_of_performance_end?: string | null
           period_of_performance_start?: string | null
@@ -2788,6 +2841,7 @@ export type Database = {
           key_requirements?: Json | null
           lens_overrides?: Json
           metadata?: Json | null
+          overview_autofill?: Json
           parent_solicitation_id?: string | null
           period_of_performance_end?: string | null
           period_of_performance_start?: string | null
@@ -3240,6 +3294,7 @@ export type Database = {
         | "prior_solicitation"
         | "attachment"
         | "other"
+      field_proposal_status: "pending" | "accepted" | "rejected" | "superseded"
       gap_recommendation: "build" | "buy" | "team" | "no_bid" | "accept"
       gap_severity: "low" | "medium" | "high" | "critical"
       gap_type:
@@ -3472,6 +3527,7 @@ export const Constants = {
         "attachment",
         "other",
       ],
+      field_proposal_status: ["pending", "accepted", "rejected", "superseded"],
       gap_recommendation: ["build", "buy", "team", "no_bid", "accept"],
       gap_severity: ["low", "medium", "high", "critical"],
       gap_type: [
