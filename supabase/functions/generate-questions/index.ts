@@ -677,6 +677,7 @@ Deno.serve(async (req) => {
           await updateRun({
             current_step: `Cross-document contradiction pass${subsets.length > 1 ? ` (${si + 1}/${subsets.length})` : ""}`,
           });
+          await logEvent(runId, "cross_doc_started", sub.label, { index: si + 1, total: subsets.length });
           try {
             const { prompt, entityCount } = buildCrossPrompt(sub.docs);
             console.log(`[generate-questions] ${sub.label} promptChars=${prompt.length} entities=${entityCount}`);
@@ -716,17 +717,29 @@ Deno.serve(async (req) => {
                 console.error(`[generate-questions] ${sub.label} insert error`, insErr);
                 failed++;
                 anySubsetFailed = true;
+                await logEvent(runId, "cross_doc_failed",
+                  `${sub.label} insert failed: ${insErr.message ?? insErr}`,
+                  { index: si + 1, total: subsets.length });
               } else {
                 totalInserted += rows.length;
                 completed++;
+                await logEvent(runId, "cross_doc_completed",
+                  `${sub.label} added ${rows.length} contradiction question(s)`,
+                  { index: si + 1, total: subsets.length, inserted: rows.length });
               }
             } else {
               completed++;
+              await logEvent(runId, "cross_doc_completed",
+                `${sub.label} returned 0 contradictions`,
+                { index: si + 1, total: subsets.length, inserted: 0 });
             }
           } catch (err) {
             console.error(`[generate-questions] ${sub.label} failed`, err);
             failed++;
             anySubsetFailed = true;
+            await logEvent(runId, "cross_doc_failed",
+              `${sub.label} failed: ${err instanceof Error ? err.message : String(err)}`,
+              { index: si + 1, total: subsets.length });
           }
         }
         if (anySubsetFailed) crossDocFailed = true;
@@ -750,6 +763,9 @@ Deno.serve(async (req) => {
         completed_at: new Date().toISOString(),
         error_message: failed > 0 ? `${failed} batch(es) failed` : null,
       });
+      await logEvent(runId, finalStatus,
+        `Run ${finalStatus} · inserted=${totalInserted} ok=${completed} failed=${failed}`,
+        { inserted: totalInserted, completed, failed });
 
       // If retry succeeded fully, mark the parent run as completed and clear its failure markers.
       if (isRetry && parentRunId && finalStatus === "completed") {
