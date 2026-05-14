@@ -106,8 +106,18 @@ Deno.serve(async (req) => {
           .limit(40)
       : { data: [] };
 
-    const lmText = (lmSections ?? [])
-      .map((s) => `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 4000)}`)
+    // Tag each section with a stable [ref:N] id so the AI can cite back
+    const lmRefs = (lmSections ?? []).map((s, i) => ({
+      ref: i + 1,
+      document_id: (s as any).document_id ?? null,
+      section_number: s.section_number ?? null,
+      section_title: s.section_title ?? null,
+      page_start: s.page_start ?? null,
+      content: s.content,
+    }));
+    const docNameById = new Map((documents ?? []).map((d) => [d.id, d.file_name] as const));
+    const lmText = lmRefs
+      .map((s) => `[ref:${s.ref}] [${s.section_number ?? "?"} ${s.section_title ?? ""} | doc=${docNameById.get(s.document_id ?? "") ?? "?"} p.${s.page_start ?? "?"}]\n${(s.content ?? "").slice(0, 4000)}`)
       .join("\n\n");
 
     const reqText = (requirements ?? []).slice(0, 200).map((r) =>
