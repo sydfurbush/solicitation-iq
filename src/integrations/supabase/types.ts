@@ -396,64 +396,103 @@ export type Database = {
           acronym_glossary: Json
           agencies_focus: string[]
           always_flag: Json
+          bonding: Json
+          buyer_relationships: Json
           client_id: string
           compliance_frameworks: string[]
           contract_vehicles: string[]
           created_at: string
+          delivery_models: string[]
           discriminators: Json
+          diversity_tiers: Json
           extra_notes: string | null
           id: string
+          iso_rto: string | null
+          labor_posture: Json
           naics_codes: string[]
           preset_key: string | null
           psc_codes: string[]
           reading_level: number
+          regulatory_bodies: string[]
+          safety_metrics: Json
+          service_categories: string[]
+          service_territory: Json
           set_asides: string[]
+          storm_response: Json
+          tech_stack: Json
           tone_voice: string
           updated_at: string
           updated_by: string | null
           version: number
+          workforce_capacity: Json
         }
         Insert: {
           acronym_glossary?: Json
           agencies_focus?: string[]
           always_flag?: Json
+          bonding?: Json
+          buyer_relationships?: Json
           client_id: string
           compliance_frameworks?: string[]
           contract_vehicles?: string[]
           created_at?: string
+          delivery_models?: string[]
           discriminators?: Json
+          diversity_tiers?: Json
           extra_notes?: string | null
           id?: string
+          iso_rto?: string | null
+          labor_posture?: Json
           naics_codes?: string[]
           preset_key?: string | null
           psc_codes?: string[]
           reading_level?: number
+          regulatory_bodies?: string[]
+          safety_metrics?: Json
+          service_categories?: string[]
+          service_territory?: Json
           set_asides?: string[]
+          storm_response?: Json
+          tech_stack?: Json
           tone_voice?: string
           updated_at?: string
           updated_by?: string | null
           version?: number
+          workforce_capacity?: Json
         }
         Update: {
           acronym_glossary?: Json
           agencies_focus?: string[]
           always_flag?: Json
+          bonding?: Json
+          buyer_relationships?: Json
           client_id?: string
           compliance_frameworks?: string[]
           contract_vehicles?: string[]
           created_at?: string
+          delivery_models?: string[]
           discriminators?: Json
+          diversity_tiers?: Json
           extra_notes?: string | null
           id?: string
+          iso_rto?: string | null
+          labor_posture?: Json
           naics_codes?: string[]
           preset_key?: string | null
           psc_codes?: string[]
           reading_level?: number
+          regulatory_bodies?: string[]
+          safety_metrics?: Json
+          service_categories?: string[]
+          service_territory?: Json
           set_asides?: string[]
+          storm_response?: Json
+          tech_stack?: Json
           tone_voice?: string
           updated_at?: string
           updated_by?: string | null
           version?: number
+          workforce_capacity?: Json
         }
         Relationships: [
           {

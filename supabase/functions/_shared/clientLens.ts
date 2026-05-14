@@ -140,6 +140,99 @@ export async function buildClientLens(
     glossaryEntries.slice(0, 40).forEach(([k, v]) => lines.push(`  - ${k}: ${v}`));
   }
 
+  // ---- Utility-supplier context (only renders when fields are populated) ----
+  const m = merged as Record<string, unknown>;
+  const svcCats = asArray(m.service_categories);
+  const regBodies = asArray(m.regulatory_bodies);
+  const isoRto = (m.iso_rto as string | null) ?? null;
+  const deliveryModels = asArray(m.delivery_models);
+
+  const utilityActive =
+    svcCats.length > 0 ||
+    regBodies.length > 0 ||
+    !!isoRto ||
+    deliveryModels.length > 0 ||
+    (m.preset_key && String(m.preset_key).startsWith("utility_"));
+
+  if (utilityActive) {
+    lines.push("");
+    lines.push("**Utility-supplier context** — this client sells into the utility industry. Apply utility-specific norms (NERC CIP, NESC, PHMSA, AWWA, OSHA 1910.269, EEI mutual-aid) where relevant.");
+    if (svcCats.length) lines.push(`  - Service categories: ${svcCats.join(", ")}`);
+    if (regBodies.length) lines.push(`  - Regulatory bodies: ${regBodies.join(", ")}`);
+    if (isoRto) lines.push(`  - ISO/RTO: ${isoRto}`);
+    if (deliveryModels.length) lines.push(`  - Delivery models offered: ${deliveryModels.join(", ")}`);
+
+    const territory = (m.service_territory ?? {}) as Record<string, unknown>;
+    const tStates = asArray(territory.states);
+    const tDivs = asArray(territory.divisions);
+    if (tStates.length || tDivs.length) {
+      const parts: string[] = [];
+      if (tStates.length) parts.push(`states: ${tStates.join(", ")}`);
+      if (tDivs.length) parts.push(`divisions: ${tDivs.join(", ")}`);
+      lines.push(`  - Service territory — ${parts.join(" · ")}`);
+    }
+
+    const buyers = (m.buyer_relationships ?? {}) as Record<string, unknown>;
+    const bList = asArray(buyers.buyers);
+    const prequals = asArray(buyers.prequal_platforms);
+    if (bList.length) lines.push(`  - Known buyers / current MSAs: ${bList.join(", ")}`);
+    if (prequals.length) lines.push(`  - Prequalification platforms held: ${prequals.join(", ")}`);
+
+    const safety = (m.safety_metrics ?? {}) as Record<string, unknown>;
+    const safetyParts: string[] = [];
+    if (safety.trir != null) safetyParts.push(`TRIR ${safety.trir}`);
+    if (safety.dart != null) safetyParts.push(`DART ${safety.dart}`);
+    if (safety.emr != null) safetyParts.push(`EMR ${safety.emr}`);
+    if (safety.mutual_aid) safetyParts.push(`mutual-aid: ${String(safety.mutual_aid).slice(0, 200)}`);
+    if (safetyParts.length) lines.push(`  - Safety metrics: ${safetyParts.join(" · ")}`);
+
+    const wf = (m.workforce_capacity ?? {}) as Record<string, unknown>;
+    const wfEntries = Object.entries(wf).filter(([, v]) => v != null && v !== "");
+    if (wfEntries.length) {
+      lines.push(`  - Workforce & capacity: ${wfEntries.slice(0, 12).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    }
+
+    const div = (m.diversity_tiers ?? {}) as Record<string, unknown>;
+    const certs = asArray(div.certifications);
+    const tierIds = asArray(div.utility_tier_ids);
+    if (certs.length) lines.push(`  - Diversity certifications: ${certs.join(", ")}`);
+    if (tierIds.length) lines.push(`  - Utility supplier tier IDs: ${tierIds.join(", ")}`);
+
+    const bonding = (m.bonding ?? {}) as Record<string, unknown>;
+    const bondParts: string[] = [];
+    if (bonding.single) bondParts.push(`single ${bonding.single}`);
+    if (bonding.aggregate) bondParts.push(`aggregate ${bonding.aggregate}`);
+    const cov = asArray(bonding.coverages);
+    if (cov.length) bondParts.push(`coverages: ${cov.join(", ")}`);
+    if (bondParts.length) lines.push(`  - Bonding & insurance: ${bondParts.join(" · ")}`);
+
+    const labor = (m.labor_posture ?? {}) as Record<string, unknown>;
+    const unions = asArray(labor.unions);
+    if (unions.length || labor.prevailing_wage || labor.pla_experience) {
+      const lp: string[] = [];
+      if (unions.length) lp.push(`unions: ${unions.join(", ")}`);
+      if (labor.prevailing_wage) lp.push("prevailing-wage experience");
+      if (labor.pla_experience) lp.push("PLA experience");
+      lines.push(`  - Labor posture: ${lp.join(" · ")}`);
+    }
+
+    const storm = (m.storm_response ?? {}) as Record<string, unknown>;
+    const smag = asArray(storm.mutual_aid_groups);
+    if (smag.length || storm.sla || storm.staging) {
+      const sp: string[] = [];
+      if (smag.length) sp.push(`groups: ${smag.join(", ")}`);
+      if (storm.sla) sp.push(`SLA: ${storm.sla}`);
+      if (storm.staging) sp.push(`staging: ${storm.staging}`);
+      lines.push(`  - Storm/emergency response: ${sp.join(" · ")}`);
+    }
+
+    const tech = (m.tech_stack ?? {}) as Record<string, unknown>;
+    const techEntries = Object.entries(tech).filter(([, v]) => v);
+    if (techEntries.length) {
+      lines.push(`  - Tech stack: ${techEntries.slice(0, 10).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    }
+  }
+
   if (merged.tone_voice) {
     lines.push("");
     lines.push(`**Voice** — ${merged.tone_voice}; reading-level grade ${merged.reading_level ?? 12}.`);
