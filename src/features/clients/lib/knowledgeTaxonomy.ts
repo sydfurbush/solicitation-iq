@@ -1,0 +1,216 @@
+// Knowledge-library taxonomy. Suggested tags users can quick-pick when adding
+// notes/files. Federal-contracting tags first, then a comprehensive
+// utility-supplier vocabulary covering IT/OT, engineering, electric/gas/water
+// construction, civil, EPC/renewables, staffing, professional services, field
+// services, and equipment/materials.
+
+export interface TagGroup {
+  label: string;
+  tags: string[];
+}
+
+export const KNOWLEDGE_TAG_GROUPS: TagGroup[] = [
+  {
+    label: "Federal Contracting",
+    tags: [
+      "past-performance",
+      "win-themes",
+      "lessons-learned",
+      "capability-statement",
+      "pricing-strategy",
+      "teaming",
+      "section-L",
+      "section-M",
+      "FAR/DFARS",
+      "CMMC",
+      "FedRAMP",
+      "SBIR",
+      "GSA-MAS",
+      "GWAC",
+    ],
+  },
+  {
+    label: "Utility — Cross-cutting",
+    tags: [
+      "MSA-proposal",
+      "alliance-agreement",
+      "rate-case",
+      "PUC-order",
+      "IRP",
+      "RPS",
+      "ISO-RTO-notice",
+      "tariff",
+      "mutual-aid",
+      "storm-after-action",
+      "buy-america",
+      "BABA",
+      "prevailing-wage",
+      "PLA",
+      "diversity-tier",
+    ],
+  },
+  {
+    label: "IT / OT (Utility)",
+    tags: [
+      "NERC-CIP",
+      "OT-ICS",
+      "IEC-62443",
+      "TSA-pipeline-cyber",
+      "SCADA",
+      "ADMS",
+      "AMI",
+      "GIS",
+      "OMS",
+      "SBOM",
+      "ISO-27001",
+      "SOC2",
+    ],
+  },
+  {
+    label: "Engineering & Design",
+    tags: [
+      "PE-stamp",
+      "30-60-90",
+      "IFC-package",
+      "RUS-bulletin",
+      "IEEE",
+      "ANSI",
+      "ASCE-7",
+      "ACI-318",
+      "ASME-B31",
+      "AWWA",
+    ],
+  },
+  {
+    label: "Electric Construction",
+    tags: [
+      "OSHA-1910.269",
+      "NFPA-70E",
+      "NESC",
+      "EEI-587",
+      "OQ-electric",
+      "transmission-kV",
+      "distribution-kV",
+      "substation",
+      "line-clearance",
+      "storm-restoration",
+    ],
+  },
+  {
+    label: "Gas Construction & Integrity",
+    tags: [
+      "PHMSA-192",
+      "DIMP",
+      "TIMP",
+      "MAOP",
+      "HCA",
+      "OQ-gas",
+      "API-1104",
+      "ASME-IX",
+      "leak-survey",
+      "main-replacement",
+    ],
+  },
+  {
+    label: "Water / Wastewater",
+    tags: [
+      "AWWA-C600",
+      "AWWA-C651",
+      "AWWA-C810-LCRR",
+      "EPA-SDWA",
+      "PFAS",
+      "NSF-61",
+      "NSF-372",
+      "MGD",
+      "GPM",
+      "bypass-pumping",
+    ],
+  },
+  {
+    label: "Civil Construction",
+    tags: [
+      "USACE-404",
+      "CWA-401",
+      "NPDES",
+      "SWPPP",
+      "MUTCD",
+      "ROW-easement",
+      "erosion-control",
+      "self-perform",
+    ],
+  },
+  {
+    label: "Renewables / EPC / BESS",
+    tags: [
+      "EPC-milestones",
+      "NTP-MC-COD",
+      "FERC-LGIA",
+      "FERC-SGIA",
+      "interconnection-queue",
+      "IEEE-1547",
+      "UL-3741",
+      "NFPA-855",
+      "IRA-domestic-content",
+      "IRA-PWA",
+    ],
+  },
+  {
+    label: "Staffing & Workforce",
+    tags: [
+      "VMS-MSP",
+      "Fieldglass",
+      "Beeline",
+      "rate-card",
+      "tenure-limit",
+      "background-MVR",
+      "drug-screen",
+      "CDL",
+      "OQ-task",
+      "union-CBA",
+    ],
+  },
+  {
+    label: "Professional Services",
+    tags: [
+      "LCAT",
+      "key-personnel",
+      "clearance",
+      "CMMI",
+      "ISO-9001",
+      "PUC-docket-support",
+      "benchmarking",
+      "rate-case-testimony",
+    ],
+  },
+  {
+    label: "Field Services & O&M",
+    tags: [
+      "response-SLA",
+      "on-call-rotation",
+      "ISN",
+      "Avetta",
+      "Veriforce",
+      "Browz",
+      "prequal-grade",
+      "vehicle-fleet",
+    ],
+  },
+  {
+    label: "Equipment & Materials",
+    tags: [
+      "spec-compliance",
+      "FAT",
+      "SAT",
+      "domestic-content",
+      "stocking",
+      "consignment",
+      "VMI",
+      "warranty-RMA",
+      "lead-time",
+    ],
+  },
+];
+
+export const ALL_KNOWLEDGE_TAGS: string[] = Array.from(
+  new Set(KNOWLEDGE_TAG_GROUPS.flatMap((g) => g.tags)),
+);
