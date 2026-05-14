@@ -101,6 +101,23 @@ export function PresetsTab() {
         </div>
         <Button onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-2" />New preset</Button>
       </CardHeader>
+        <Button onClick={() => setCreating(true)} className="rounded-r-none"><Plus className="h-4 w-4 mr-2" />New preset</Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="rounded-l-none border-l border-primary-foreground/20 px-2" aria-label="More create options">
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => { setAiDraft(null); setCreating(true); }}>
+              <Plus className="h-4 w-4 mr-2" /> Blank preset
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setAiOpen(true)}>
+              <Sparkles className="h-4 w-4 mr-2" /> Generate with AI
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </CardHeader>
       <CardContent className="space-y-6">
         {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
@@ -124,7 +141,14 @@ export function PresetsTab() {
         </section>
       </CardContent>
 
-      {creating && <CreateDialog open onClose={() => setCreating(false)} />}
+      {aiOpen && (
+        <AIGenerateDialog
+          open
+          onClose={() => setAiOpen(false)}
+          onGenerated={(draft) => { setAiDraft(draft); setAiOpen(false); setCreating(true); }}
+        />
+      )}
+      {creating && <CreateDialog open onClose={() => { setCreating(false); setAiDraft(null); }} initialDraft={aiDraft} />}
       {editing && <EditDialog preset={editing} open onClose={() => setEditing(null)} />}
       {historyFor && <HistoryDialog preset={historyFor} open onClose={() => setHistoryFor(null)} />}
     </Card>
