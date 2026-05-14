@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { useDocuments } from "@/features/documents/hooks/useDocuments";
 import {
   useStrategicQuestions,
 } from "../hooks/useStrategicQuestions";
