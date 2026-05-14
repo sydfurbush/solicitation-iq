@@ -84,6 +84,8 @@ export function PresetsTab() {
   const [editing, setEditing] = useState<PresetRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [historyFor, setHistoryFor] = useState<PresetRow | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiDraft, setAiDraft] = useState<GeneratedPresetDraft | null>(null);
 
   const builtins = presets.filter((p) => p.is_builtin);
   const customs = presets.filter((p) => !p.is_builtin);
