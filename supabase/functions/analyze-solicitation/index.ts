@@ -263,12 +263,27 @@ Deno.serve(async (req) => {
     }
 
     // Persist
-    const incumbent = analysis.incumbent_info ?? {};
+    const toArr = (v: unknown): unknown[] => {
+      if (Array.isArray(v)) return v;
+      if (typeof v === "string") {
+        try {
+          const p = JSON.parse(v);
+          return Array.isArray(p) ? p : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    };
+    const incumbent = (analysis.incumbent_info ?? {}) as Record<string, unknown>;
+    if (incumbent && "indicators" in incumbent) {
+      incumbent.indicators = toArr(incumbent.indicators);
+    }
     const updatePayload: Record<string, unknown> = {
       ai_summary: finalSummary,
       ai_confidence_score: analysis.confidence_score ?? null,
-      key_requirements: analysis.key_requirements ?? [],
-      evaluation_factors: analysis.evaluation_factors ?? [],
+      key_requirements: toArr(analysis.key_requirements),
+      evaluation_factors: toArr(analysis.evaluation_factors),
       status: "phase_1_complete",
       metadata: {
         analysis: {
@@ -277,8 +292,8 @@ Deno.serve(async (req) => {
           document_ids: docIds,
           contract_structure: analysis.contract_structure ?? null,
           incumbent_info: incumbent,
-          risk_signals: analysis.risk_signals ?? [],
-          opportunity_signals: analysis.opportunity_signals ?? [],
+          risk_signals: toArr(analysis.risk_signals),
+          opportunity_signals: toArr(analysis.opportunity_signals),
           validation_warnings: validationWarnings,
         },
       },

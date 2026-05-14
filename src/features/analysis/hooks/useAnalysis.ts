@@ -53,11 +53,23 @@ export function useSolicitationInsights(solicitationId: string | undefined) {
       if (error) throw error;
       const meta = (data?.metadata as Record<string, unknown> | null) ?? null;
       const analysisMeta = (meta?.analysis as AnalysisMetadata | undefined) ?? null;
+      const toArr = <T,>(v: unknown): T[] => {
+        if (Array.isArray(v)) return v as T[];
+        if (typeof v === "string") {
+          try {
+            const p = JSON.parse(v);
+            return Array.isArray(p) ? (p as T[]) : [];
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      };
       return {
         ai_summary: data?.ai_summary ?? null,
         confidence_score: data?.ai_confidence_score != null ? Number(data.ai_confidence_score) : null,
-        key_requirements: (data?.key_requirements as unknown as AnalysisRequirement[] | null) ?? [],
-        evaluation_factors: (data?.evaluation_factors as unknown as AnalysisEvaluationFactor[] | null) ?? [],
+        key_requirements: toArr<AnalysisRequirement>(data?.key_requirements),
+        evaluation_factors: toArr<AnalysisEvaluationFactor>(data?.evaluation_factors),
         metadata: analysisMeta,
         status: data?.status ?? null,
         has_incumbent: data?.has_incumbent ?? null,

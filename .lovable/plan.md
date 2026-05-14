@@ -1,33 +1,27 @@
-## Goal
+## Problem
 
-Allow users to upload PDF, Word (.doc/.docx), and Excel (.xls/.xlsx) files — in addition to the current .txt/.md — into the Client Knowledge Library on the Clients → Knowledge tab.
+The Phase 1 analysis tab crashes with `a.map is not a function`. Looking at the database for the current solicitation (`1095001d-…`), `key_requirements` is stored as a JSON **string** instead of a JSON **array**. The frontend casts it to `AnalysisRequirement[]` and then calls `.map()`, which throws.
 
-## Changes
+Root cause: in `analyze-solicitation/index.ts`, the AI tool occasionally returns `key_requirements` (and sometimes `evaluation_factors` / `risk_signals` / `opportunity_signals`) as a stringified JSON array rather than a real array. We persist whatever the model returned without normalizing.
 
-### 1. Frontend — `src/features/clients/components/KnowledgeTab.tsx`
-- Expand the file input `accept` attribute to include `.pdf, .doc, .docx, .xls, .xlsx` along with their MIME types.
-- Update the button label from "Upload .txt/.md" to "Upload file".
-- Update the empty-state copy to reflect the new supported types ("Upload PDF, Word, Excel, .txt, or .md").
+## Fix
 
-### 2. Frontend hook — `src/features/clients/hooks/useClientKnowledge.ts` (`useUploadKnowledgeFile`)
-- Replace the `.txt`/`.md`-only guard with a list of allowed extensions: `.pdf, .doc, .docx, .xls, .xlsx, .txt, .md`.
-- Add a 25 MB size guard with a clear error message.
-- Keep the existing storage upload + insert + invoke flow unchanged.
+1. **`supabase/functions/analyze-solicitation/index.ts`** — add a small `toArray(v)` helper:
+   - If `v` is an array → return as-is.
+   - If `v` is a string → try `JSON.parse`; if the result is an array, use it; otherwise return `[]`.
+   - Otherwise → `[]`.
+   Apply it to `key_requirements`, `evaluation_factors`, `risk_signals`, `opportunity_signals`, and `incumbent_info.indicators` before persisting.
 
-### 3. Edge function — `supabase/functions/ingest-client-knowledge/index.ts`
-- Replace `readUploadedText` with a multi-format extractor that mirrors the proven approach already used in `supabase/functions/process-document/index.ts`:
-  - `pdf-parse` for `.pdf`
-  - `mammoth` for `.doc`/`.docx`
-  - `xlsx` (SheetJS) → CSV-per-sheet for `.xls`/`.xlsx`
-  - existing text path for `.txt`/`.md`
-- Return a clear error if extraction yields empty text (e.g., scanned PDF). The document row's `status` is already set to `failed` with the error message by the existing catch block, which the UI surfaces.
+2. **`src/features/analysis/hooks/useAnalysis.ts`** — defensive parsing in `useSolicitationInsights` so any pre-existing bad rows render instead of crashing: same `toArray` coercion for `key_requirements` and `evaluation_factors`.
 
-## Out of scope
-- OCR for scanned PDFs.
-- Changes to chunking, embeddings, or retrieval logic.
-- Changes to the "note" path or any other tab.
+3. **Repair the current row** via a one-shot migration: for any solicitation where `jsonb_typeof(key_requirements) = 'string'` or `jsonb_typeof(evaluation_factors) = 'string'`, parse the inner string and rewrite the column as a real JSON array (fallback to `[]` on parse failure).
 
 ## Verification
-- Upload a small PDF, .docx, and .xlsx on the Knowledge tab; confirm each transitions pending → embedding → ready with a non-zero chunk count.
-- Confirm an unsupported file (e.g., `.zip`) is rejected client-side.
-- Confirm a scanned/empty PDF surfaces a readable failure message on the row.
+
+- Re-open `/solicitations/1095001d-…?tab=phase-1&step=analysis` — page renders without the ErrorBoundary.
+- Re-run analysis — DB shows `jsonb_typeof(key_requirements) = 'array'`.
+- KeyRequirementsCard lists requirements; EvaluationFactorsCard renders.
+
+## Out of scope
+
+Changes to the AI prompt/schema or to other analysis cards. Only the persistence-layer normalization, the read-side guard, and the data repair.
