@@ -17,6 +17,7 @@ import { IntegrationsTab } from "@/features/settings/components/IntegrationsTab"
 import { HelpTab } from "@/features/settings/components/HelpTab";
 import { BrandTab } from "@/features/branding/components/BrandTab";
 import { PresetsTab } from "@/features/presets/components/PresetsTab";
+import { TeamTab } from "@/features/team/components/TeamTab";
 
 export default function Settings() {
   const { role } = useUser();
@@ -34,6 +35,7 @@ export default function Settings() {
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="organization">Organization</TabsTrigger>
+          {isAdmin && <TabsTrigger value="team">Team</TabsTrigger>}
           <TabsTrigger value="brand">Brand</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           {isAdmin && <TabsTrigger value="ai-models">AI Models</TabsTrigger>}
@@ -45,6 +47,7 @@ export default function Settings() {
 
         <TabsContent value="profile" className="mt-6"><ProfileTab /></TabsContent>
         <TabsContent value="organization" className="mt-6"><OrganizationTab /></TabsContent>
+        {isAdmin && <TabsContent value="team" className="mt-6"><TeamTab /></TabsContent>}
         <TabsContent value="brand" className="mt-6"><BrandTab /></TabsContent>
         <TabsContent value="notifications" className="mt-6"><NotificationsTab /></TabsContent>
         {isAdmin && <TabsContent value="ai-models" className="mt-6"><AIModelsTab /></TabsContent>}

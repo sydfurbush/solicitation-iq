@@ -28,6 +28,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Help = lazy(() => import("./pages/Help"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const AcceptInvite = lazy(() => import("./pages/AcceptInvite"));
 const PortalLogin = lazy(() => import("./pages/portal/PortalLogin"));
 const PortalAcceptInvite = lazy(() => import("./pages/portal/PortalAcceptInvite"));
 const PortalLayout = lazy(() => import("./features/portal/components/PortalLayout"));
@@ -95,6 +96,7 @@ const App = () => (
                   <Route path="/signup" element={<Signup />} />
                   <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
+                  <Route path="/accept-invite" element={<AcceptInvite />} />
                   <Route path="/portal/login" element={<PortalLogin />} />
                   <Route path="/portal/accept-invite" element={<PortalAcceptInvite />} />
                   <Route path="/portal" element={<PortalLayout />}>
