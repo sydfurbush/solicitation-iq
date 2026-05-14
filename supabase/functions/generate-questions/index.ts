@@ -276,6 +276,27 @@ Deno.serve(async (req) => {
     }
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Helper: emit a structured event for the run timeline (best-effort).
+    const logEvent = async (
+      runIdForEvent: string | null | undefined,
+      eventType: string,
+      message: string | null,
+      metadata: Record<string, unknown> = {},
+    ) => {
+      if (!runIdForEvent) return;
+      try {
+        await supabase.from("question_generation_run_events").insert({
+          run_id: runIdForEvent,
+          solicitation_id: solicitationId,
+          event_type: eventType,
+          message,
+          metadata,
+        });
+      } catch (e) {
+        console.warn("[generate-questions] logEvent failed (non-fatal)", e);
+      }
+    };
+
     // Reap any orphaned "running" rows for this solicitation (worker died mid-run, no terminal status was written).
     // Threshold: 8 minutes without an updated_at bump.
     try {
@@ -301,6 +322,9 @@ Deno.serve(async (req) => {
           })
           .eq("id", row.id)
           .eq("status", "running");
+        await logEvent(row.id, "reaped",
+          "Run marked as failed because the worker had not reported progress.",
+          { was_cross_doc: wasCrossDoc, last_step: row.current_step ?? null });
         console.warn(`[generate-questions] reaped stalled run=${row.id} (cross_doc=${wasCrossDoc})`);
       }
     } catch (e) {
