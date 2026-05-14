@@ -1,25 +1,42 @@
-## Problem
+# Fix: AI generation never runs when creating a preset
 
-In the **New service preset** dialog, the "Key" field is empty (the `my_preset_key` text is just a placeholder). When you press Create, Zod rejects it with **"String must contain at least 2 characters"** because `key` is required (`z.string().min(2)`).
+## Root cause
 
-The toast surfaces only the raw Zod message, so it isn't obvious which field is wrong.
+In `src/features/presets/components/PresetsTab.tsx`, the header button is a plain "New preset" button that only opens the blank `CreateDialog`:
+
+```tsx
+<Button onClick={() => setCreating(true)}>
+  <Plus /> New preset
+</Button>
+```
+
+The `AIGenerateDialog` is imported but never rendered, and `CreateDialog` is never given an `initialDraft`. So clicking **New preset** always opens the empty form — no AI call is ever made. That matches the screenshot: the new custom preset has only the label/description the user typed and no NAICS/agencies/etc.
+
+The earlier intended split-button (Blank vs. Generate with AI) was lost.
 
 ## Fix
 
-Two small, frontend-only changes in `src/features/presets/components/PresetsTab.tsx`:
+Edit only `src/features/presets/components/PresetsTab.tsx` — frontend wiring only, no schema/backend/edge-function changes.
 
-1. **Auto-derive the key from the label** in `CreateDialog`, the same way the AI-draft path already does via `slugify(label)`.
-   - As the user types a Label, if they haven't manually edited the Key, set Key = `slugify(label)`.
-   - Once the user edits the Key field directly, stop auto-syncing (track a `keyTouched` flag).
-   - This also fixes the AI flow when the AI returns a label that slugs to <2 chars or invalid chars.
+1. **Add state** for the AI dialog and the generated draft:
+   - `aiOpen: boolean`
+   - `aiDraft: GeneratedPresetDraft | null`
 
-2. **Friendlier validation messages** on the schema so any remaining failure tells you which field:
-   - `key`: "Key must be 2–64 characters (lowercase letters, digits, underscores)."
-   - `label`: "Label must be at least 2 characters."
-   - Pre-trim Label/Key before validating; if Key is still empty after auto-derive, surface "Add a label first" instead of the raw Zod message.
+2. **Replace the single header button with a split button** using the existing `DropdownMenu` (already imported):
+   - Primary action "New preset" (blank) → `setCreating(true)`
+   - Caret dropdown with two items:
+     - "Blank preset" → `setCreating(true)`
+     - "Generate with AI ✨" → `setAiOpen(true)`
 
-No schema, RLS, or backend changes. No behavior change for the AI-generated draft path beyond message clarity.
+3. **Render `<AIGenerateDialog>`** when `aiOpen`. On `onGenerated(draft)`:
+   - `setAiDraft(draft)`
+   - `setCreating(true)`
+   - close the AI dialog
 
-## Files touched
+4. **Pass `initialDraft={aiDraft}` to `<CreateDialog>`** and clear `aiDraft` in its `onClose`.
 
-- `src/features/presets/components/PresetsTab.tsx` — `CreateDialog` state wiring, `presetSchema` messages, `submit()` error mapping.
+## Verification
+
+- Click the caret → "Generate with AI" → fill category → confirm the edge function `generate-preset` is invoked (network tab) and the editor opens pre-filled with NAICS, agencies, vehicles, compliance, discriminators, keywords, plus the Info hint icons next to section labels.
+- Click "New preset" (primary) → opens empty form as before.
+- Save → custom preset appears with full content (not just label/description).

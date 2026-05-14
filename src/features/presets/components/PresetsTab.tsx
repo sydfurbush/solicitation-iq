@@ -84,6 +84,8 @@ export function PresetsTab() {
   const [editing, setEditing] = useState<PresetRow | null>(null);
   const [creating, setCreating] = useState(false);
   const [historyFor, setHistoryFor] = useState<PresetRow | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiDraft, setAiDraft] = useState<GeneratedPresetDraft | null>(null);
 
   const builtins = presets.filter((p) => p.is_builtin);
   const customs = presets.filter((p) => !p.is_builtin);
@@ -97,7 +99,24 @@ export function PresetsTab() {
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">Reusable AI Lens starters: NAICS, agencies, vehicles, compliance, and keywords.</p>
         </div>
-        <Button onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-2" />New preset</Button>
+        <div className="flex">
+          <Button onClick={() => setCreating(true)} className="rounded-r-none"><Plus className="h-4 w-4 mr-2" />New preset</Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="rounded-l-none border-l border-primary-foreground/20 px-2" aria-label="More create options">
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => { setAiDraft(null); setCreating(true); }}>
+              <Plus className="h-4 w-4 mr-2" /> Blank preset
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setAiOpen(true)}>
+              <Sparkles className="h-4 w-4 mr-2" /> Generate with AI
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
@@ -122,7 +141,14 @@ export function PresetsTab() {
         </section>
       </CardContent>
 
-      {creating && <CreateDialog open onClose={() => setCreating(false)} />}
+      {aiOpen && (
+        <AIGenerateDialog
+          open
+          onClose={() => setAiOpen(false)}
+          onGenerated={(draft) => { setAiDraft(draft); setAiOpen(false); setCreating(true); }}
+        />
+      )}
+      {creating && <CreateDialog open onClose={() => { setCreating(false); setAiDraft(null); }} initialDraft={aiDraft} />}
       {editing && <EditDialog preset={editing} open onClose={() => setEditing(null)} />}
       {historyFor && <HistoryDialog preset={historyFor} open onClose={() => setHistoryFor(null)} />}
     </Card>
