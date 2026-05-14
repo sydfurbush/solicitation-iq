@@ -324,7 +324,7 @@ function drawSectionHeading(ctx: Ctx, text: string) {
   doc.setFont(FONT_PDF, "bold");
   doc.setFontSize(13);
   setText(doc, RGB.navy);
-  doc.text(text.toUpperCase(), MARGIN.left, ctx.y);
+  doc.text(sanitizeForPdf(text).toUpperCase(), MARGIN.left, ctx.y);
   // amber underline
   setDraw(doc, RGB.amber);
   doc.setLineWidth(0.6);
