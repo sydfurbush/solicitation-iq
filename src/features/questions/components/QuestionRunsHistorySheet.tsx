@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Copy, Download, Loader2, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Download, Loader2, RotateCcw, ShieldAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ import {
   useQuestionGenerationRuns,
   type QuestionRun,
 } from "../hooks/useQuestionGenerationRuns";
+import { useReapStaleRuns } from "../hooks/useQuestionRunEvents";
+import { RunTimeline } from "./RunTimeline";
 import { downloadRunReport } from "../utils/runReport";
 
 interface Props {
