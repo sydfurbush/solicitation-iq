@@ -1494,6 +1494,50 @@ export type Database = {
           },
         ]
       }
+      org_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string | null
+          organization_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          organization_id: string
+          role?: Database["public"]["Enums"]["app_role"]
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string | null
+          organization_id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_invitations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string | null
@@ -2892,6 +2936,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_org_invitation: { Args: { p_token: string }; Returns: string }
+      attach_existing_user_to_org: {
+        Args: {
+          p_email: string
+          p_role?: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: string
+      }
       clone_solicitation_for_stage: {
         Args: {
           p_new_stage: Database["public"]["Enums"]["solicitation_stage"]
