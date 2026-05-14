@@ -376,10 +376,7 @@ function PresetFormBody(props: {
 
   // Helper: tag editor with hint as label
   const TagEditorH = ({ label, hint, values, onChange, placeholder }: { label: string; hint?: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string }) => (
-    <div className="space-y-2">
-      <HintLabel hint={hint}>{label}</HintLabel>
-      <TagEditorBare values={values} onChange={onChange} placeholder={placeholder} />
-    </div>
+    <TagEditor label={<HintLabel hint={hint}>{label}</HintLabel>} values={values} onChange={onChange} placeholder={placeholder} />
   );
 
   return (
