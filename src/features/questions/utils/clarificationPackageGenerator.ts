@@ -57,7 +57,8 @@ const CONTENT_W = PAGE.w - MARGIN.left - MARGIN.right;
 
 export function generateClarificationPdf(
   questions: QuestionRow[],
-  ctx: ClarificationContext
+  ctx: ClarificationContext,
+  docMap: Record<string, string> = {},
 ): Blob {
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const preparedAt = ctx.preparedAt ?? new Date();
