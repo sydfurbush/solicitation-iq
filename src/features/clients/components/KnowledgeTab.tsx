@@ -17,6 +17,7 @@ import {
   useDeleteKnowledge,
   type KnowledgeDoc,
 } from "../hooks/useClientKnowledge";
+import { KNOWLEDGE_TAG_GROUPS } from "../lib/knowledgeTaxonomy";
 
 function StatusPill({ doc }: { doc: KnowledgeDoc }) {
   if (doc.status === "ready")
