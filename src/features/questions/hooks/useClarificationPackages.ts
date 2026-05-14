@@ -43,7 +43,9 @@ export function useMarkClarificationReady(solicitationId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, draft, status }: { id: string; draft?: string; status: "drafting" | "ready" }) => {
-      const updates: Record<string, unknown> = { clarification_status: status };
+      const updates: Database["public"]["Tables"]["strategic_questions"]["Update"] = {
+        clarification_status: status,
+      };
       if (draft !== undefined) updates.clarification_draft = draft;
       const { error } = await supabase.from("strategic_questions").update(updates).eq("id", id);
       if (error) throw error;
