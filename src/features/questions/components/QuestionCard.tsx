@@ -99,11 +99,14 @@ export function QuestionCard({ question, documents = [], selected, onSelectChang
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            <SourceDocumentLink documentId={question.source_document_id} documents={documents} size="xs" />
+          <div className="flex flex-col gap-0.5">
             {question.source_citation && (
-              <span className="text-[11px] text-muted-foreground">· {question.source_citation}</span>
+              <span className="text-[11px] text-muted-foreground">
+                <span className="font-medium text-foreground/70">Section: </span>
+                {question.source_citation}
+              </span>
             )}
+            <SourceDocumentLink documentId={question.source_document_id} documents={documents} size="xs" />
           </div>
 
           {question.source_quote && (
