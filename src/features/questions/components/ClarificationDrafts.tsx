@@ -137,8 +137,8 @@ export function ClarificationDrafts({ solicitationId }: Props) {
         clientName: (solicitation as any).clients?.name ?? null,
         preparedAt: new Date(),
       };
-      const pdfBlob = generateClarificationPdf(clarifyQs, ctx);
-      const docxBlob = await generateClarificationDocx(clarifyQs, ctx);
+      const pdfBlob = generateClarificationPdf(clarifyQs, ctx, docMap);
+      const docxBlob = await generateClarificationDocx(clarifyQs, ctx, docMap);
 
       const stamp = Date.now();
       const base = `clarifications/${solicitationId}/${stamp}`;
