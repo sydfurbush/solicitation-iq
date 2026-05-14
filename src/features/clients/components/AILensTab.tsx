@@ -367,13 +367,21 @@ export function AILensTab({ clientId }: { clientId: string }) {
                   <SelectTrigger><SelectValue placeholder="Choose a starter preset" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None (custom)</SelectItem>
-                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Federal</div>
-                    {LENS_PRESETS.filter((p) => p.family !== "utility").map((p) => (
-                      <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+                    {dbPresets.some((p) => !p.is_builtin) && (
+                      <>
+                        <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Custom (your org)</div>
+                        {dbPresets.filter((p) => !p.is_builtin).map((p) => (
+                          <SelectItem key={p.id} value={p.key}>{p.label}</SelectItem>
+                        ))}
+                      </>
+                    )}
+                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t mt-1 pt-2">Federal</div>
+                    {dbPresets.filter((p) => p.is_builtin && p.family !== "utility").map((p) => (
+                      <SelectItem key={p.id} value={p.key}>{p.label}</SelectItem>
                     ))}
                     <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t mt-1 pt-2">Utility supplier</div>
-                    {LENS_PRESETS.filter((p) => p.family === "utility").map((p) => (
-                      <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+                    {dbPresets.filter((p) => p.is_builtin && p.family === "utility").map((p) => (
+                      <SelectItem key={p.id} value={p.key}>{p.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
