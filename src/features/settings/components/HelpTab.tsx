@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Bell } from "lucide-react";
+import { Bell, BookOpen } from "lucide-react";
 import { RevisionNotificationFlowArticle } from "../help/RevisionNotificationFlowArticle";
+import { KnowledgeLibraryArticle } from "../help/KnowledgeLibraryArticle";
 
 type Article = {
   id: string;
