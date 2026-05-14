@@ -76,6 +76,7 @@ export interface QuestionFilters {
   priorities?: PriorityLevel[];
   submitted?: "all" | "submitted" | "not_submitted";
   source?: "all" | "ai" | "manual";
+  sourceDocumentIds?: string[];
 }
 
 export function filterQuestions(qs: QuestionRow[], f: QuestionFilters): QuestionRow[] {
@@ -91,6 +92,10 @@ export function filterQuestions(qs: QuestionRow[], f: QuestionFilters): Question
     if (f.submitted === "not_submitted" && q.is_submitted) return false;
     if (f.source === "ai" && !q.is_ai_generated) return false;
     if (f.source === "manual" && q.is_ai_generated) return false;
+    if (f.sourceDocumentIds?.length) {
+      const id = q.source_document_id ?? "__none__";
+      if (!f.sourceDocumentIds.includes(id)) return false;
+    }
     return true;
   });
 }
