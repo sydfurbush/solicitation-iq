@@ -230,6 +230,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
       />
       <QuestionExport
         questions={allQuestions}
+        documents={documents}
         open={exportOpen}
         onOpenChange={setExportOpen}
       />
