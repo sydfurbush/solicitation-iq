@@ -12,7 +12,7 @@ export function TeamAccessArticle() {
         </p>
       </header>
 
-      <HelpCallout tone="warning" title="Strict access is now active">
+      <HelpCallout tone="warn" title="Strict access is now active">
         Assigned-only access is live across the platform. Solicitations, clients, documents,
         analyses, reports, risks, win themes, questions, outlines, the writing queue, and the
         activity log are visible only to the people assigned (Lead, Analyst, Contributor) — plus
