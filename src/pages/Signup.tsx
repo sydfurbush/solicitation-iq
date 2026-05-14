@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Sparkles } from "lucide-react";
@@ -26,6 +26,8 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const inviteToken = params.get("invite");
   const { signUp, signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
