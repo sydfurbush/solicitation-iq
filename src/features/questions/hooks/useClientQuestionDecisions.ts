@@ -14,7 +14,7 @@ export function useUpdateClientDecision(solicitationId?: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: DecisionInput) => {
-      const updates: Record<string, unknown> = {
+      const updates: Database["public"]["Tables"]["strategic_questions"]["Update"] = {
         client_decision: input.decision,
         client_decision_by: input.clientUserId,
         client_decided_at: new Date().toISOString(),
