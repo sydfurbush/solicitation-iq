@@ -72,6 +72,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
     if (!selectedNode) return;
     try {
       await aiDraft.mutateAsync(selectedNode.id);
+      setMode("preview");
       toast.success("AI draft generated");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI draft failed");
