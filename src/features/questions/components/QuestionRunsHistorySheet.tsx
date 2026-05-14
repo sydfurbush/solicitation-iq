@@ -361,6 +361,13 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                         {run.error_message}
                       </p>
                     )}
+
+                    {expandedId === run.id && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Timeline</p>
+                        <RunTimeline runId={run.id} />
+                      </div>
+                    )}
                   </div>
                 );
               })}
