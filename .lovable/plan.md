@@ -1,35 +1,64 @@
-## Issues observed
+## Goal
 
-**1. New preset overflows the page (horizontal scrollbar)**
-The custom preset row "Technical Advisory Support Services: Transition of Food" has a long label. In `PresetRowItem` the label uses `truncate` (which sets `white-space: nowrap`) inside a `flex flex-wrap` parent without a constrained width. The unbroken span pushes the row wider than the card, which in turn pushes the right-side action buttons (history / clone / edit / **delete**) past the viewport — that's why the user can't reach Delete and why the page scrolls horizontally.
+Let your team of 5 consultants share **one Emergence CG workspace** — same clients, solicitations, presets, reports — instead of each signup spinning up a brand-new organization.
 
-**2. Delete returned 403 once**
-Network log shows a `PATCH …deleted_at` returning `42501 row-level security` for that preset. A second update on a sibling row succeeded with the same JWT, and the user is `owner` of the org — so RLS is configured correctly. The 403 was likely a one-off (stale session/role just after creation). Once the layout is fixed and the Delete button is reachable, retrying should work; if it still fails we'll surface the error and inspect further.
+## Why it happens today
+
+When a new user signs up, the `handle_new_user` trigger reads the `organization_name` field from signup metadata and **always creates a brand-new organization** + makes that user its `owner`. There is no invite flow, so each teammate ends up isolated in their own org and can't see your data (RLS scopes everything by `organization_id`).
 
 ## Plan
 
-### A. Fix the overflow so the Delete button is reachable
+### 1. Database — invitations table + invite-aware signup
 
-In `src/features/presets/components/PresetsTab.tsx` `PresetRowItem`:
+Add `public.org_invitations`:
+- `id`, `organization_id`, `email` (citext, lowercased), `role` (`admin` / `analyst` / `viewer`), `token` (uuid, unique), `invited_by`, `expires_at`, `accepted_at`, `created_at`.
+- RLS:
+  - Owners/admins of the org can `SELECT`, `INSERT`, `DELETE` rows for their own org.
+  - The invited user (matched by email + token) can `SELECT` and `UPDATE` (to mark accepted) their own pending invite.
+- New SECURITY DEFINER function `accept_org_invitation(token uuid)` that:
+  1. Verifies invite is for `auth.email()`, not expired, not accepted.
+  2. Sets `public.users.organization_id` for the caller to the invite's org.
+  3. Inserts the matching row into `public.user_roles`.
+  4. Marks the invite accepted.
+- Update `handle_new_user`: if the new user's email has a pending unaccepted invite, attach them to that org + role instead of creating a new org. Only fall back to creating a fresh org when there's no invite **and** signup metadata included `organization_name`.
 
-- Give the left column a real width budget: `flex-1 min-w-0` (currently only `min-w-0`, so it doesn't actually shrink inside the parent flex).
-- Remove `flex-wrap` from the badges row and add `min-w-0` so the truncate on the label takes effect.
-- Keep the action column `shrink-0` and `gap-1`. No new buttons.
+### 2. Edge function — `send-org-invitation`
 
-Result: long labels truncate with ellipsis, the row stays inside the card, and all four action icons (incl. Delete) remain visible at the current viewport.
+- Auth-required. Caller must be `owner`/`admin` of their org.
+- Inserts an invite row (or rotates token if one exists for that email).
+- Sends an email with a sign-up link: `https://<app>/signup?invite=<token>` (or `/accept-invite?token=…` for already-signed-in users).
+- Uses Resend (already used elsewhere) — if RESEND_API_KEY isn't set we'll request it.
 
-### B. Make delete failures visible (defensive)
+### 3. Frontend
 
-`useDeletePreset` already toasts on error — verify and keep. No code change unless retry still 403s after fix B; in that case we'll log the failing payload and revisit RLS.
+**A. New tab: Settings → "Team"** (visible to owner/admin only)
+- List current org members: name, email, role, joined date, "remove" button.
+- List pending invitations: email, role, sent date, "resend" / "cancel".
+- "Invite member" form: email + role select → calls the edge function.
 
-### C. Sanity check after deploy
+**B. Accept-invite handling**
+- `Signup.tsx`: if URL has `?invite=<token>`, prefill the email (if encoded) and skip the "organization name" field; on successful signup the trigger auto-attaches the org.
+- New page `/accept-invite?token=…` for users who already have an account: calls the `accept_org_invitation` RPC and redirects to the dashboard.
 
-1. Reload Settings → Service Presets.
-2. Confirm the long-label row is fully inside the card with no horizontal scrollbar.
-3. Click the trash icon on "Technical Advisory Support Services: Transition of Food" → confirm dialog → Delete. Expect a 204 and the row to disappear.
+**C. Existing already-signed-up teammates**
+- Owner gets a one-time button on the Team page: "Move existing user into org" (enter email) — a SECURITY DEFINER RPC that, if the email belongs to an existing user with no organization (or only their own empty org), reassigns them to the inviting org. This avoids them having to delete/recreate accounts.
 
-## Files touched
+### 4. Cleanup
 
-- `src/features/presets/components/PresetsTab.tsx` (only the `PresetRowItem` JSX classes)
+- Audit query lists orphan single-user orgs created by the old behavior so you can decide which to keep.
 
-No DB / RLS / edge-function changes.
+## What you'll do after we ship
+
+1. Open Settings → Team.
+2. Click **Invite member**, enter each consultant's email, choose role (probably `analyst`).
+3. They'll get an email; new sign-ups land in your Emergence CG org automatically. Existing teammate accounts can be migrated with the one-time "Move existing user" action.
+
+## Files / surfaces touched
+
+- New migration: `org_invitations` table + RLS + `accept_org_invitation` + updated `handle_new_user` + admin-only `attach_existing_user_to_org` RPC.
+- New edge function: `supabase/functions/send-org-invitation/index.ts`.
+- New: `src/features/team/components/TeamTab.tsx`, `useOrgInvitations.ts`.
+- Modify: `src/pages/Settings.tsx` (add "Team" tab for owner/admin), `src/pages/Signup.tsx` (handle `invite` token), new `src/pages/AcceptInvite.tsx` + route in `App.tsx`.
+- May need: confirm/add `RESEND_API_KEY` secret.
+
+Approve and I'll build it. If you'd rather skip email sending in v1 and just generate copy-paste invite links, say so and I'll drop the edge function.
