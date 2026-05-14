@@ -47,6 +47,12 @@ export function ClarificationDrafts({ solicitationId }: Props) {
   const { user } = useAuth();
   const { data: allQuestions = [], isLoading } = useStrategicQuestions(solicitationId);
   const { data: packages = [] } = useClarificationPackages(solicitationId);
+  const { data: documents = [] } = useDocuments(solicitationId);
+  const docMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const d of documents as Array<{ id: string; file_name: string }>) m[d.id] = d.file_name;
+    return m;
+  }, [documents]);
 
   const { data: solicitation } = useQuery({
     queryKey: ["solicitation-meta-clarif", solicitationId],
