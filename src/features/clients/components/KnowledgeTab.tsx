@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
-import { BookOpen, FileText, NotebookPen, RefreshCw, Trash2, Upload, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { BookOpen, FileText, NotebookPen, RefreshCw, Trash2, Upload, AlertCircle, Loader2, CheckCircle2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import {
   useUploadKnowledgeFile,
   useReingestKnowledge,
   useDeleteKnowledge,
+  useUpdateKnowledgeNote,
+  useUpdateKnowledgeMeta,
   type KnowledgeDoc,
 } from "../hooks/useClientKnowledge";
 import { KNOWLEDGE_TAG_GROUPS } from "../lib/knowledgeTaxonomy";
@@ -33,27 +35,61 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
   const upload = useUploadKnowledgeFile(clientId);
   const reingest = useReingestKnowledge(clientId);
   const del = useDeleteKnowledge(clientId);
+  const updateNote = useUpdateKnowledgeNote(clientId);
+  const updateMeta = useUpdateKnowledgeMeta(clientId);
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<KnowledgeDoc | null>(null);
   const [form, setForm] = useState({ title: "", body: "", tags: "", source_url: "" });
 
+  const isEditing = !!editingDoc;
+  const isUploadEdit = isEditing && editingDoc?.source_type === "upload";
+
+  useEffect(() => {
+    if (editingDoc) {
+      setForm({
+        title: editingDoc.title ?? "",
+        body: editingDoc.raw_text ?? "",
+        tags: (editingDoc.tags ?? []).join(", "),
+        source_url: editingDoc.source_url ?? "",
+      });
+      setOpen(true);
+    }
+  }, [editingDoc]);
+
+  const resetAndClose = () => {
+    setOpen(false);
+    setEditingDoc(null);
+    setForm({ title: "", body: "", tags: "", source_url: "" });
+  };
+
   const submitNote = async () => {
-    if (!form.title.trim() || !form.body.trim()) {
-      toast({ title: "Title and body are required", variant: "destructive" });
+    if (!form.title.trim()) {
+      toast({ title: "Title is required", variant: "destructive" });
       return;
     }
+    if (!isUploadEdit && !form.body.trim()) {
+      toast({ title: "Content is required", variant: "destructive" });
+      return;
+    }
+    const tags = form.tags.split(",").map((t) => t.trim()).filter(Boolean);
+    const source_url = form.source_url.trim() || undefined;
     try {
-      await createNote.mutateAsync({
-        title: form.title.trim(),
-        body: form.body,
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
-        source_url: form.source_url.trim() || undefined,
-      });
-      toast({ title: "Note added", description: "Embedding in the background." });
-      setOpen(false);
-      setForm({ title: "", body: "", tags: "", source_url: "" });
+      if (isEditing && editingDoc) {
+        if (isUploadEdit) {
+          await updateMeta.mutateAsync({ id: editingDoc.id, title: form.title.trim(), tags, source_url });
+          toast({ title: "Updated", description: "Title and tags saved." });
+        } else {
+          await updateNote.mutateAsync({ id: editingDoc.id, title: form.title.trim(), body: form.body, tags, source_url });
+          toast({ title: "Note updated", description: "Re-embedding in the background." });
+        }
+      } else {
+        await createNote.mutateAsync({ title: form.title.trim(), body: form.body, tags, source_url });
+        toast({ title: "Note added", description: "Embedding in the background." });
+      }
+      resetAndClose();
     } catch (e) {
-      toast({ title: "Failed to add note", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      toast({ title: "Save failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -121,6 +157,9 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => setEditingDoc(d)} title="Edit">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="sm" variant="ghost" disabled={reingest.isPending} onClick={() => reingest.mutate(d.id)} title="Re-embed">
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
@@ -135,20 +174,24 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) resetAndClose(); else setOpen(true); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add knowledge note</DialogTitle>
+            <DialogTitle>{isEditing ? (isUploadEdit ? "Edit upload" : "Edit knowledge note") : "Add knowledge note"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label htmlFor="kn-title">Title</Label>
               <Input id="kn-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. 2023 VA T4NG win — past performance language" />
             </div>
-            <div>
-              <Label htmlFor="kn-body">Content</Label>
-              <Textarea id="kn-body" rows={12} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Paste lessons learned, prior proposal sections, themes, etc." />
-            </div>
+            {isUploadEdit ? (
+              <p className="text-xs text-muted-foreground italic">Content comes from the uploaded file and can't be edited here. Re-upload the file to replace its content.</p>
+            ) : (
+              <div>
+                <Label htmlFor="kn-body">Content</Label>
+                <Textarea id="kn-body" rows={12} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Paste lessons learned, prior proposal sections, themes, etc." />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="kn-tags">Tags (comma separated)</Label>
@@ -188,10 +231,10 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={createNote.isPending}>Cancel</Button>
-            <Button onClick={submitNote} disabled={createNote.isPending}>
-              {createNote.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
-              Save & embed
+            <Button variant="outline" onClick={resetAndClose} disabled={createNote.isPending || updateNote.isPending || updateMeta.isPending}>Cancel</Button>
+            <Button onClick={submitNote} disabled={createNote.isPending || updateNote.isPending || updateMeta.isPending}>
+              {(createNote.isPending || updateNote.isPending || updateMeta.isPending) ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+              {isEditing ? (isUploadEdit ? "Save changes" : "Save & re-embed") : "Save & embed"}
             </Button>
           </DialogFooter>
         </DialogContent>
