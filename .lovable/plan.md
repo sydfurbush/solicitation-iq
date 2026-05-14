@@ -1,62 +1,58 @@
-## Goal
+## Problem
 
-Let you click any outline node and see exactly which source document and section the AI used to build it, so you can verify the information.
+When the user clicks "AI Draft" on a node like **1.0 Volume I – General Volume**, the AI returns a long blob that:
+- Repeats/owns headings that belong to OTHER outline nodes (e.g. it writes its own "1.1 Corporate Overview and Relevant Experience" even though the actual outline node 1.1 is "SF 1449 Solicitation/Contract/Order Form").
+- Drafts content that should live in sibling/child nodes, so when the user later drafts those nodes the proposal will have duplicated and conflicting sections.
+- Doesn't respect node depth: a Volume-level node (depth 0) gets a full multi-section narrative instead of just a short volume introduction.
 
-## Current behavior
+Root cause: `supabase/functions/draft-section/index.ts` sends the AI only the single node's title + linked requirements + themes. It never tells the AI what the surrounding outline looks like or what content boundary this node owns. So the model invents its own subsection structure.
 
-The `generate-outline` edge function pulls from three sources for each solicitation:
+## Fix (scoped to drafting only)
 
-1. **Section L/M excerpts** — from `document_sections` where `section_number` starts with `L` or `M`, or the title contains "instructions"/"evaluation". Up to 40 sections, 4000 chars each.
-2. **Section analyses** — from `section_analyses` (summaries built earlier in Deep Dive).
-3. **Requirements** — from `requirement_items` (the RTM, up to 200 shall-statements).
+Update `supabase/functions/draft-section/index.ts` to make each draft strictly own only its node's slice of the proposal.
 
-Each generated node already stores:
-- `source_l_reference` (e.g. "L.5.2(a)") — shown today as "→ Volume I Instructions"
-- `linked_requirement_ids` — shown as the "N reqs" badge
+1. **Load the full outline context for the node**:
+   - Fetch all sibling nodes (same `parent_id`, same `outline_id`) and all direct child nodes (`parent_id = node.id`) — section_number + title + volume only.
+   - Fetch the parent node (if any) for context.
 
-But there is **no stored link back to the actual document or `document_sections` row**, and no UI to inspect what the AI saw. So today you cannot click "Volume I Instructions" and see the underlying RFP page.
+2. **Pass an "outline boundary" block to the AI** in the user prompt:
+   ```
+   THIS NODE: 1.0 Volume I – General Volume   (depth: volume)
+   PARENT: (none)
+   SIBLINGS (do NOT write their content):
+     - 2.0 Volume II – Technical Proposal
+     - 3.0 Volume III – Price
+   CHILDREN (each will be drafted separately — do NOT write their content):
+     - 1.1 SF 1449 Solicitation/Contract/Order Form
+     - 1.2 Amendments Acknowledgment
+     - 1.3 Representations and Certifications
+   ```
 
-## Plan
+3. **Tighten the system prompt** with explicit boundary rules:
+   - "Draft ONLY the body content for THIS node. Do not output the node's own title as a heading — the app renders that."
+   - "Do NOT write any heading or content that belongs to a sibling or child node listed in the prompt. If a child node exists, stop where that child would begin."
+   - Depth-aware guidance:
+     - Volume-level node (no parent, has children) → write a short 1–3 paragraph volume introduction only. No subsections.
+     - Section-level node with children → write a brief section intro only.
+     - Leaf node (no children) → write the full body content for that section.
+   - "Use H3/H4 only for sub-points inside this node's own body. Never reuse the node's section number in a heading."
 
-### 1. Capture source provenance during generation
+4. **No schema or DB changes.** No frontend changes. No changes to outline generation, requirements, themes, or polish.
 
-Edit `supabase/functions/generate-outline/index.ts`:
+## Files to touch
 
-- Pass the L/M section list to the AI with stable IDs (e.g. `[ref:12]`) and ask the model to return a `source_section_ids` array per node alongside `source_l_reference`.
-- Persist a new `source_document_sections` JSONB column on `outline_nodes` containing `[{ document_id, document_name, section_number, section_title, page_start }]` resolved from those IDs.
-- Keep `linked_requirement_ids` as-is.
-
-This requires a small migration adding the JSONB column (nullable, default `[]`).
-
-### 2. Show provenance in the outline UI
-
-Edit `src/pages/SolicitationOutline.tsx`:
-
-- Add an "info" / chevron control on each row that opens a popover or expandable panel listing:
-  - **Source document** name (linked to the document viewer at the cited page)
-  - **Section** number + title
-  - **Page**
-  - **Linked requirements** (req_number + first 120 chars of shall_text, linked to RTM)
-- Reuse the existing `DocumentViewer` deep-link pattern (route to `/solicitations/:id/documents?doc=…&page=…&search=…`) so clicking jumps straight to the highlighted passage in the source PDF.
-
-### 3. Backfill for the existing outline (one-time)
-
-Since your current outline (v1, 73 nodes) was generated before provenance tracking, add a "Re-link sources" button next to Regenerate that:
-- Re-runs only the source-mapping pass (no AI re-generation, no version bump) — matches each node's `source_l_reference` string against `document_sections.section_number` for that solicitation and fills `source_document_sections`.
-- Avoids losing your current outline edits.
-
-If you'd rather just regenerate, you can skip this and use the existing Regenerate button after the change ships.
-
-## Files touched
-
-- `supabase/functions/generate-outline/index.ts` — schema + persistence
-- New migration — add `outline_nodes.source_document_sections jsonb default '[]'`
-- New edge function `relink-outline-sources` (small, optional, for backfill)
-- `src/features/outline/hooks/useProposalOutline.ts` — expose new field + relink mutation
-- `src/pages/SolicitationOutline.tsx` — per-row "Sources" disclosure + deep links
+- `supabase/functions/draft-section/index.ts` — load siblings/children/parent, build outline-boundary block, update SYSTEM_PROMPT.
 
 ## Out of scope
 
-- Changing the outline structure or AI prompt logic
-- Editing how requirements or section analyses are produced
-- Any change to drafting / Phase 4 / Phase 5
+- Outline structure or generation
+- Polish actions (tighten/expand/etc.)
+- Phase 5 compile
+- Any UI changes to the drafting workspace
+
+## How to verify
+
+1. Open Phase 5 on the same solicitation.
+2. Click "AI Draft" on **1.0 Volume I – General Volume** → should return a short 1–3 paragraph volume introduction only, no "1.1 …" heading inside it.
+3. Click "AI Draft" on **1.1 SF 1449 Solicitation/Contract/Order Form** → should return content scoped to that form, not "Corporate Overview".
+4. Click "AI Draft" on a leaf like **2.4.1 Client Reception and Intake** → full body content, no headings for siblings.
