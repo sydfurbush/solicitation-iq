@@ -112,6 +112,35 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
                         {n.linked_requirement_ids?.length ? (
                           <Badge variant="outline" className="text-[10px]">{n.linked_requirement_ids.length} reqs</Badge>
                         ) : null}
+                        {(() => {
+                          const sources = ((n as any).source_document_sections ?? []) as SourceSection[];
+                          if (!sources.length) return null;
+                          return (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border border-border hover:bg-accent transition-colors">
+                                  <FileSearch className="h-3 w-3" />
+                                  {sources.length} source{sources.length > 1 ? "s" : ""}
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="w-96">
+                                <p className="text-xs font-semibold mb-2">Where this came from</p>
+                                <ul className="space-y-2">
+                                  {sources.map((s, i) => (
+                                    <li key={i} className="text-xs border-b last:border-0 pb-2 last:pb-0">
+                                      <div className="font-medium">{s.section_number ? `${s.section_number} ` : ""}{s.section_title ?? "Untitled section"}</div>
+                                      <div className="text-muted-foreground mt-0.5">
+                                        {s.document_name ?? "Unknown document"}
+                                        {s.page_start != null ? ` · p. ${s.page_start}` : ""}
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                                <p className="text-[10px] text-muted-foreground mt-3">Open the Documents tab to read the full passages.</p>
+                              </PopoverContent>
+                            </Popover>
+                          );
+                        })()}
                       </div>
                       {n.source_l_reference && <p className="text-xs text-muted-foreground">→ {n.source_l_reference}</p>}
                       {n.notes && <p className="text-xs text-muted-foreground mt-1">{n.notes}</p>}
