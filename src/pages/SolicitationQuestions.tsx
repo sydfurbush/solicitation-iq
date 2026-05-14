@@ -181,7 +181,9 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
         </Card>
       ) : (
         <>
-          {view !== "submitted" && <QuestionsFilters filters={filters} onChange={setFilters} counts={filterCounts} />}
+          {view !== "submitted" && (
+            <QuestionsFilters filters={filters} onChange={setFilters} counts={filterCounts} documents={documents} />
+          )}
 
           {isLoading ? (
             <div className="space-y-3">
@@ -190,6 +192,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
           ) : view === "list" ? (
             <QuestionsList
               questions={filtered}
+              documents={documents}
               onSelect={setSelected}
               onUpdate={handleUpdate}
               onBulkUpdate={handleBulkUpdate}
