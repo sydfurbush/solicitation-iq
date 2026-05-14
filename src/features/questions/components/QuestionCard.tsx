@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { CitationLink } from "@/features/analysis/components/CitationLink";
+import { SourceDocumentLink } from "./SourceDocumentLink";
 import {
   CATEGORIES,
   CATEGORY_LABEL,
