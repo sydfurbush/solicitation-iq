@@ -287,6 +287,23 @@ export default function Dashboard() {
         </Button>
       </div>
 
+      {/* Scope tabs */}
+      <Tabs
+        value={scope}
+        onValueChange={(v) => {
+          const next = new URLSearchParams(searchParams);
+          if (v === "mine") next.delete("scope");
+          else next.set("scope", v);
+          setSearchParams(next, { replace: true });
+        }}
+      >
+        <TabsList>
+          <TabsTrigger value="mine">My work</TabsTrigger>
+          <TabsTrigger value="watching">Watching</TabsTrigger>
+          {isAdmin && <TabsTrigger value="all">All (admin)</TabsTrigger>}
+        </TabsList>
+      </Tabs>
+
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">Filter:</span>
