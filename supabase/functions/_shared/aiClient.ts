@@ -24,6 +24,7 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "generate-win-themes": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 6000 },
   "draft-section": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8000 },
   "polish-section": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 6000 },
+  "generate-preset": { provider: "lovable", model: "openai/gpt-5", maxTokens: 8000 },
 };
 
 export interface OpenAIToolSchema {
