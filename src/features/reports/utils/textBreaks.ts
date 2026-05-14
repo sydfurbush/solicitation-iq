@@ -13,7 +13,7 @@ export function softBreakWord(input: string | null | undefined, threshold = 12):
 }
 
 /** Insert real spaces after break chars in long tokens, so jsPDF splitTextToSize can wrap. */
-export function hardBreakWord(input: string | null | undefined, threshold = 16): string {
+export function hardBreakWord(input: string | null | undefined, threshold = 12): string {
   if (!input) return "";
   return input
     .split(/(\s+)/)
