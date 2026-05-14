@@ -77,7 +77,11 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
     }) => {
       if (!solicitationId) throw new Error("Missing solicitationId");
 
-      const { data, error } = await supabase.functions.invoke("generate-questions", {
+      // First call: either start a new run or kick off a retry. The edge function
+      // processes a small slice of chunks and returns; we loop "continue" calls
+      // until the run is done. This avoids one giant background task that can be
+      // killed mid-run.
+      const initial = await supabase.functions.invoke("generate-questions", {
         body: {
           solicitationId,
           focusAreas: input.focusAreas,
@@ -85,14 +89,12 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
           retryRunId: input.retryRunId,
         },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      const runId: string | undefined = data?.runId;
+      if (initial.error) throw initial.error;
+      if (initial.data?.error) throw new Error(initial.data.error);
+      const runId: string | undefined = initial.data?.runId;
       if (!runId) throw new Error("Generation did not return a run id");
 
-      const deadline = Date.now() + 10 * 60 * 1000;
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 1500));
+      const reportProgress = async () => {
         const { data: run } = await supabase
           .from("question_generation_runs")
           .select("status, total_batches, completed_batches, failed_batches, inserted_count, current_step, error_message")
@@ -109,17 +111,34 @@ export function useGenerateQuestions(solicitationId: string | undefined) {
             step: run.current_step ?? null,
           });
           invalidateQuestionCounts(qc, solicitationId);
-          if (run.status === "completed" || run.status === "partial" || run.status === "failed") {
-            return {
-              status: run.status as "completed" | "partial" | "failed",
-              count: run.inserted_count ?? 0,
-              failedBatches: run.failed_batches ?? 0,
-              error: run.error_message,
-            };
-          }
         }
+        return run;
+      };
+
+      let last = initial.data as { done?: boolean; remaining?: number } | undefined;
+      await reportProgress();
+
+      const deadline = Date.now() + 20 * 60 * 1000; // hard ceiling
+      while (last && !last.done && Date.now() < deadline) {
+        // brief gap so the UI gets a chance to render and to avoid hammering
+        await new Promise((r) => setTimeout(r, 500));
+        const next = await supabase.functions.invoke("generate-questions", {
+          body: { runId, continue: true },
+        });
+        if (next.error) throw next.error;
+        if (next.data?.error) throw new Error(next.data.error);
+        last = next.data;
+        await reportProgress();
       }
-      throw new Error("Generation timed out. Check back shortly — questions may still appear.");
+
+      const finalRun = await reportProgress();
+      const status = (finalRun?.status as "completed" | "partial" | "failed") ?? "failed";
+      return {
+        status,
+        count: finalRun?.inserted_count ?? 0,
+        failedBatches: finalRun?.failed_batches ?? 0,
+        error: finalRun?.error_message ?? null,
+      };
     },
     onSuccess: () => {
       if (solicitationId) {
