@@ -157,7 +157,7 @@ async function gatherContext(supabase: ReturnType<typeof createClient>, solicita
   const isQBrief = reportType === "questions_brief" || reportType === "client_questionnaire";
   let qQuery = supabase
     .from("strategic_questions")
-    .select("category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, is_submitted, agency_response")
+    .select("category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, source_document_id, is_submitted, agency_response")
     .eq("solicitation_id", solicitationId)
     .order("priority", { ascending: false });
   if (!isQBrief) qQuery = qQuery.limit(40);
@@ -245,9 +245,14 @@ Deno.serve(async (req) => {
         question_rationale: string | null;
         source_citation: string | null;
         source_quote: string | null;
+        source_document_id: string | null;
         is_submitted: boolean | null;
         agency_response: string | null;
       }>;
+      const docNameMap: Record<string, string> = {};
+      for (const d of (ctx.documents ?? [])) docNameMap[d.id] = d.file_name;
+      const docNameFor = (id: string | null | undefined) =>
+        id ? (docNameMap[id] ?? "(unknown document)") : "Not specified";
 
       const groupOf = (rec: string | null) => {
         const r = (rec ?? "").toLowerCase();
@@ -402,7 +407,7 @@ Deno.serve(async (req) => {
               index: idx,
               tone,
               categoryLabel: TONE_LABEL[tone],
-              source: q.source_citation ?? "—",
+              source: q.source_citation ?? docNameFor(q.source_document_id) ?? "—",
               topic: truncated,
             };
           });
@@ -450,7 +455,9 @@ Deno.serve(async (req) => {
                 categoryLabel: TONE_LABEL[tone],
                 question: q.question_text,
                 rationale: q.question_rationale ?? undefined,
-                source: q.source_citation ?? undefined,
+                source: undefined,
+                sourceSection: q.source_citation ?? null,
+                sourceDocument: docNameFor(q.source_document_id),
                 agencyResponse: q.agency_response ?? undefined,
               });
             }
@@ -468,7 +475,9 @@ Deno.serve(async (req) => {
               categoryLabel: TONE_LABEL[tone],
               question: q.question_text,
               rationale: q.question_rationale ?? undefined,
-              source: q.source_citation ?? undefined,
+              source: undefined,
+              sourceSection: q.source_citation ?? null,
+              sourceDocument: docNameFor(q.source_document_id),
               agencyResponse: q.agency_response ?? undefined,
             });
           }

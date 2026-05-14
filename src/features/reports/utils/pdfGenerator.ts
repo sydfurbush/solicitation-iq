@@ -242,12 +242,14 @@ function drawQuestionCard(
   // measure body
   const qLines = wrap(doc, card.question, bodyW - innerPad * 2, "normal", 10);
   const ratLines = card.rationale ? wrap(doc, `Rationale: ${card.rationale}`, bodyW - innerPad * 2, "italic", 9) : [];
-  const srcLines = card.source ? wrap(doc, `Source: ${card.source}`, bodyW - innerPad * 2, "bold", 9) : [];
+  const sectionLines = wrap(doc, `Section: ${card.sourceSection || "—"}`, bodyW - innerPad * 2, "bold", 9);
+  const docLines = wrap(doc, `Document: ${card.sourceDocument || "Not specified"}`, bodyW - innerPad * 2, "bold", 9);
   const respLines = card.agencyResponse ? wrap(doc, `Agency response: ${card.agencyResponse}`, bodyW - innerPad * 2, "italic", 9) : [];
   const bodyTextH =
     qLines.length * 13 +
     (ratLines.length ? 6 + ratLines.length * 12 : 0) +
-    (srcLines.length ? 6 + srcLines.length * 12 : 0) +
+    6 + sectionLines.length * 12 +
+    4 + docLines.length * 12 +
     (respLines.length ? 6 + respLines.length * 12 : 0);
   const cardH = Math.max(64, bodyTextH + innerPad * 2);
 
@@ -300,13 +302,13 @@ function drawQuestionCard(
     setText(doc, RGB.textMuted);
     for (const line of ratLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
   }
-  if (srcLines.length) {
-    y += 6;
-    doc.setFont(FONT_PDF, "bold");
-    doc.setFontSize(9);
-    setText(doc, RGB.amber);
-    for (const line of srcLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
-  }
+  y += 6;
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(9);
+  setText(doc, RGB.amber);
+  for (const line of sectionLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
+  y += 4;
+  for (const line of docLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
   if (respLines.length) {
     y += 6;
     doc.setFont(FONT_PDF, "italic");

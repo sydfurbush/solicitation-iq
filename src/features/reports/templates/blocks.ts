@@ -23,7 +23,8 @@ export type Block =
       categoryLabel: string;
       question: string;
       rationale?: string;
-      source?: string;
+      sourceSection?: string | null;
+      sourceDocument?: string | null;
       agencyResponse?: string;
     }
   | {
