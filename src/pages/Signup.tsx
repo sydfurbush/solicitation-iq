@@ -71,9 +71,11 @@ export default function Signup() {
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <CardTitle className="text-2xl">Create your workspace</CardTitle>
+            <CardTitle className="text-2xl">{inviteToken ? "Join your team" : "Create your workspace"}</CardTitle>
             <CardDescription>
-              Set up Solicitation Intelligence Analyzer for your team
+              {inviteToken
+                ? "You've been invited. Create your account to join the workspace."
+                : "Set up Solicitation Intelligence Analyzer for your team"}
             </CardDescription>
           </div>
         </CardHeader>
@@ -98,21 +100,21 @@ export default function Signup() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="organizationName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Organization name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Acme Consulting" autoComplete="organization" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
+              {!inviteToken && (
+                <FormField
+                  control={form.control}
+                  name="organizationName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Organization name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Acme Consulting" autoComplete="organization" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
                 name="email"
                 render={({ field }) => (
                   <FormItem>
