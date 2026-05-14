@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Copy, Trash2, History, Sparkles, RotateCcw } from "lucide-react";
+import { Plus, Pencil, Copy, Trash2, History, Sparkles, RotateCcw, ChevronDown, Info } from "lucide-react";
 import {
   usePresets,
   useCreatePreset,
@@ -22,6 +24,8 @@ import {
   type PresetRow,
   type PresetContent,
 } from "../hooks/usePresets";
+import type { GeneratedPresetDraft, PresetReasoning } from "../hooks/useGeneratePreset";
+import { AIGenerateDialog } from "./AIGenerateDialog";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { toast } from "sonner";
 
@@ -34,7 +38,7 @@ const presetSchema = z.object({
 });
 
 function TagEditor({ label, values, onChange, placeholder }: {
-  label: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string;
+  label: React.ReactNode; values: string[]; onChange: (v: string[]) => void; placeholder?: string;
 }) {
   const [draft, setDraft] = useState("");
   return (
@@ -174,18 +178,23 @@ function PresetRowItem({ preset, onEdit, onHistory }: { preset: PresetRow; onEdi
   );
 }
 
-function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function slugify(s: string): string {
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "preset";
+}
+
+function CreateDialog({ open, onClose, initialDraft }: { open: boolean; onClose: () => void; initialDraft?: GeneratedPresetDraft | null }) {
   const create = useCreatePreset();
-  const [key, setKey] = useState("");
-  const [label, setLabel] = useState("");
-  const [description, setDescription] = useState("");
-  const [family, setFamily] = useState<"federal" | "utility">("federal");
   const empty: PresetContent = useMemo(() => ({
     naics_codes: [], psc_codes: [], set_asides: [], agencies_focus: [],
     contract_vehicles: [], compliance_frameworks: [], discriminators: [],
     acronym_glossary: {}, always_flag: [], tone_voice: "consultative", reading_level: 12, keywords: [],
   }), []);
-  const [content, setContent] = useState<PresetContent>(empty);
+  const [key, setKey] = useState(() => initialDraft ? slugify(initialDraft.label) : "");
+  const [label, setLabel] = useState(initialDraft?.label ?? "");
+  const [description, setDescription] = useState(initialDraft?.description ?? "");
+  const [family, setFamily] = useState<"federal" | "utility">(initialDraft?.family ?? "federal");
+  const [content, setContent] = useState<PresetContent>(initialDraft?.content ?? empty);
+  const reasoning = initialDraft?.reasoning;
 
   const submit = () => {
     const parsed = presetSchema.safeParse({ key, label, description: description || undefined, family });
@@ -196,13 +205,25 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>New service preset</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {initialDraft && <Sparkles className="h-4 w-4 text-primary" />}
+            New service preset
+          </DialogTitle>
+        </DialogHeader>
+        {initialDraft && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+            <span className="font-medium">AI-generated draft.</span>{" "}
+            Review every field below — hover the <Info className="inline h-3 w-3" /> icons to see why each section was chosen. Edits are saved as v1.
+          </div>
+        )}
         <PresetFormBody
           metaLabel={label} onMetaLabel={setLabel}
           metaKey={key} onMetaKey={setKey}
           metaDesc={description} onMetaDesc={setDescription}
           metaFamily={family} onMetaFamily={setFamily}
           content={content} onContent={setContent}
+          reasoning={reasoning}
           showKey
         />
         <DialogFooter>
@@ -315,16 +336,48 @@ function HistoryDialog({ preset, open, onClose }: { preset: PresetRow; open: boo
   );
 }
 
+function ReasoningHint({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" className="inline-flex items-center text-primary/70 hover:text-primary" aria-label="Why these values?">
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs text-xs">{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function HintLabel({ children, hint }: { children: React.ReactNode; hint?: string }) {
+  return (
+    <Label className="inline-flex items-center gap-1.5">
+      {children}
+      <ReasoningHint text={hint} />
+    </Label>
+  );
+}
+
 function PresetFormBody(props: {
   metaLabel: string; onMetaLabel: (v: string) => void;
   metaKey: string; onMetaKey: (v: string) => void;
   metaDesc: string; onMetaDesc: (v: string) => void;
   metaFamily: "federal" | "utility"; onMetaFamily: (v: "federal" | "utility") => void;
   content: PresetContent; onContent: (c: PresetContent) => void;
+  reasoning?: PresetReasoning;
   showKey?: boolean; readOnly?: boolean;
 }) {
   const c = props.content;
+  const r = props.reasoning ?? {};
   const set = (patch: Partial<PresetContent>) => props.onContent({ ...c, ...patch });
+
+  // Helper: tag editor with hint as label
+  const TagEditorH = ({ label, hint, values, onChange, placeholder }: { label: string; hint?: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string }) => (
+    <TagEditor label={<HintLabel hint={hint}>{label}</HintLabel>} values={values} onChange={onChange} placeholder={placeholder} />
+  );
 
   return (
     <div className="space-y-4">
@@ -364,20 +417,20 @@ function PresetFormBody(props: {
         <TabsContent value="codes" className="space-y-4 mt-4">
           <fieldset disabled={props.readOnly} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TagEditor label="NAICS codes" values={c.naics_codes ?? []} onChange={(v) => set({ naics_codes: v })} placeholder="541512" />
-              <TagEditor label="PSC codes" values={c.psc_codes ?? []} onChange={(v) => set({ psc_codes: v })} placeholder="DA01" />
-              <TagEditor label="Set-asides" values={c.set_asides ?? []} onChange={(v) => set({ set_asides: v })} placeholder="8(a)" />
-              <TagEditor label="Agencies / buyers" values={c.agencies_focus ?? []} onChange={(v) => set({ agencies_focus: v })} placeholder="VA / GSA" />
-              <TagEditor label="Contract vehicles" values={c.contract_vehicles ?? []} onChange={(v) => set({ contract_vehicles: v })} placeholder="GSA MAS" />
-              <TagEditor label="Keywords" values={c.keywords ?? []} onChange={(v) => set({ keywords: v })} placeholder="cloud, modernization" />
+              <TagEditorH label="NAICS codes" hint={r.naics_codes} values={c.naics_codes ?? []} onChange={(v) => set({ naics_codes: v })} placeholder="541512" />
+              <TagEditorH label="PSC codes" hint={r.psc_codes} values={c.psc_codes ?? []} onChange={(v) => set({ psc_codes: v })} placeholder="DA01" />
+              <TagEditorH label="Set-asides" values={c.set_asides ?? []} onChange={(v) => set({ set_asides: v })} placeholder="8(a)" />
+              <TagEditorH label="Agencies / buyers" hint={r.agencies_focus} values={c.agencies_focus ?? []} onChange={(v) => set({ agencies_focus: v })} placeholder="VA / GSA" />
+              <TagEditorH label="Contract vehicles" hint={r.contract_vehicles} values={c.contract_vehicles ?? []} onChange={(v) => set({ contract_vehicles: v })} placeholder="GSA MAS" />
+              <TagEditorH label="Keywords" values={c.keywords ?? []} onChange={(v) => set({ keywords: v })} placeholder="cloud, modernization" />
             </div>
           </fieldset>
         </TabsContent>
         <TabsContent value="compliance" className="space-y-4 mt-4">
           <fieldset disabled={props.readOnly} className="space-y-4">
-            <TagEditor label="Compliance frameworks" values={c.compliance_frameworks ?? []} onChange={(v) => set({ compliance_frameworks: v })} placeholder="NIST 800-53" />
+            <TagEditorH label="Compliance frameworks" hint={r.compliance_frameworks} values={c.compliance_frameworks ?? []} onChange={(v) => set({ compliance_frameworks: v })} placeholder="NIST 800-53" />
             <div className="space-y-2">
-              <Label>Always-flag rules (one per line, format: rule | reason)</Label>
+              <HintLabel hint={r.always_flag}>Always-flag rules (one per line, format: rule | reason)</HintLabel>
               <Textarea
                 rows={4}
                 value={(c.always_flag ?? []).map((f) => `${f.rule} | ${f.reason}`).join("\n")}
