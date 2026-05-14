@@ -1,13 +1,22 @@
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, FileSearch, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { useActiveOutline, useOutlineNodes, useGenerateOutline } from "@/features/outline/hooks/useProposalOutline";
+import { useActiveOutline, useOutlineNodes, useGenerateOutline, useRelinkOutlineSources } from "@/features/outline/hooks/useProposalOutline";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument } from "@/features/exports/lib/exporters";
+
+type SourceSection = {
+  document_id: string | null;
+  document_name: string | null;
+  section_number: string | null;
+  section_title: string | null;
+  page_start: number | null;
+};
 
 export default function SolicitationOutline({ solicitationId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
   const { data: outline, isLoading } = useActiveOutline(solicitationId);
