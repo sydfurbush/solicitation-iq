@@ -64,8 +64,12 @@ export function useUploadKnowledgeFile(clientId?: string) {
     mutationFn: async (file: File) => {
       if (!clientId) throw new Error("clientId required");
       const lower = file.name.toLowerCase();
-      if (!lower.endsWith(".txt") && !lower.endsWith(".md")) {
-        throw new Error("Only .txt and .md files are supported in this version. Paste longer documents as a note.");
+      const allowed = [".txt", ".md", ".pdf", ".doc", ".docx", ".xls", ".xlsx"];
+      if (!allowed.some((ext) => lower.endsWith(ext))) {
+        throw new Error(`Unsupported file type. Allowed: ${allowed.join(", ")}`);
+      }
+      if (file.size > 25 * 1024 * 1024) {
+        throw new Error("File exceeds 25MB limit. Split it or paste the text as a note.");
       }
       const path = `${clientId}/${crypto.randomUUID()}-${file.name}`;
       const { error: upErr } = await supabase.storage.from("client-knowledge").upload(path, file, {
