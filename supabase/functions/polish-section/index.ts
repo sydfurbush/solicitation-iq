@@ -124,14 +124,16 @@ ${currentMd}`;
       .single();
     if (saveErr) throw saveErr;
 
-    await supabase.from("activity_log").insert({
-      solicitation_id: draft.solicitation_id,
-      event_type: "ai_polish_section",
-      event_description: `AI ${action.replace("_", " ")} on "${node?.title ?? "section"}"`,
-      entity_type: "proposal_draft",
-      entity_id: draftId,
-      metadata: { action, word_count: wordCount },
-    }).catch(() => null);
+    try {
+      await supabase.from("activity_log").insert({
+        solicitation_id: draft.solicitation_id,
+        event_type: "ai_polish_section",
+        event_description: `AI ${action.replace("_", " ")} on "${node?.title ?? "section"}"`,
+        entity_type: "proposal_draft",
+        entity_id: draftId,
+        metadata: { action, word_count: wordCount },
+      });
+    } catch (_) { /* non-fatal */ }
 
     return new Response(JSON.stringify({ draft: saved, change_summary: result.change_summary, requirement_coverage: result.requirement_coverage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
