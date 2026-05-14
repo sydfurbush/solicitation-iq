@@ -86,10 +86,32 @@ function ensureSpace(ctx: Ctx, h: number) {
   if (ctx.y + h > CONTENT_BOTTOM) newPage(ctx);
 }
 
+/** Replace characters not in jsPDF's WinAnsi encoding with safe ASCII equivalents.
+ *  Without this, a single non-WinAnsi char (e.g. ↔, –, ←, →, em-dash, smart quotes)
+ *  corrupts the rendering of the entire text line in the standard Helvetica font. */
+const WIN_ANSI_REPLACE: Record<string, string> = {
+  "\u2194": "<->", "\u2190": "<-", "\u2192": "->", "\u2191": "^", "\u2193": "v",
+  "\u2013": "-", "\u2014": "-", "\u2212": "-",
+  "\u2018": "'", "\u2019": "'", "\u201A": "'", "\u201B": "'",
+  "\u201C": '"', "\u201D": '"', "\u201E": '"',
+  "\u2026": "...", "\u2022": "*", "\u00B7": "-",
+  "\u00A0": " ", "\u200B": "", "\u200C": "", "\u200D": "", "\uFEFF": "",
+  "\u2122": "(TM)", "\u00AE": "(R)", "\u00A9": "(C)",
+  "\u00D7": "x", "\u2713": "v", "\u2717": "x",
+};
+export function sanitizeForPdf(input: string | null | undefined): string {
+  if (!input) return "";
+  let out = input.replace(/[\u2194\u2190\u2192\u2191\u2193\u2013\u2014\u2212\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u2026\u2022\u00B7\u00A0\u200B\u200C\u200D\uFEFF\u2122\u00AE\u00A9\u00D7\u2713\u2717]/g,
+    (c) => WIN_ANSI_REPLACE[c] ?? "");
+  // Strip any remaining char outside WinAnsi (basic: keep 0x20-0xFF except a few control chars).
+  out = out.replace(/[^\x09\x0A\x0D\x20-\x7E\xA1-\xFF]/g, "?");
+  return out;
+}
+
 function wrap(doc: jsPDF, text: string, w: number, fontStyle: "normal" | "bold" | "italic" = "normal", size = 10): string[] {
   doc.setFont(FONT_PDF, fontStyle);
   doc.setFontSize(size);
-  return doc.splitTextToSize(text || "", w);
+  return doc.splitTextToSize(sanitizeForPdf(text), w);
 }
 
 /** Clip each rendered line to a max width by truncating with an ellipsis.
