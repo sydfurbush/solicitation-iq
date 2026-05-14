@@ -99,6 +99,53 @@ export function useUploadKnowledgeFile(clientId?: string) {
   });
 }
 
+export function useUpdateKnowledgeNote(clientId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; title: string; body: string; tags?: string[]; source_url?: string }) => {
+      const { data: doc, error } = await supabase
+        .from("client_knowledge_documents")
+        .update({
+          title: input.title.trim(),
+          raw_text: input.body,
+          tags: input.tags ?? [],
+          source_url: input.source_url ?? null,
+          byte_size: input.body.length,
+          status: "pending",
+          error: null,
+        })
+        .eq("id", input.id)
+        .select()
+        .single();
+      if (error) throw error;
+      const { error: invErr } = await supabase.functions.invoke("ingest-client-knowledge", {
+        body: { documentId: input.id },
+      });
+      if (invErr) throw invErr;
+      return doc;
+    },
+    onSuccess: () => clientId && qc.invalidateQueries({ queryKey: key(clientId) }),
+  });
+}
+
+export function useUpdateKnowledgeMeta(clientId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; title: string; tags?: string[]; source_url?: string }) => {
+      const { error } = await supabase
+        .from("client_knowledge_documents")
+        .update({
+          title: input.title.trim(),
+          tags: input.tags ?? [],
+          source_url: input.source_url ?? null,
+        })
+        .eq("id", input.id);
+      if (error) throw error;
+    },
+    onSuccess: () => clientId && qc.invalidateQueries({ queryKey: key(clientId) }),
+  });
+}
+
 export function useReingestKnowledge(clientId?: string) {
   const qc = useQueryClient();
   return useMutation({
