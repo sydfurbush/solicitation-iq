@@ -44,6 +44,7 @@ const PHASE_LABELS: Record<PhaseType, string> = {
   phase_2_deep_dive: "Deep Dive",
   phase_3_outline: "Outline",
   phase_4_win_themes: "Win Themes",
+  phase_5_drafting: "Drafting",
 };
 
 const PHASE_COLORS: Record<PhaseType, { bg: string; bgSoft: string; text: string; border: string; ring: string; badge: string; button: string }> = {
@@ -83,6 +84,15 @@ const PHASE_COLORS: Record<PhaseType, { bg: string; bgSoft: string; text: string
     badge: "bg-[hsl(var(--phase-4)/0.15)] text-[hsl(var(--phase-4))] border-[hsl(var(--phase-4)/0.3)]",
     button: "bg-[hsl(var(--phase-4))] hover:bg-[hsl(var(--phase-4)/0.9)] text-white",
   },
+  phase_5_drafting: {
+    bg: "bg-[hsl(var(--phase-5))]",
+    bgSoft: "bg-[hsl(var(--phase-5)/0.15)]",
+    text: "text-[hsl(var(--phase-5))]",
+    border: "border-[hsl(var(--phase-5)/0.6)]",
+    ring: "ring-[hsl(var(--phase-5)/0.3)]",
+    badge: "bg-[hsl(var(--phase-5)/0.15)] text-[hsl(var(--phase-5))] border-[hsl(var(--phase-5)/0.3)]",
+    button: "bg-[hsl(var(--phase-5))] hover:bg-[hsl(var(--phase-5)/0.9)] text-white",
+  },
 };
 
 const PHASE_BLURBS: Record<PhaseType, string> = {
@@ -90,6 +100,7 @@ const PHASE_BLURBS: Record<PhaseType, string> = {
   phase_2_deep_dive: "Build the RTM, section analysis, and capability gaps.",
   phase_3_outline: "Draft the proposal outline by volume and section.",
   phase_4_win_themes: "Articulate discriminators and win themes.",
+  phase_5_drafting: "Draft, review, compile, and package the proposal.",
 };
 
 interface Props {

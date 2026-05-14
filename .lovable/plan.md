@@ -1,143 +1,98 @@
+## Phase 5 — Proposal Drafting & Submission
 
-# Supporting Utility-Industry Suppliers (additive to federal contracting)
+Builds on the existing Outline (Phase 3) + Win Themes (Phase 4) + Writing Queue. Today the Writing Queue tracks status (`not_started → drafting → pink → red → final`) but there is no drafting content, no review workflow, no compiled proposal, and no submission package. Phase 5 adds those.
 
-**Framing.** The platform already supports federal contracting end-to-end. This plan **adds** a parallel, multi-vertical capability for clients who sell *into the utility industry* (IOUs, municipal utilities, co-ops, JPAs, ISOs/RTOs, public power authorities). Nothing federal is removed, renamed, or altered — every change is additive and gated on the active Client Lens.
+Additive — does not change Phases 1–4.
 
-**Scope of "utility supplier" — explicitly broad.** A utility supplier may be in any of:
+### Scope
 
-- **IT & OT** — enterprise IT, ADMS/OMS/DERMS, SCADA, AMI head-end, GIS, billing/CIS, cybersecurity, cloud.
-- **Engineering** — T&D engineering, substation design, gas integrity, hydraulic modeling, civil/structural, environmental, PE-stamped deliverables.
-- **Construction** — electric T&D, substations, gas distribution/transmission, water/wastewater treatment, pipelines, civil sitework, paving, restoration.
-- **EPC / Renewables** — solar, wind, BESS, EV charging, hydrogen.
-- **Staffing & Workforce** — staff augmentation, MSP/VMS programs, OQ-qualified labor, locating, meter services, vegetation management.
-- **Professional Services** — management consulting, regulatory/rate-case support, program management, training, change management.
-- **Field Services & O&M** — inspections, NDE/NDT, leak survey, locating, vegetation, drone, LiDAR.
-- **Equipment & Materials** — transformers, switchgear, cable, pipe, meters, valves, with stocking/logistics.
+1. **Add `phase_5_drafting` to the phase model** — labels, colors, hub card, indicator, gating; advances from Phase 4 once themes are approved.
 
-The lens model must accommodate **all of the above** in a single client profile (some suppliers play in multiple lanes).
+2. **Section Drafting Editor** (per outline node)
+   - Rich-text editor (TipTap) bound to the outline node.
+   - Left rail: linked Section L/M references, linked requirements (RTM), assigned win themes, gap callouts, page allocation vs. current word/page count.
+   - Right rail: Client Knowledge retrieval panel — query the lens RAG with the section title/requirements, insert citations as `[K#]`.
+   - **AI Draft button** — calls a new `draft-section` edge function. Inputs: section title, linked requirements, assigned themes, gaps, lens, knowledge excerpts. Output: first-pass draft in the editor, with inline `[Req-X]` and `[K#]` markers.
+   - **AI Polish actions**: Tighten, Expand, Rewrite to Theme, Compliance-check (verifies every linked requirement has a "shall" response).
+   - Autosave; per-section version history (snapshots on each save older than 5 min).
 
-## 1. Lens presets (additive to federal presets)
+3. **Color-Team Review**
+   - Inline comments on draft text (anchored ranges).
+   - Review status per node: `pink_review`, `red_review`, `gold_review` (extends existing `writing_status` enum).
+   - Reviewer assignment + due date.
+   - "Reviewer dashboard" lists every section awaiting the current user's review.
+   - Resolve / re-open comment threads; activity logged to `activity_log`.
 
-Add a `utility_*` family to `src/features/clients/lib/lensPresets.ts`:
+4. **Compliance Matrix Live View**
+   - Auto-generated from `requirement_items` × outline nodes × draft text.
+   - Columns: Section L/M ref · Requirement (shall) · Volume/Section · Owner · Status · Page · "Found in draft?" (text-search heuristic).
+   - Export to Word + Excel. Becomes the deliverable compliance matrix.
 
-- `utility_it_ot` — IT/OT systems, cybersecurity, integrations.
-- `utility_engineering` — PE-led engineering services.
-- `utility_electric_construction` — T&D and substation construction.
-- `utility_gas_construction` — distribution mains, integrity, pipeline.
-- `utility_water_construction` — treatment, distribution, LSLR, collection.
-- `utility_civil_construction` — sitework, paving, restoration, ROW.
-- `utility_renewables_epc` — solar/wind/BESS/EV EPC and O&M.
-- `utility_staffing_workforce` — staff aug, MSP, OQ labor, vegetation.
-- `utility_professional_services` — management consulting, rate-case, PMO.
-- `utility_field_services_om` — inspection, NDE, locating, drone, LiDAR.
-- `utility_equipment_materials` — manufacturers, distributors, stocking programs.
+5. **Proposal Compiler** (`compile-proposal` edge function + client trigger)
+   - Assembles all final sections by volume in outline order.
+   - Front matter: cover letter (template + tokens), title page, transmittal letter, table of contents, list of figures/tables.
+   - Body: section headings, draft content, inline figures, tables, requirement cross-references resolved.
+   - Back matter: compliance matrix, résumés, past performance summaries, certifications & representations placeholder.
+   - Page-formatting profile per buyer (font, size, margins, header/footer, page numbering, page-limit warnings per volume). Federal default + Utility default profiles.
+   - Outputs: per-volume `.docx` + combined `.pdf`, written to the existing `reports` storage bucket under `proposals/{solicitation_id}/`.
 
-Each preset preloads the right NAICS, agency/buyer archetypes, vehicles (MSA, alliance, EEI mutual-aid, WRDA/SRF, ESPC, PPA), and compliance frameworks for that lane.
+6. **Submission Package**
+   - "Submission Packager" assembles a `.zip` with: each volume `.docx` + `.pdf`, compliance matrix, redline vs. clean copies, transmittal letter, file-name conventions per buyer profile.
+   - Pre-flight checklist UI: page limits, font/margin compliance, all requirements answered, all sections at "final", all comments resolved, signatures placed. Blocks packaging if any fail (with override + reason logged).
+   - Stored in `reports` bucket; download link surfaced in the Phase 5 hub.
 
-## 2. Profile schema additions (Client Lens fields)
+7. **Phase 5 Help doc** (`phase5.tsx`) following the existing primitives.
 
-Additive, all nullable. Existing federal clients leave them empty and see zero behavior change.
+### Out of scope (future phases)
 
-- **Service categories** — multi-select across the eleven lanes above (a client can be in several).
-- **Regulatory bodies** — FERC, NERC + Region (RF/SERC/WECC/MRO/NPCC/Texas RE/WECC), state PUC(s), PHMSA, EPA Region, state DEP/DEQ.
-- **Compliance frameworks (utility set)** — NERC CIP, NESC, OSHA 1910.269, IEEE 1547, AWWA M-series, ASME B31.8, API 1173, PHMSA 192/195, SDWA/CWA, NFPA 70E, NIST 800-82, TSA Security Directives.
-- **Service territory** — states, ISO/RTO (PJM, MISO, ERCOT, CAISO, SPP, NYISO, ISO-NE), counties or operating divisions.
-- **Buyer relationships** — known IOUs/munis/co-ops, current MSAs, prequalification status (ISN, Avetta, Veriforce, Browz).
-- **Safety metrics** — TRIR, DART, EMR, lost-time, mutual-aid history.
-- **Workforce & capacity** — line crews (D/T), bucket trucks, directional drills, hydrovacs, welders (API 1104), CDL drivers, PEs by discipline, billable engineers/consultants, OQ-qualified headcount, contingent workforce size.
-- **Supplier-diversity tiers** — MBE/WBE/DBE/SDVOSB/LGBTBE, NMSDC/WBENC, utility-specific Tier 1/2 supplier IDs.
-- **Bonding & insurance** — single/aggregate bonding, GL/auto/umbrella, cyber, professional liability (E&O), pollution.
-- **Labor posture** — union locals (IBEW, UA, LiUNA, Teamsters), prevailing-wage history, PLA experience.
-- **Storm/emergency** — RMAG/SMAG/WRMAG membership, response SLA, staging.
-- **Tech stack served / used** — GIS (Esri/Smallworld), ADMS/OMS, AMI vendor, SCADA, work-management (Maximo/Click), GPS telematics, ERP.
-- **Delivery models offered** — MSA/alliance, EPC, design-build, T&M, unit-price, MSP/VMS, SOW staffing, fixed-fee consulting, equipment supply with stocking.
+- Direct upload to buyer portals (SAM.gov, Ariba, PowerAdvocate, ePro, ISN, etc.).
+- E-signature integration on certifications & reps.
+- Pricing model / cost-volume builder (separate workstream).
+- Real-time multi-cursor collaborative editing.
 
-## 3. Always-flag rules (utility-specific, lane-aware)
+### Phasing
 
-Seeded per preset and merged when multiple lanes are active:
+- **5a — Foundation**: phase enum + hub card + help; `proposal_drafts` table; section editor with autosave + version history; AI Draft button.
+- **5b — Review & Compliance**: color-team statuses, inline comments, reviewer dashboard, compliance-matrix live view + export.
+- **5c — Compile & Package**: `compile-proposal` edge function (Word + PDF), buyer formatting profiles (Federal + Utility), submission packager + pre-flight checklist.
 
-- NERC CIP medium/high impact BES Cyber System scope (IT/OT, engineering, construction touching CIP assets).
-- PHMSA-regulated pipeline scope without DIMP/TIMP plan reference (gas).
-- Lead service line work missing AWWA C810 / EPA LCRR alignment (water).
-- Energized 1910.269 work without MAD / EEI 587 references (electric, staffing).
-- Davis-Bacon / state prevailing wage triggers and PLA requirements (all construction, staffing).
-- Buy America(n) / BABA on IIJA-funded grid and water work (equipment, construction, EPC).
-- OT/ICS cybersecurity language (NIST 800-82, TSA SD) on engineering or IT scope.
-- PE stamp required in jurisdictions where the client lacks registration (engineering).
-- Prequal platform (ISN/Avetta/Veriforce/Browz) required but client not enrolled or below grade (all lanes).
-- Outage-window or restoration-SLA liquidated damages (construction, field services).
-- ESG / Scope 1-3 reporting obligations (all lanes).
-- Contingent-workforce VMS/MSP rate-card constraints (staffing).
-- Stocking, consignment, or VMI obligations (equipment & materials).
+### Technical Details
 
-## 4. Knowledge Library — utility-supplier document taxonomy
+**New tables** (RLS by org via solicitation → client → organization):
 
-Extend the `KnowledgeTab` tag picker (no schema change) with utility-native types covering all lanes:
+- `proposal_drafts` — `id`, `outline_node_id` (unique), `solicitation_id`, `content_json` (TipTap JSON), `content_html`, `word_count`, `page_estimate`, `last_ai_action`, `updated_by`, timestamps.
+- `proposal_draft_versions` — snapshot history (`draft_id`, `content_json`, `created_by`, `created_at`, `change_summary`).
+- `proposal_draft_comments` — `id`, `draft_id`, `range_start`, `range_end`, `quoted_text`, `body`, `team` (`pink|red|gold`), `status` (`open|resolved`), `resolved_by`, threading via `parent_id`.
+- `proposal_packages` — `id`, `solicitation_id`, `kind` (`volume_docx|volume_pdf|compliance_matrix|zip`), `volume`, `storage_path`, `byte_size`, `checksum`, `generated_by`, `pre_flight_pass`, `pre_flight_report` jsonb.
+- `buyer_format_profiles` — `id`, `org_id`, `name`, `is_default`, `vertical` (`federal|utility`), `font`, `size_pt`, `margins_in`, `line_spacing`, `header_html`, `footer_html`, `page_number_format`, `volume_page_limits` jsonb, `file_name_pattern`, `notes`.
 
-- Past MSA / alliance / unit-price book proposals.
-- Storm and mutual-aid after-action reports.
-- Safety package (ISN, Avetta, Veriforce, Browz exports), EMR letters, OSHA 300A.
-- Prequalification questionnaires for specific IOUs.
-- Engineering QA/QC manuals, PE rosters by jurisdiction.
-- IT/OT reference architectures, SOC 2 / ISO 27001 letters.
-- Staffing MSP/VMS rate cards, bench rosters, OQ matrices.
-- Equipment cut sheets, stocking program SOPs.
-- IRP / RPS / decarbonization plans for buyer utilities.
-- Rate-case filings, PUC orders, ISO/RTO market notices.
-- Past performance / CPARS-equivalent commercial reference letters.
+**Enum extension**: extend `writing_status` to include `pink_review`, `red_review`, `gold_review` (existing `pink_ready`/`red_ready`/`final` retained).
 
-## 5. Analysis prompt additions (lane-aware)
+**Phase enum**: append `phase_5_drafting` to `PHASES` and `phase_type` DB enum; add color token `--phase-5`.
 
-Light, conditional nudges in the existing AI functions when one or more `utility_*` presets are active:
+**New edge functions**:
 
-- `extract-requirements` — also extract: voltage class, pipe diameter/material, GPM/MGD, outage window, OQ tasks, CIP impact rating, AWWA standards, PE stamp jurisdictions, prequal platforms, VMS/MSP rate-card constraints, BABA/Buy America triggers.
-- `identify-risks-opportunities` — apply the utility always-flag set; add risk dimensions for outage/SLA exposure, permitting (USACE 404, CWA 401, ROW), prequal grade, PE jurisdiction coverage, and rate-card margin compression (staffing).
-- `generate-win-themes` — bias toward safety record, mutual-aid history, local crew/PE density, certification tiers, self-perform percentage, prequal grade, and buyer-specific reference work — the actual evaluation drivers in utility scorecards.
-- `analyze-gaps` — compare requested certifications/territory/crew/PE/OQ counts against the new profile fields.
-- `compare-solicitations` — surface delta in regulatory regime, prequal platform, and delivery model when a client straddles lanes.
+- `draft-section` — Lovable AI Gateway, `google/gemini-3-flash-preview` default, `Output.object` with `{ content_html, citations[], requirement_coverage[] }`. Uses `buildClientLens({ topic: "draft", query: <section + requirements> })`.
+- `polish-section` — single-purpose actions: tighten / expand / rewrite-to-theme / compliance-check.
+- `compile-proposal` — pulls outline nodes + drafts + theme map + compliance matrix + buyer profile; builds `.docx` via `docx` npm package and `.pdf` via existing pdf generator; writes to `reports` bucket; records rows in `proposal_packages`.
 
-## 6. New "Utility Bid Snapshot" report block (optional)
+**New client routes/components**:
 
-Add a block in `src/features/reports/templates/blocks.ts` rendering: regulatory regime, ISO/RTO, voltage/pressure/GPM class, safety requirement vs. client EMR/TRIR, bonding ask vs. capacity, prequal grade vs. requirement, PE jurisdiction coverage, certification tier vs. held, delivery model match, and outage/SLA exposure. Becomes the go/no-go-at-a-glance page proposal managers want.
+- `/solicitations/:id/draft` — drafting workspace (volume tree + editor + lens panel).
+- `/solicitations/:id/review` — reviewer dashboard.
+- `/solicitations/:id/compile` — compile + pre-flight + package download.
+- New components under `src/features/drafting/` (editor, comment thread, version history) and `src/features/compilation/` (pre-flight, packager).
 
-## 7. Out of scope (call out, don't build)
+**Storage**: `reports` bucket, paths `proposals/{solicitation_id}/{volume}/draft.docx`, `…/compiled.pdf`, `…/submission.zip`.
 
-- Live ISN / Avetta / Veriforce / Browz API integrations.
-- PUC docket scraping or FERC eLibrary ingestion.
-- Pricing/estimating engines and unit-price book authoring (stays as Knowledge docs).
-- ISO/RTO market-notice ingestion.
+**Activity log**: every AI draft, polish, status change, comment, resolve, compile, and package event written via existing `log_activity`.
 
-## Technical summary
+**Federal vs. Utility**: shipped `buyer_format_profiles` defaults — Federal (Times 12pt / 1" margins / volume tabs) and Utility (Arial 11pt / 0.75" margins / single-volume default). Profile selectable per solicitation.
 
-- **Code-only additions**: 11 new lens presets + additive optional fields on `client_profiles` + lens prompt block additions + tag taxonomy in `KnowledgeTab` + conditional prompt nudges + one new report block.
-- **DB migration (additive only)**: new nullable columns on `client_profiles` — `service_categories text[]`, `regulatory_bodies text[]`, `iso_rto text`, `service_territory jsonb`, `buyer_relationships jsonb`, `safety_metrics jsonb`, `workforce_capacity jsonb`, `diversity_tiers jsonb`, `bonding jsonb`, `labor_posture jsonb`, `storm_response jsonb`, `tech_stack jsonb`, `delivery_models text[]`.
-- **No breaking changes**: federal presets, federal lens prompt, federal analyses, and all existing RAG behavior are untouched. Utility behavior is gated on `preset_key LIKE 'utility_%'` or presence of utility fields.
-- **Multi-lane clients** — a client can have multiple `service_categories` and even multiple presets; the lens block merges always-flag rules and discriminators across active lanes.
-
-## Suggested phasing
-
-1. Lens presets (all 11) + profile-field additions + lens prompt block (highest leverage, lowest risk).
-2. Always-flag rules + analysis prompt nudges (lane-aware).
-3. Knowledge taxonomy + Utility Bid Snapshot report block.
-
-Tell me to proceed with Phase 1 (or all phases) and I'll implement.
-
----
-
-## Phase 2 — IMPLEMENTED
-
-- `clientLens.ts`: strengthened **always-flag** language to MANDATORY enforcement (AI must surface triggering conditions even if not asked).
-- `clientLens.ts`: added `renderUtilityTopicNudge(topic, lane)` — injects lane-specific extraction & framing guidance for `requirements`, `risks`, `win_themes`, `gaps`, `comparison`, `outline`, `questions`, `analysis`, `report` topics across 11 utility lanes (it_ot, engineering, electric, gas, water, civil, renewables, staffing, prof_services, field_services, equipment + generic fallback).
-- Lane is auto-detected from `preset_key` prefix; nudges only render when utility context is active. **Zero edits needed in individual analysis edge functions** — they inherit nudges via `buildClientLens`.
-
-Phase 3 (Knowledge taxonomy + Utility Bid Snapshot report block) ready when approved.
-
----
-
-## Phase 3 — IMPLEMENTED
-
-- New `src/features/clients/lib/knowledgeTaxonomy.ts` — 13 tag groups (Federal Contracting + 12 utility-vertical groups: cross-cutting, IT/OT, engineering, electric, gas, water, civil, renewables/EPC, staffing, prof services, field services, equipment).
-- `KnowledgeTab.tsx` — Add Note dialog gets a scrollable quick-pick chip strip grouped by taxonomy; clicking toggles tags in/out of the comma-separated field.
-- `generate-report/index.ts` — Executive Summary template gets an OPTIONAL 8th section "Utility Bid Snapshot" (single `kv` block: regulatory regime, ISO/RTO, voltage/pressure/GPM class, delivery model match, prequal grade, bonding, safety vs. EMR/TRIR, PE jurisdiction coverage, diversity/tier, Buy America/PWA, outage/SLA, mutual-aid). Auto-included only when the Client Lens contains a Utility-supplier context block; reuses existing `kv` renderer (no PDF/Word changes needed).
-
-All three phases now shipped. Federal contracting workflows are unchanged.
+```text
+Phase 4 (Win Themes) → Phase 5 (Drafting & Submission)
+                        │
+                        ├── 5a Editor + AI Draft
+                        ├── 5b Review + Compliance
+                        └── 5c Compile + Package → submission.zip
+```

@@ -10,6 +10,7 @@ const PHASE_LABELS: Record<PhaseType, string> = {
   phase_2_deep_dive: "Phase 2 — Deep Dive",
   phase_3_outline: "Phase 3 — Outline",
   phase_4_win_themes: "Phase 4 — Win Themes",
+  phase_5_drafting: "Phase 5 — Drafting",
 };
 
 const GATED: PhaseType[] = ["phase_1_initial", "phase_2_deep_dive", "phase_3_outline"];

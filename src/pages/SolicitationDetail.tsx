@@ -264,6 +264,7 @@ export default function SolicitationDetail() {
     "phase-2": "Phase 2 · Deep Dive",
     "phase-3": "Phase 3 · Outline",
     "phase-4": "Phase 4 · Win Themes",
+    "phase-5": "Phase 5 · Drafting",
   };
 
   const renderPhase1 = () => {
@@ -458,6 +459,9 @@ export default function SolicitationDetail() {
           <PhaseNavBtn phase="phase_4_win_themes" active={tab === "phase-4"} onClick={() => goTab("phase-4")}>
             {phaseLabelByKey["phase-4"]}
           </PhaseNavBtn>
+          <PhaseNavBtn phase="phase_5_drafting" active={tab === "phase-5"} onClick={() => goTab("phase-5")}>
+            {phaseLabelByKey["phase-5"]}
+          </PhaseNavBtn>
 
           <WorkspaceNavMenu
             active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity"}
@@ -522,6 +526,15 @@ export default function SolicitationDetail() {
           </PhaseShell>
         )}
 
+        {tab === "phase-5" && (
+          <PhaseShell solicitationId={s.id} phase="phase_5_drafting" currentPhase={currentPhase}>
+            <div className="p-6 border rounded-md bg-muted/30 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">Phase 5 — Drafting & Submission</p>
+              <p>The drafting workspace, color-team review, compliance matrix, proposal compiler, and submission packager are coming online in Phase 5b/5c. The data foundation (drafts, versions, comments, packages, buyer format profiles) is now in place.</p>
+            </div>
+          </PhaseShell>
+        )}
+
         {tab === "writing-queue" && (
           <SolicitationWritingQueue
             solicitationId={s.id}
@@ -582,12 +595,14 @@ function PhaseNavBtn({
     phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
     phase_3_outline: "bg-[hsl(var(--phase-3))]",
     phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
+    phase_5_drafting: "bg-[hsl(var(--phase-5))]",
   };
   const colorText: Record<PhaseType, string> = {
     phase_1_initial: "text-[hsl(var(--phase-1))]",
     phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
     phase_3_outline: "text-[hsl(var(--phase-3))]",
     phase_4_win_themes: "text-[hsl(var(--phase-4))]",
+    phase_5_drafting: "text-[hsl(var(--phase-5))]",
   };
   return (
     <div className="inline-flex items-center">
@@ -632,12 +647,14 @@ function PhaseNavMenu({
     phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
     phase_3_outline: "bg-[hsl(var(--phase-3))]",
     phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
+    phase_5_drafting: "bg-[hsl(var(--phase-5))]",
   };
   const colorText: Record<PhaseType, string> = {
     phase_1_initial: "text-[hsl(var(--phase-1))]",
     phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
     phase_3_outline: "text-[hsl(var(--phase-3))]",
     phase_4_win_themes: "text-[hsl(var(--phase-4))]",
+    phase_5_drafting: "text-[hsl(var(--phase-5))]",
   };
   return (
     <DropdownMenu>

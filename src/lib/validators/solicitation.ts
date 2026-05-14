@@ -22,6 +22,7 @@ export const PHASES = [
   "phase_2_deep_dive",
   "phase_3_outline",
   "phase_4_win_themes",
+  "phase_5_drafting",
 ] as const;
 export type PhaseType = (typeof PHASES)[number];
 

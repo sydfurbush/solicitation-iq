@@ -10,6 +10,7 @@ const PHASE_LABELS: Record<PhaseType, string> = {
   phase_2_deep_dive: "Deep Dive",
   phase_3_outline: "Outline",
   phase_4_win_themes: "Win Themes",
+  phase_5_drafting: "Drafting",
 };
 
 export interface PhaseSubStep {
@@ -37,7 +38,7 @@ export function PhaseShell({
   onStepChange,
   children,
 }: Props) {
-  const phaseIdx = ["phase_1_initial", "phase_2_deep_dive", "phase_3_outline", "phase_4_win_themes"].indexOf(phase);
+  const phaseIdx = ["phase_1_initial", "phase_2_deep_dive", "phase_3_outline", "phase_4_win_themes", "phase_5_drafting"].indexOf(phase);
   const isCurrent = phase === currentPhase;
 
   return (
