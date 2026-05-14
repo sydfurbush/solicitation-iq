@@ -245,9 +245,14 @@ Deno.serve(async (req) => {
         question_rationale: string | null;
         source_citation: string | null;
         source_quote: string | null;
+        source_document_id: string | null;
         is_submitted: boolean | null;
         agency_response: string | null;
       }>;
+      const docNameMap: Record<string, string> = {};
+      for (const d of (ctx.documents ?? [])) docNameMap[d.id] = d.file_name;
+      const docNameFor = (id: string | null | undefined) =>
+        id ? (docNameMap[id] ?? "(unknown document)") : "Not specified";
 
       const groupOf = (rec: string | null) => {
         const r = (rec ?? "").toLowerCase();
