@@ -157,7 +157,7 @@ async function gatherContext(supabase: ReturnType<typeof createClient>, solicita
   const isQBrief = reportType === "questions_brief" || reportType === "client_questionnaire";
   let qQuery = supabase
     .from("strategic_questions")
-    .select("category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, is_submitted, agency_response")
+    .select("category, recommendation, priority, question_text, question_rationale, source_citation, source_quote, source_document_id, is_submitted, agency_response")
     .eq("solicitation_id", solicitationId)
     .order("priority", { ascending: false });
   if (!isQBrief) qQuery = qQuery.limit(40);
