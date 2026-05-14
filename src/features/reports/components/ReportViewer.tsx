@@ -244,7 +244,8 @@ function BlocksRenderer({ blocks, fallbackBody }: { blocks: Block[]; fallbackBod
                 <div className="flex-1 p-3 space-y-2 min-w-0">
                   <p className="text-sm text-[#374151] leading-relaxed">{b.question}</p>
                   {b.rationale && <p className="text-xs italic text-[#6B7280]"><span className="font-semibold not-italic">Rationale:</span> {b.rationale}</p>}
-                  {b.source && <p className="text-xs font-semibold text-[#C9A227]">Source: {b.source}</p>}
+                  <p className="text-xs font-semibold text-[#C9A227]">Section: {b.sourceSection || "—"}</p>
+                  <p className="text-xs font-semibold text-[#C9A227]">Document: {b.sourceDocument || "Not specified"}</p>
                   {b.agencyResponse && <p className="text-xs italic text-[#374151]"><span className="font-semibold not-italic">Agency response:</span> {b.agencyResponse}</p>}
                 </div>
               </div>
