@@ -183,7 +183,8 @@ function p(text: string, opts: { bold?: boolean; size?: number; color?: string; 
 
 export async function generateClarificationDocx(
   questions: QuestionRow[],
-  ctx: ClarificationContext
+  ctx: ClarificationContext,
+  docMap: Record<string, string> = {},
 ): Promise<Blob> {
   const preparedAt = ctx.preparedAt ?? new Date();
 
