@@ -10,14 +10,24 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const SYSTEM_PROMPT = `You are a senior proposal writer drafting a single proposal section.
+const SYSTEM_PROMPT = `You are a senior proposal writer drafting ONE specific node of a proposal outline.
 
-Goals:
+STRICT SCOPE RULES (most important):
+- Draft ONLY the body content for THIS node. The app already renders the node's title/heading — do NOT repeat the section number or the node's title as a heading in your output.
+- Do NOT write any heading or content that belongs to a SIBLING or CHILD node listed in the OUTLINE BOUNDARY block. Those nodes will be drafted separately. If a child node exists, stop where that child would begin.
+- Never reuse this node's section number (e.g. "1.0", "2.1.3") in any heading you produce.
+
+DEPTH-AWARE GUIDANCE (follow the NODE ROLE provided in the user prompt):
+- "volume_intro" (top-level volume with children): write ONLY a short 1–3 paragraph volume introduction. No subsections, no H2/H3 headings.
+- "section_intro" (mid-level node with children): write ONLY a brief 1–2 paragraph section introduction that frames its child sections. No subsections.
+- "leaf" (no children): write the FULL body content for this node. You may use H3/H4 for sub-points INSIDE this node's own body, but never use a heading that matches a sibling's title.
+
+Other goals:
 - Address every linked "shall" requirement with a specific, defensible response.
 - Weave the assigned win themes naturally — show, don't tell.
 - Acknowledge known capability gaps with mitigation language (do not hide them).
 - Use the client's voice and proof points from the Client Lens.
-- Output Markdown. Use H2/H3 headings, short paragraphs, and bulleted lists when listing capabilities or steps.
+- Output Markdown. Short paragraphs and bulleted lists where appropriate.
 - Inline-cite each requirement you address as [Req-{req_number}] and each knowledge excerpt as [K{n}] (1-indexed in the order provided).
 
 Avoid: marketing fluff, unverifiable claims, "we are committed to excellence" filler.`;
@@ -73,6 +83,33 @@ Deno.serve(async (req) => {
     const solicitationId = outline?.solicitation_id;
     if (!solicitationId) throw new Error("Solicitation not found for node");
 
+    // Outline boundary: parent + siblings + children, so the AI knows what NOT to write.
+    const { data: allNodes } = await supabase
+      .from("outline_nodes")
+      .select("id, parent_id, sort_order, section_number, title, volume")
+      .eq("outline_id", node.outline_id)
+      .order("sort_order", { ascending: true });
+
+    const allNodesArr = (allNodes ?? []) as Array<{ id: string; parent_id: string | null; sort_order: number; section_number: string | null; title: string; volume: string | null }>;
+    const parent = node.parent_id ? allNodesArr.find((n) => n.id === node.parent_id) ?? null : null;
+    const siblings = allNodesArr.filter((n) => n.parent_id === (node.parent_id ?? null) && n.id !== node.id);
+    const children = allNodesArr.filter((n) => n.parent_id === node.id);
+
+    const nodeRole = children.length > 0
+      ? (node.parent_id ? "section_intro" : "volume_intro")
+      : "leaf";
+
+    const fmt = (n: { section_number: string | null; title: string }) =>
+      `${n.section_number ? n.section_number + " " : ""}${n.title}`;
+
+    const boundaryText = `OUTLINE BOUNDARY (strict)
+THIS NODE: ${fmt(node)}   [role: ${nodeRole}]
+PARENT: ${parent ? fmt(parent) : "(none — top-level)"}
+SIBLINGS (do NOT write their content or headings):
+${siblings.length ? siblings.map((s) => `  - ${fmt(s)}`).join("\n") : "  (none)"}
+CHILDREN (each will be drafted separately — do NOT write their content or headings):
+${children.length ? children.map((c) => `  - ${fmt(c)}`).join("\n") : "  (none — this is a leaf; write full body)"}`;
+
     const { data: sol } = await supabase.from("solicitations").select("title, client_id, lens_overrides").eq("id", solicitationId).maybeSingle();
 
     const reqIds = (node.linked_requirement_ids ?? []) as string[];
@@ -115,6 +152,8 @@ Volume: ${node.volume ?? "—"}
 Section L reference: ${node.source_l_reference ?? "—"}
 Page allocation: ${node.page_allocation ?? "—"}
 Notes: ${node.notes ?? "—"}
+
+${boundaryText}
 
 REQUIREMENTS TO ADDRESS
 ${reqText}
