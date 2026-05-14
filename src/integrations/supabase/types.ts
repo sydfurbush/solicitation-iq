@@ -182,6 +182,66 @@ export type Database = {
           },
         ]
       }
+      buyer_format_profiles: {
+        Row: {
+          created_at: string
+          file_name_pattern: string
+          font: string
+          footer_html: string | null
+          header_html: string | null
+          id: string
+          is_default: boolean
+          line_spacing: number
+          margins_in: number
+          name: string
+          notes: string | null
+          organization_id: string
+          page_number_format: string
+          size_pt: number
+          updated_at: string
+          vertical: string
+          volume_page_limits: Json
+        }
+        Insert: {
+          created_at?: string
+          file_name_pattern?: string
+          font?: string
+          footer_html?: string | null
+          header_html?: string | null
+          id?: string
+          is_default?: boolean
+          line_spacing?: number
+          margins_in?: number
+          name: string
+          notes?: string | null
+          organization_id: string
+          page_number_format?: string
+          size_pt?: number
+          updated_at?: string
+          vertical?: string
+          volume_page_limits?: Json
+        }
+        Update: {
+          created_at?: string
+          file_name_pattern?: string
+          font?: string
+          footer_html?: string | null
+          header_html?: string | null
+          id?: string
+          is_default?: boolean
+          line_spacing?: number
+          margins_in?: number
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          page_number_format?: string
+          size_pt?: number
+          updated_at?: string
+          vertical?: string
+          volume_page_limits?: Json
+        }
+        Relationships: []
+      }
       capability_gaps: {
         Row: {
           client_note: string | null
@@ -1620,6 +1680,135 @@ export type Database = {
           },
         ]
       }
+      proposal_draft_comments: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          draft_id: string
+          id: string
+          parent_id: string | null
+          quoted_text: string | null
+          range_end: number | null
+          range_start: number | null
+          resolved_at: string | null
+          resolved_by: string | null
+          solicitation_id: string
+          status: string
+          team: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          draft_id: string
+          id?: string
+          parent_id?: string | null
+          quoted_text?: string | null
+          range_end?: number | null
+          range_start?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          solicitation_id: string
+          status?: string
+          team?: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          draft_id?: string
+          id?: string
+          parent_id?: string | null
+          quoted_text?: string | null
+          range_end?: number | null
+          range_start?: number | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          solicitation_id?: string
+          status?: string
+          team?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      proposal_draft_versions: {
+        Row: {
+          change_summary: string | null
+          content_json: Json
+          created_at: string
+          created_by: string | null
+          draft_id: string
+          id: string
+          solicitation_id: string
+          word_count: number
+        }
+        Insert: {
+          change_summary?: string | null
+          content_json: Json
+          created_at?: string
+          created_by?: string | null
+          draft_id: string
+          id?: string
+          solicitation_id: string
+          word_count?: number
+        }
+        Update: {
+          change_summary?: string | null
+          content_json?: Json
+          created_at?: string
+          created_by?: string | null
+          draft_id?: string
+          id?: string
+          solicitation_id?: string
+          word_count?: number
+        }
+        Relationships: []
+      }
+      proposal_drafts: {
+        Row: {
+          content_html: string
+          content_json: Json
+          created_at: string
+          id: string
+          last_ai_action: string | null
+          outline_node_id: string
+          page_estimate: number
+          solicitation_id: string
+          updated_at: string
+          updated_by: string | null
+          word_count: number
+        }
+        Insert: {
+          content_html?: string
+          content_json?: Json
+          created_at?: string
+          id?: string
+          last_ai_action?: string | null
+          outline_node_id: string
+          page_estimate?: number
+          solicitation_id: string
+          updated_at?: string
+          updated_by?: string | null
+          word_count?: number
+        }
+        Update: {
+          content_html?: string
+          content_json?: Json
+          created_at?: string
+          id?: string
+          last_ai_action?: string | null
+          outline_node_id?: string
+          page_estimate?: number
+          solicitation_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          word_count?: number
+        }
+        Relationships: []
+      }
       proposal_outlines: {
         Row: {
           created_at: string
@@ -1656,6 +1845,48 @@ export type Database = {
           title?: string
           updated_at?: string
           version?: number
+        }
+        Relationships: []
+      }
+      proposal_packages: {
+        Row: {
+          byte_size: number | null
+          checksum: string | null
+          created_at: string
+          generated_by: string | null
+          id: string
+          kind: string
+          pre_flight_pass: boolean
+          pre_flight_report: Json
+          solicitation_id: string
+          storage_path: string
+          volume: string | null
+        }
+        Insert: {
+          byte_size?: number | null
+          checksum?: string | null
+          created_at?: string
+          generated_by?: string | null
+          id?: string
+          kind: string
+          pre_flight_pass?: boolean
+          pre_flight_report?: Json
+          solicitation_id: string
+          storage_path: string
+          volume?: string | null
+        }
+        Update: {
+          byte_size?: number | null
+          checksum?: string | null
+          created_at?: string
+          generated_by?: string | null
+          id?: string
+          kind?: string
+          pre_flight_pass?: boolean
+          pre_flight_report?: Json
+          solicitation_id?: string
+          storage_path?: string
+          volume?: string | null
         }
         Relationships: []
       }
@@ -2181,6 +2412,7 @@ export type Database = {
           estimated_value_low: number | null
           evaluation_factors: Json | null
           expected_award_date: string | null
+          format_profile_id: string | null
           has_incumbent: boolean | null
           id: string
           incumbent_contract_number: string | null
@@ -2220,6 +2452,7 @@ export type Database = {
           estimated_value_low?: number | null
           evaluation_factors?: Json | null
           expected_award_date?: string | null
+          format_profile_id?: string | null
           has_incumbent?: boolean | null
           id?: string
           incumbent_contract_number?: string | null
@@ -2259,6 +2492,7 @@ export type Database = {
           estimated_value_low?: number | null
           evaluation_factors?: Json | null
           expected_award_date?: string | null
+          format_profile_id?: string | null
           has_incumbent?: boolean | null
           id?: string
           incumbent_contract_number?: string | null
@@ -2677,6 +2911,7 @@ export type Database = {
         | "phase_2_deep_dive"
         | "phase_3_outline"
         | "phase_4_win_themes"
+        | "phase_5_drafting"
       question_category:
         | "clarification"
         | "strategic"
@@ -2712,6 +2947,9 @@ export type Database = {
         | "pink_ready"
         | "red_ready"
         | "final"
+        | "pink_review"
+        | "red_review"
+        | "gold_review"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2896,6 +3134,7 @@ export const Constants = {
         "phase_2_deep_dive",
         "phase_3_outline",
         "phase_4_win_themes",
+        "phase_5_drafting",
       ],
       question_category: [
         "clarification",
@@ -2935,6 +3174,9 @@ export const Constants = {
         "pink_ready",
         "red_ready",
         "final",
+        "pink_review",
+        "red_review",
+        "gold_review",
       ],
     },
   },
