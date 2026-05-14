@@ -1,31 +1,39 @@
-## P4 — Switch `generate-questions` to a faster model
+Findings:
+- The current solicitation has 252 AI-generated questions.
+- Exact duplicate question text: 0 duplicate groups, 0 extra rows.
+- Repeated source quotes: 29 groups / 35 extra rows sharing the same quote, so there are near-overlaps around the same issue even if the wording is not identical.
+- There are 2 clearly bad/truncated short questions: “Is the ” and “The MOU mentions that ”.
+- The latest run is stuck again: it reached batch 18/18 with 125 inserted, then stopped updating before the cross-document pass. Prior failed runs also timed out and retried by re-running the full unknown scope, which is why the total grew to 252.
 
-### Change
+Recommended implementation plan:
 
-In `supabase/functions/_shared/aiClient.ts`, update the `generate-questions` entry in `MODEL_CONFIG`:
+1. Add durable resumable run chunks
+- Extend generation runs so each work unit is tracked as a resumable chunk instead of only a single long background job.
+- Store chunk index, label, document ids, section slice metadata, status, inserted count, error, and timestamps.
+- This lets the app retry only unfinished chunks instead of falling back to a full re-run.
 
-- **From:** `{ provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 }`
-- **To:** `{ provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 32000 }`
+2. Split execution into small callable sets
+- Change `generate-questions` so the initial call creates a run and chunk plan, then processes only a small number of chunks per invocation, e.g. 2–4 chunks.
+- Add a follow-up mode like `runId + continue` that processes the next pending chunks.
+- The client can call continue until the run is complete, keeping each edge-function request under timeout limits.
+- Keep the cross-document contradiction pass on Gemini 2.5 Pro, but make it its own chunk after all document chunks complete.
 
-That's the only code change. Per-batch latency drops roughly 3–5x, which should bring the full 18-batch + cross-doc run inside the edge function CPU budget.
+3. Prevent duplicate and low-quality inserts
+- Add application-level dedupe before insert using normalized question text.
+- Also dedupe against existing questions for the same solicitation so retries do not append the same issue again.
+- Skip obviously malformed output such as question text shorter than a safe threshold or not ending as a usable question/request.
+- Prefer `upsert`/ignore-duplicates if we add a database uniqueness constraint; otherwise keep this as function-level dedupe to avoid disrupting manual edits.
 
-### Important caveat: DB override
+4. Add a cleanup/preview control for the current 252 questions
+- Provide a safe cleanup action that removes exact duplicates if any appear later, removes malformed truncated questions, and optionally flags near-overlaps by shared source quote for review rather than deleting them automatically.
+- Keep the run timeline/report so users can see which chunk failed and preview the failure.
 
-Logs show the function is currently resolving from a DB override:
-`[aiClient] resolved generate-questions -> ... source=db-override`
+5. Improve retry behavior
+- For stuck runs, mark only unfinished chunks as failed/pending.
+- Retry resumes from the next unfinished chunk, not from the beginning.
+- If the cross-document pass fails, retry only that pass.
 
-So a row in `ai_model_settings` is currently pinning it to `gemini-2.5-pro` and will **silently override the code change**. I'll also update that row (or delete it so the new code default takes over). I'll confirm via a quick `read_query` before/after.
-
-### Optional, recommended add-on
-
-Keep the **cross-document pass** on `gemini-2.5-pro` — it's a single call that benefits most from the stronger model and is small enough not to time out. This requires a tiny code tweak in `generate-questions/index.ts` to pass an explicit model override for that one call (a 1-line addition to `callAiTool` args, gated by `unit.kind === "cross"`). Say yes/no.
-
-### Stuck run
-
-P4 doesn't unstick run `7997dfe4…` — it's still sitting at `status='running'`. After deploying P4, simplest path is for you to hit **Generate Questions** again (it wipes prior AI questions and starts fresh). If you'd rather resume only the missing 14 batches via the existing Retry button, I'll also run the small SQL update from R1 to flip the run to `partial`. Tell me which.
-
-### Files touched
-
-- `supabase/functions/_shared/aiClient.ts` (1 line)
-- `ai_model_settings` table (1 row update or delete)
-- *(optional)* `supabase/functions/generate-questions/index.ts` (~3 lines for cross-doc model override)
+Technical notes:
+- This likely needs a database migration for a `question_generation_run_chunks` table with RLS tied to the parent solicitation membership.
+- Frontend changes will update the generation hook to loop through `continue` calls and report chunk-level progress.
+- Existing tables remain intact; current questions are not deleted unless we add an explicit cleanup action and you choose to run it.
