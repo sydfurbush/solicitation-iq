@@ -13,7 +13,7 @@ export interface ModelChoice {
 export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "analyze-solicitation": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
   "identify-risks-opportunities": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 12000 },
-  "generate-questions": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 },
+  "generate-questions": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 32000 },
   "generate-report": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
   "compare-solicitations": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "extract-entities": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
