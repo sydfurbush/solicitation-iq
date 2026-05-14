@@ -9,7 +9,7 @@ import { toast } from "sonner";
 export default function AcceptInvite() {
   const [params] = useSearchParams();
   const token = params.get("token") ?? params.get("invite");
-  const { user, loading } = useAuthContext();
+  const { user, isLoading: loading } = useAuthContext();
   const navigate = useNavigate();
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
