@@ -302,13 +302,13 @@ function drawQuestionCard(
     setText(doc, RGB.textMuted);
     for (const line of ratLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
   }
-  if (srcLines.length) {
-    y += 6;
-    doc.setFont(FONT_PDF, "bold");
-    doc.setFontSize(9);
-    setText(doc, RGB.amber);
-    for (const line of srcLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
-  }
+  y += 6;
+  doc.setFont(FONT_PDF, "bold");
+  doc.setFontSize(9);
+  setText(doc, RGB.amber);
+  for (const line of sectionLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
+  y += 4;
+  for (const line of docLines) { doc.text(line, bodyX + innerPad, y); y += 12; }
   if (respLines.length) {
     y += 6;
     doc.setFont(FONT_PDF, "italic");
