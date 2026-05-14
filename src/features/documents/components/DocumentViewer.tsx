@@ -196,7 +196,7 @@ export function DocumentViewer({ document: doc, open, onOpenChange }: Props) {
                   {showIframe ? (
                     <iframe src={url!} title={doc?.file_name} className="w-full flex-1 border-0" />
                   ) : (
-                    <ScrollArea className="flex-1 px-6 pb-6" viewportRef={scrollRef}>
+                    <div ref={scrollRef} className="flex-1 overflow-auto px-6 pb-6">
                       {hasExtractedText ? (
                         <HighlightedText
                           text={doc!.extracted_text!}
