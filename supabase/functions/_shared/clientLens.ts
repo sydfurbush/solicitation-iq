@@ -126,8 +126,8 @@ export async function buildClientLens(
   const flags = (merged.always_flag as Array<{ rule: string; reason: string }> | null) ?? [];
   if (flags.length) {
     lines.push("");
-    lines.push("**Always-flag rules — surface as critical findings whenever present:**");
-    flags.forEach((f, i) => {
+    lines.push("**Always-flag rules — MANDATORY. If any of these conditions appear (or plausibly apply) in the solicitation, you MUST surface them explicitly as critical findings/risks in your output, even if the user did not ask. Do not omit. Quote the triggering language when possible:**");
+    flags.forEach((f) => {
       if (f.rule) lines.push(`  - ${f.rule}${f.reason ? ` — ${f.reason}` : ""}`);
     });
   }
