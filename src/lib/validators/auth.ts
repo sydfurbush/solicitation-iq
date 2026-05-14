@@ -20,8 +20,9 @@ export const signUpSchema = z
     organizationName: z
       .string()
       .trim()
-      .min(2, { message: "Organization name is required" })
-      .max(100),
+      .max(100)
+      .optional()
+      .or(z.literal("")),
     email: z.string().trim().email().max(255),
     password: strongPassword,
     confirmPassword: z.string(),
