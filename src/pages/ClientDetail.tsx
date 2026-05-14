@@ -34,6 +34,7 @@ import { CapabilitiesEditor } from "@/features/clients/components/CapabilitiesEd
 import { AILensTab } from "@/features/clients/components/AILensTab";
 import { KnowledgeTab } from "@/features/clients/components/KnowledgeTab";
 import { ClientLensBadge } from "@/features/clients/components/ClientLensBadge";
+import { ClientAssignmentsCard } from "@/features/team/components/AssignmentsCard";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -197,11 +198,16 @@ export default function ClientDetail() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="solicitations">Solicitations</TabsTrigger>
+          <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="ai-lens">AI Lens</TabsTrigger>
           <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
           <TabsTrigger value="portal">Portal Access</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="team" className="mt-6">
+          {clientId && <ClientAssignmentsCard clientId={clientId} />}
+        </TabsContent>
 
         <TabsContent value="ai-lens" className="mt-6">
           {clientId && <AILensTab clientId={clientId} />}
