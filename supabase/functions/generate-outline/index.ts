@@ -178,6 +178,7 @@ Deno.serve(async (req) => {
 
     // Insert nodes in 2 passes so parent_id can be wired up by depth
     // For simplicity: flat insert with linear sort_order, no parent linking.
+    const lmRefById = new Map(lmRefs.map((r) => [r.ref, r] as const));
     const rows = nodes.map((n, i) => {
       const refs = ((n.linked_requirement_refs as string) ?? "")
         .split(/[,;\s]+/)
@@ -185,6 +186,21 @@ Deno.serve(async (req) => {
         .filter(Boolean)
         .map((num) => reqByNumber.get(num))
         .filter((v): v is string => !!v);
+      const sectionRefs = ((n.source_section_refs as string) ?? "")
+        .split(/[,;\s]+/)
+        .map((s) => s.trim().replace(/^\[?ref:/i, "").replace(/\]$/, ""))
+        .filter(Boolean)
+        .map((s) => Number(s))
+        .filter((v) => Number.isFinite(v))
+        .map((ref) => lmRefById.get(ref))
+        .filter((v): v is NonNullable<typeof v> => !!v)
+        .map((s) => ({
+          document_id: s.document_id,
+          document_name: docNameById.get(s.document_id ?? "") ?? null,
+          section_number: s.section_number,
+          section_title: s.section_title,
+          page_start: s.page_start,
+        }));
       return {
         outline_id: outline.id,
         parent_id: null,
@@ -195,6 +211,7 @@ Deno.serve(async (req) => {
         page_allocation: n.page_allocation ? Number(n.page_allocation) : null,
         source_l_reference: (n.source_l_reference as string) ?? null,
         linked_requirement_ids: refs,
+        source_document_sections: sectionRefs,
       };
     });
 
