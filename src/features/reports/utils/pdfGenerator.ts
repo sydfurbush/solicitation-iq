@@ -92,6 +92,21 @@ function wrap(doc: jsPDF, text: string, w: number, fontStyle: "normal" | "bold" 
   return doc.splitTextToSize(text || "", w);
 }
 
+/** Clip each rendered line to a max width by truncating with an ellipsis.
+ *  Caller must have already set the desired font + size. */
+function clipLines(doc: jsPDF, lines: string[], maxW: number): string[] {
+  return lines.map((line) => {
+    if (doc.getTextWidth(line) <= maxW) return line;
+    let lo = 0, hi = line.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (doc.getTextWidth(line.slice(0, mid) + "…") <= maxW) lo = mid;
+      else hi = mid - 1;
+    }
+    return line.slice(0, lo).replace(/\s+$/, "") + "…";
+  });
+}
+
 function drawCoverBand(ctx: Ctx, content: ReportContent) {
   const { doc } = ctx;
   const x = MARGIN.left;
