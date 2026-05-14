@@ -250,7 +250,19 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setExpandedId(expandedId === run.id ? null : run.id)}
+                        >
+                          {expandedId === run.id ? (
+                            <ChevronDown className="h-3 w-3 mr-1" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 mr-1" />
+                          )}
+                          Details
+                        </Button>
                         {run.status !== "running" && (
                           <Button
                             size="sm"
@@ -264,6 +276,17 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                               <Download className="h-3 w-3 mr-1" />
                             )}
                             Report
+                          </Button>
+                        )}
+                        {stalled && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleMarkFailed}
+                            disabled={reap.isPending}
+                          >
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                            Mark as failed
                           </Button>
                         )}
                         {run.error_message && (
