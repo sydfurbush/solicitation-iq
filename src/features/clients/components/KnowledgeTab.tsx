@@ -157,6 +157,9 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
                     )}
                   </div>
                   <div className="flex gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" onClick={() => setEditingDoc(d)} title="Edit">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="sm" variant="ghost" disabled={reingest.isPending} onClick={() => reingest.mutate(d.id)} title="Re-embed">
                       <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
