@@ -113,6 +113,7 @@ export function QuestionsList({ questions, documents = [], onSelect, onUpdate, o
                   <QuestionCard
                     key={q.id}
                     question={q}
+                    documents={documents}
                     selected={selected.has(q.id)}
                     onSelectChange={(c) => toggleSelect(q.id, c)}
                     onClick={() => onSelect(q)}
