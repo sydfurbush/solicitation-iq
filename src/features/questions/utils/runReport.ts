@@ -36,7 +36,7 @@ async function fetchRunQuestions(input: RunReportInput) {
   const { data, error } = await supabase
     .from("strategic_questions")
     .select(
-      "id, question_text, category, recommendation, priority, question_rationale, source_citation, source_quote, strategic_advantage_notes, potential_answer_insight, created_at"
+      "id, question_text, category, recommendation, priority, question_rationale, source_citation, source_quote, source_document_id, strategic_advantage_notes, potential_answer_insight, created_at"
     )
     .eq("solicitation_id", input.solicitationId)
     .eq("is_ai_generated", true)
@@ -47,10 +47,26 @@ async function fetchRunQuestions(input: RunReportInput) {
   return data ?? [];
 }
 
-function buildHtml(input: RunReportInput, questions: Awaited<ReturnType<typeof fetchRunQuestions>>): string {
+async function fetchDocMap(solicitationId: string): Promise<Record<string, string>> {
+  const { data, error } = await supabase
+    .from("documents")
+    .select("id, file_name")
+    .eq("solicitation_id", solicitationId);
+  if (error) return {};
+  const map: Record<string, string> = {};
+  for (const d of data ?? []) map[d.id] = d.file_name;
+  return map;
+}
+
+function buildHtml(
+  input: RunReportInput,
+  questions: Awaited<ReturnType<typeof fetchRunQuestions>>,
+  docMap: Record<string, string>,
+): string {
   const rows = questions
-    .map(
-      (q) => `
+    .map((q) => {
+      const docName = q.source_document_id ? (docMap[q.source_document_id] ?? "(unknown document)") : "Not specified";
+      return `
     <article class="q">
       <header>
         <span class="cat">${escape(q.category)}</span>
@@ -61,10 +77,11 @@ function buildHtml(input: RunReportInput, questions: Awaited<ReturnType<typeof f
       ${q.question_rationale ? `<p><strong>Rationale:</strong> ${escape(q.question_rationale)}</p>` : ""}
       ${q.strategic_advantage_notes ? `<p><strong>Strategic advantage:</strong> ${escape(q.strategic_advantage_notes)}</p>` : ""}
       ${q.potential_answer_insight ? `<p><strong>Potential answer insight:</strong> ${escape(q.potential_answer_insight)}</p>` : ""}
-      ${q.source_citation ? `<p class="src"><strong>Source:</strong> ${escape(q.source_citation)}</p>` : ""}
       ${q.source_quote ? `<blockquote>${escape(q.source_quote)}</blockquote>` : ""}
-    </article>`
-    )
+      ${q.source_citation ? `<p class="src"><strong>Section:</strong> ${escape(q.source_citation)}</p>` : ""}
+      <p class="src"><strong>Document:</strong> ${escape(docName)}</p>
+    </article>`;
+    })
     .join("\n");
 
   return `<!doctype html>
