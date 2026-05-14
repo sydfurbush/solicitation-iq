@@ -84,6 +84,15 @@ const PHASE_COLORS: Record<PhaseType, { bg: string; bgSoft: string; text: string
     badge: "bg-[hsl(var(--phase-4)/0.15)] text-[hsl(var(--phase-4))] border-[hsl(var(--phase-4)/0.3)]",
     button: "bg-[hsl(var(--phase-4))] hover:bg-[hsl(var(--phase-4)/0.9)] text-white",
   },
+  phase_5_drafting: {
+    bg: "bg-[hsl(var(--phase-5))]",
+    bgSoft: "bg-[hsl(var(--phase-5)/0.15)]",
+    text: "text-[hsl(var(--phase-5))]",
+    border: "border-[hsl(var(--phase-5)/0.6)]",
+    ring: "ring-[hsl(var(--phase-5)/0.3)]",
+    badge: "bg-[hsl(var(--phase-5)/0.15)] text-[hsl(var(--phase-5))] border-[hsl(var(--phase-5)/0.3)]",
+    button: "bg-[hsl(var(--phase-5))] hover:bg-[hsl(var(--phase-5)/0.9)] text-white",
+  },
 };
 
 const PHASE_BLURBS: Record<PhaseType, string> = {
