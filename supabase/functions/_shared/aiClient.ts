@@ -22,6 +22,8 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "analyze-gaps": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 12000 },
   "generate-outline": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "generate-win-themes": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 6000 },
+  "draft-section": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8000 },
+  "polish-section": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 6000 },
 };
 
 export interface OpenAIToolSchema {
