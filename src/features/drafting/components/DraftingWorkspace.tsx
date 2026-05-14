@@ -226,6 +226,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
             )}
           </div>
         )}
+      </Card>
 
       {/* Right: context */}
       <Card className="col-span-3 flex flex-col">
