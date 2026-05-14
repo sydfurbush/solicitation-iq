@@ -111,6 +111,7 @@ function MultiToggleList({ label, options, values, onChange }: {
 export function AILensTab({ clientId }: { clientId: string }) {
   const { data: profile, isLoading } = useClientProfile(clientId);
   const upsert = useUpsertClientProfile(clientId);
+  const { data: dbPresets = [] } = usePresets();
 
   // Federal / shared fields
   const [presetKey, setPresetKey] = useState<string>("");
@@ -223,17 +224,39 @@ export function AILensTab({ clientId }: { clientId: string }) {
     );
   }, [showUtilityManually, presetKey, serviceCategories, regulatoryBodies, isoRto, deliveryModels]);
 
-  const applyPreset = (key: string) => {
-    const p = getPreset(key);
-    if (!p) return;
+  const applyPreset = async (key: string) => {
     setPresetKey(key);
-    setNaics(p.naics_codes); setPsc(p.psc_codes); setSetAsides(p.set_asides);
-    setAgencies(p.agencies_focus); setVehicles(p.contract_vehicles);
-    setFrameworks(p.compliance_frameworks);
-    setDiscriminators(p.discriminators);
-    setGlossary(Object.entries(p.acronym_glossary).map(([k, v]) => ({ k, v })));
-    setFlags(p.always_flag);
-    setTone(p.tone_voice); setReading(p.reading_level);
+    // Try DB-backed preset first; fall back to in-code preset for legacy keys.
+    let p: (LensPreset & { content?: PresetContent }) | undefined;
+    const dbRow = dbPresets.find((r) => r.key === key);
+    if (dbRow?.current_version_id) {
+      const { data: v } = await supabase
+        .from("lens_preset_versions" as never)
+        .select("content")
+        .eq("id", dbRow.current_version_id)
+        .maybeSingle();
+      const content = (v as { content?: PresetContent } | null)?.content;
+      if (content) {
+        p = {
+          key: dbRow.key, label: dbRow.label, description: dbRow.description ?? "",
+          family: (dbRow.family as "federal" | "utility") ?? undefined,
+          naics_codes: [], psc_codes: [], set_asides: [], agencies_focus: [],
+          contract_vehicles: [], compliance_frameworks: [], discriminators: [],
+          acronym_glossary: {}, always_flag: [], tone_voice: "consultative", reading_level: 12,
+          ...content,
+        } as LensPreset;
+      }
+    }
+    if (!p) p = getPreset(key);
+    if (!p) return;
+
+    setNaics(p.naics_codes ?? []); setPsc(p.psc_codes ?? []); setSetAsides(p.set_asides ?? []);
+    setAgencies(p.agencies_focus ?? []); setVehicles(p.contract_vehicles ?? []);
+    setFrameworks(p.compliance_frameworks ?? []);
+    setDiscriminators(p.discriminators ?? []);
+    setGlossary(Object.entries(p.acronym_glossary ?? {}).map(([k, v]) => ({ k, v })));
+    setFlags(p.always_flag ?? []);
+    setTone(p.tone_voice ?? "consultative"); setReading(p.reading_level ?? 12);
 
     // Utility-side preset fields (federal presets leave these empty -> reset).
     setServiceCategories(p.service_categories ?? []);
