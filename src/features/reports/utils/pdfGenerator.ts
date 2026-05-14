@@ -211,7 +211,7 @@ function drawQuestionCard(
 ) {
   const { doc } = ctx;
   const t = CATEGORY_RGB[card.tone] ?? CATEGORY_RGB.neutral;
-  const labelW = 70;
+  const labelW = 84;
   const accentW = 4;
   const bodyX = MARGIN.left + accentW + labelW;
   const bodyW = CONTENT_W - accentW - labelW;
