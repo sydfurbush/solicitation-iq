@@ -26,6 +26,7 @@ const FUNCTIONS: { name: string; label: string; description: string; defaultMax:
   { name: "generate-report", label: "Reports", description: "Builds executive and client-facing reports.", defaultMax: 16384 },
   { name: "compare-solicitations", label: "Comparison", description: "Compares the current solicitation to a prior one.", defaultMax: 8192 },
   { name: "extract-entities", label: "Entity Extraction", description: "Pulls dates, requirements, dollar amounts, and other entities from documents.", defaultMax: 16000 },
+  { name: "reconcile-solicitation-overview", label: "Overview Auto-fill", description: "Maps extracted entities to overview fields (dates, value, agency, set-aside).", defaultMax: 4000 },
 ];
 
 const ANTHROPIC_MODELS = ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"];
