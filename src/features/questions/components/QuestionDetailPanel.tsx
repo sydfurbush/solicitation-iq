@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { QuestionForm } from "./QuestionForm";
+import { SourceDocumentLink } from "./SourceDocumentLink";
 import {
   CATEGORY_LABEL,
   RECOMMENDATION_LABEL,
