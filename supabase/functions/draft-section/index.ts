@@ -146,15 +146,16 @@ Draft the section now.`;
     // Snapshot existing draft (if any) before overwrite.
     const { data: existing } = await supabase
       .from("proposal_drafts")
-      .select("id, content_json, content_html")
+      .select("id, content_json, content_html, word_count")
       .eq("outline_node_id", outlineNodeId)
       .maybeSingle();
 
     if (existing && (existing.content_html ?? "").length > 0) {
       await supabase.from("proposal_draft_versions").insert({
         draft_id: existing.id,
+        solicitation_id: solicitationId,
         content_json: existing.content_json,
-        content_html: existing.content_html,
+        word_count: existing.word_count ?? 0,
         change_summary: "Pre-AI-draft snapshot",
       });
     }
@@ -167,7 +168,6 @@ Draft the section now.`;
       word_count: wordCount,
       page_estimate: pageEstimate,
       last_ai_action: "draft",
-      last_ai_action_at: new Date().toISOString(),
     };
 
     const { data: saved, error: saveErr } = await supabase
