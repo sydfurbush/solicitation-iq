@@ -121,3 +121,13 @@ Add a block in `src/features/reports/templates/blocks.ts` rendering: regulatory 
 3. Knowledge taxonomy + Utility Bid Snapshot report block.
 
 Tell me to proceed with Phase 1 (or all phases) and I'll implement.
+
+---
+
+## Phase 2 — IMPLEMENTED
+
+- `clientLens.ts`: strengthened **always-flag** language to MANDATORY enforcement (AI must surface triggering conditions even if not asked).
+- `clientLens.ts`: added `renderUtilityTopicNudge(topic, lane)` — injects lane-specific extraction & framing guidance for `requirements`, `risks`, `win_themes`, `gaps`, `comparison`, `outline`, `questions`, `analysis`, `report` topics across 11 utility lanes (it_ot, engineering, electric, gas, water, civil, renewables, staffing, prof_services, field_services, equipment + generic fallback).
+- Lane is auto-detected from `preset_key` prefix; nudges only render when utility context is active. **Zero edits needed in individual analysis edge functions** — they inherit nudges via `buildClientLens`.
+
+Phase 3 (Knowledge taxonomy + Utility Bid Snapshot report block) ready when approved.
