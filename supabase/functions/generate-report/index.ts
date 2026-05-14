@@ -475,7 +475,9 @@ Deno.serve(async (req) => {
               categoryLabel: TONE_LABEL[tone],
               question: q.question_text,
               rationale: q.question_rationale ?? undefined,
-              source: q.source_citation ?? undefined,
+              source: undefined,
+              sourceSection: q.source_citation ?? null,
+              sourceDocument: docNameFor(q.source_document_id),
               agencyResponse: q.agency_response ?? undefined,
             });
           }
