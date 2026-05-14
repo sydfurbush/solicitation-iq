@@ -33,12 +33,14 @@ export interface FilterCounts {
   notSubmitted: number;
   ai: number;
   manual: number;
+  documents?: Record<string, number>;
 }
 
 interface Props {
   filters: QuestionFilters;
   onChange: (f: QuestionFilters) => void;
   counts?: FilterCounts;
+  documents?: Array<{ id: string; file_name: string }>;
 }
 
 export function QuestionsFilters({ filters, onChange, counts }: Props) {
