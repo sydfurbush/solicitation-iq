@@ -214,7 +214,7 @@ export function DocumentViewer({ document: doc, open, onOpenChange }: Props) {
                           )}
                         </p>
                       )}
-                    </ScrollArea>
+                    </div>
                   )}
                 </div>
               )}
