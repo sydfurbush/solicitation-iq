@@ -123,6 +123,53 @@ export function QuestionsFilters({ filters, onChange, counts, documents = [] }: 
         countMap={counts?.priorities}
         onToggle={(v) => onChange({ ...filters, priorities: toggle<PriorityLevel>(filters.priorities, v) })}
       />
+      {documents.length > 1 && (
+        <div className="space-y-1">
+          <Label className="text-xs">Source document</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {documents.map((d) => {
+              const isActive = filters.sourceDocumentIds?.includes(d.id);
+              const count = counts?.documents?.[d.id] ?? 0;
+              const dim = counts?.documents !== undefined && count === 0 && !isActive;
+              return (
+                <Badge
+                  key={d.id}
+                  variant={isActive ? "default" : "outline"}
+                  className={cn("cursor-pointer max-w-[260px]", dim && "opacity-50")}
+                  onClick={() => onChange({
+                    ...filters,
+                    sourceDocumentIds: toggle<string>(filters.sourceDocumentIds, d.id),
+                  })}
+                  title={d.file_name}
+                >
+                  <span className="truncate">{d.file_name}</span>
+                  {counts?.documents !== undefined && (
+                    <span className={cn("ml-1.5", !isActive && "text-muted-foreground")}>{count}</span>
+                  )}
+                </Badge>
+              );
+            })}
+            {(() => {
+              const noneCount = counts?.documents?.["__none__"] ?? 0;
+              if (noneCount === 0 && !filters.sourceDocumentIds?.includes("__none__")) return null;
+              const isActive = filters.sourceDocumentIds?.includes("__none__");
+              return (
+                <Badge
+                  variant={isActive ? "default" : "outline"}
+                  className="cursor-pointer italic"
+                  onClick={() => onChange({
+                    ...filters,
+                    sourceDocumentIds: toggle<string>(filters.sourceDocumentIds, "__none__"),
+                  })}
+                >
+                  Unspecified
+                  <span className={cn("ml-1.5", !isActive && "text-muted-foreground")}>{noneCount}</span>
+                </Badge>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
