@@ -22,6 +22,16 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
   const { data: outline, isLoading } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
   const gen = useGenerateOutline(solicitationId);
+  const relink = useRelinkOutlineSources(solicitationId);
+
+  const runRelink = async () => {
+    try {
+      const r = await relink.mutateAsync();
+      toast({ title: "Sources relinked", description: `${r.updated} of ${r.total} nodes matched to documents` });
+    } catch (e) {
+      toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
 
   const buildExport = (): ExportDocument | null => {
     if (!outline || nodes.length === 0) return null;
