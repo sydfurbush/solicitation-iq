@@ -165,7 +165,7 @@ function PresetRowItem({ preset, onEdit, onHistory }: { preset: PresetRow; onEdi
           onOpenChange={(v) => !v && setConfirmDel(false)}
           title={`Delete "${preset.label}"?`}
           description="Existing client lenses keyed to this preset will keep their current values; the preset just won't be selectable anymore."
-          confirmLabel="Delete"
+          confirmText="Delete"
           variant="danger"
           onConfirm={() => del.mutate(preset.id)}
         />
