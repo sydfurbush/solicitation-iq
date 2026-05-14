@@ -570,17 +570,26 @@ Deno.serve(async (req) => {
               console.error(`[generate-questions] batch=${batchLabel} insert error`, insErr);
               failed++;
               for (const d of batch) failedDocIds.push(d.id);
+              await logEvent(runId, "batch_failed", `Batch ${batchLabel} insert failed: ${insErr.message ?? insErr}`,
+                { index: i + 1, total: batches.length, doc_ids: batch.map((d) => d.id) });
             } else {
               totalInserted += rows.length;
               completed++;
+              await logEvent(runId, "batch_completed", `Batch ${batchLabel} added ${rows.length} question(s)`,
+                { index: i + 1, total: batches.length, inserted: rows.length });
             }
           } else {
             completed++;
+            await logEvent(runId, "batch_completed", `Batch ${batchLabel} returned 0 questions`,
+              { index: i + 1, total: batches.length, inserted: 0 });
           }
         } catch (err) {
           console.error(`[generate-questions] batch=${batchLabel} failed`, err);
           failed++;
           for (const d of batch) failedDocIds.push(d.id);
+          await logEvent(runId, "batch_failed",
+            `Batch ${batchLabel} failed: ${err instanceof Error ? err.message : String(err)}`,
+            { index: i + 1, total: batches.length, doc_ids: batch.map((d) => d.id) });
         }
 
         await updateRun({
