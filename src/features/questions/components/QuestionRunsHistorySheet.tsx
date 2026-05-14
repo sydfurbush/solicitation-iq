@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Copy, Download, Loader2, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronRight, Copy, Download, Loader2, RotateCcw, ShieldAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ import {
   useQuestionGenerationRuns,
   type QuestionRun,
 } from "../hooks/useQuestionGenerationRuns";
+import { useReapStaleRuns } from "../hooks/useQuestionRunEvents";
+import { RunTimeline } from "./RunTimeline";
 import { downloadRunReport } from "../utils/runReport";
 
 interface Props {
@@ -60,12 +62,40 @@ function formatDuration(startedAt: string, completedAt: string | null): string {
 export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOpenChange }: Props) {
   const { data: runs = [], isLoading } = useQuestionGenerationRuns(open ? solicitationId : undefined);
   const generate = useGenerateQuestions(solicitationId);
+  const reap = useReapStaleRuns(solicitationId);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ completed: number; total: number; inserted: number; step: string | null } | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Auto-reap stale runs whenever the sheet opens so the latest "running" row
+  // that's actually dead is surfaced as failed (and becomes previewable + retryable).
+  useEffect(() => {
+    if (!open || !solicitationId) return;
+    reap.mutateAsync(8).then((reaped) => {
+      if (reaped > 0) {
+        toast({
+          title: `Recovered ${reaped} stalled run${reaped === 1 ? "" : "s"}`,
+          description: "Marked as failed so you can preview details and retry.",
+        });
+      }
+    }).catch(() => { /* non-fatal */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, solicitationId]);
 
   const docMap = useMemo(() => new Map(documents.map((d) => [d.id, d.file_name])), [documents]);
   const runById = useMemo(() => new Map(runs.map((r) => [r.id, r])), [runs]);
+
+  const handleMarkFailed = async () => {
+    try {
+      const reaped = await reap.mutateAsync(0); // force-reap any running runs now
+      toast({
+        title: reaped > 0 ? `Marked ${reaped} run(s) as failed` : "No running runs to recover",
+      });
+    } catch (e) {
+      toast({ title: "Recovery failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
 
   const handleRetry = async (run: QuestionRun) => {
     setRetryingId(run.id);
@@ -220,7 +250,19 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setExpandedId(expandedId === run.id ? null : run.id)}
+                        >
+                          {expandedId === run.id ? (
+                            <ChevronDown className="h-3 w-3 mr-1" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3 mr-1" />
+                          )}
+                          Details
+                        </Button>
                         {run.status !== "running" && (
                           <Button
                             size="sm"
@@ -234,6 +276,17 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                               <Download className="h-3 w-3 mr-1" />
                             )}
                             Report
+                          </Button>
+                        )}
+                        {stalled && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={handleMarkFailed}
+                            disabled={reap.isPending}
+                          >
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                            Mark as failed
                           </Button>
                         )}
                         {run.error_message && (
@@ -307,6 +360,13 @@ export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOp
                       <p className="text-xs italic text-muted-foreground border-l-2 border-destructive/50 pl-2">
                         {run.error_message}
                       </p>
+                    )}
+
+                    {expandedId === run.id && (
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Timeline</p>
+                        <RunTimeline runId={run.id} />
+                      </div>
                     )}
                   </div>
                 );

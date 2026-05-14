@@ -276,6 +276,27 @@ Deno.serve(async (req) => {
     }
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Helper: emit a structured event for the run timeline (best-effort).
+    const logEvent = async (
+      runIdForEvent: string | null | undefined,
+      eventType: string,
+      message: string | null,
+      metadata: Record<string, unknown> = {},
+    ) => {
+      if (!runIdForEvent) return;
+      try {
+        await supabase.from("question_generation_run_events").insert({
+          run_id: runIdForEvent,
+          solicitation_id: solicitationId,
+          event_type: eventType,
+          message,
+          metadata,
+        });
+      } catch (e) {
+        console.warn("[generate-questions] logEvent failed (non-fatal)", e);
+      }
+    };
+
     // Reap any orphaned "running" rows for this solicitation (worker died mid-run, no terminal status was written).
     // Threshold: 8 minutes without an updated_at bump.
     try {
@@ -301,6 +322,9 @@ Deno.serve(async (req) => {
           })
           .eq("id", row.id)
           .eq("status", "running");
+        await logEvent(row.id, "reaped",
+          "Run marked as failed because the worker had not reported progress.",
+          { was_cross_doc: wasCrossDoc, last_step: row.current_step ?? null });
         console.warn(`[generate-questions] reaped stalled run=${row.id} (cross_doc=${wasCrossDoc})`);
       }
     } catch (e) {
@@ -484,6 +508,12 @@ Deno.serve(async (req) => {
       else console.log(`[generate-questions] sol=${solicitationId} wiped prior AI questions before run`);
     }
 
+    await logEvent(runId, "started",
+      isRetry
+        ? `Retry started (${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""})`
+        : `Run started (${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""})`,
+      { docs: documents.length, total_batches: totalBatches, retry: isRetry, parent_run_id: parentRunId });
+
     const work = (async () => {
       let totalInserted = 0;
       let completed = 0;
@@ -505,6 +535,7 @@ Deno.serve(async (req) => {
         const batchLabel = `${i + 1}/${batches.length}`;
         const batchNames = unit.label;
         await updateRun({ current_step: `Batch ${batchLabel}: ${batchNames}` });
+        await logEvent(runId, "batch_started", `Batch ${batchLabel}: ${batchNames}`, { index: i + 1, total: batches.length });
 
         // Build prompt for this batch
         const perDocBudget = Math.floor(PER_BATCH_BUDGET / batch.length);
@@ -539,17 +570,26 @@ Deno.serve(async (req) => {
               console.error(`[generate-questions] batch=${batchLabel} insert error`, insErr);
               failed++;
               for (const d of batch) failedDocIds.push(d.id);
+              await logEvent(runId, "batch_failed", `Batch ${batchLabel} insert failed: ${insErr.message ?? insErr}`,
+                { index: i + 1, total: batches.length, doc_ids: batch.map((d) => d.id) });
             } else {
               totalInserted += rows.length;
               completed++;
+              await logEvent(runId, "batch_completed", `Batch ${batchLabel} added ${rows.length} question(s)`,
+                { index: i + 1, total: batches.length, inserted: rows.length });
             }
           } else {
             completed++;
+            await logEvent(runId, "batch_completed", `Batch ${batchLabel} returned 0 questions`,
+              { index: i + 1, total: batches.length, inserted: 0 });
           }
         } catch (err) {
           console.error(`[generate-questions] batch=${batchLabel} failed`, err);
           failed++;
           for (const d of batch) failedDocIds.push(d.id);
+          await logEvent(runId, "batch_failed",
+            `Batch ${batchLabel} failed: ${err instanceof Error ? err.message : String(err)}`,
+            { index: i + 1, total: batches.length, doc_ids: batch.map((d) => d.id) });
         }
 
         await updateRun({
@@ -637,6 +677,7 @@ Deno.serve(async (req) => {
           await updateRun({
             current_step: `Cross-document contradiction pass${subsets.length > 1 ? ` (${si + 1}/${subsets.length})` : ""}`,
           });
+          await logEvent(runId, "cross_doc_started", sub.label, { index: si + 1, total: subsets.length });
           try {
             const { prompt, entityCount } = buildCrossPrompt(sub.docs);
             console.log(`[generate-questions] ${sub.label} promptChars=${prompt.length} entities=${entityCount}`);
@@ -676,17 +717,29 @@ Deno.serve(async (req) => {
                 console.error(`[generate-questions] ${sub.label} insert error`, insErr);
                 failed++;
                 anySubsetFailed = true;
+                await logEvent(runId, "cross_doc_failed",
+                  `${sub.label} insert failed: ${insErr.message ?? insErr}`,
+                  { index: si + 1, total: subsets.length });
               } else {
                 totalInserted += rows.length;
                 completed++;
+                await logEvent(runId, "cross_doc_completed",
+                  `${sub.label} added ${rows.length} contradiction question(s)`,
+                  { index: si + 1, total: subsets.length, inserted: rows.length });
               }
             } else {
               completed++;
+              await logEvent(runId, "cross_doc_completed",
+                `${sub.label} returned 0 contradictions`,
+                { index: si + 1, total: subsets.length, inserted: 0 });
             }
           } catch (err) {
             console.error(`[generate-questions] ${sub.label} failed`, err);
             failed++;
             anySubsetFailed = true;
+            await logEvent(runId, "cross_doc_failed",
+              `${sub.label} failed: ${err instanceof Error ? err.message : String(err)}`,
+              { index: si + 1, total: subsets.length });
           }
         }
         if (anySubsetFailed) crossDocFailed = true;
@@ -710,6 +763,9 @@ Deno.serve(async (req) => {
         completed_at: new Date().toISOString(),
         error_message: failed > 0 ? `${failed} batch(es) failed` : null,
       });
+      await logEvent(runId, finalStatus,
+        `Run ${finalStatus} · inserted=${totalInserted} ok=${completed} failed=${failed}`,
+        { inserted: totalInserted, completed, failed });
 
       // If retry succeeded fully, mark the parent run as completed and clear its failure markers.
       if (isRetry && parentRunId && finalStatus === "completed") {
