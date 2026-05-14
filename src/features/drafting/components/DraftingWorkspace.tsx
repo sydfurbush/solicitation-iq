@@ -86,6 +86,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
     }
     try {
       await aiPolish.mutateAsync({ draftId: selectedDraft.id, action });
+      setMode("preview");
       toast.success("Polish applied");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Polish failed");
