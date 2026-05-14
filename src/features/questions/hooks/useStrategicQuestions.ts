@@ -13,7 +13,7 @@ const qsKey = (id: string) => ["strategic-questions", id] as const;
 // The detail StatCard and Solicitations list both read embedded counts from
 // `["solicitation", id]` / `["solicitations", ...]`, so they must be refreshed
 // whenever questions are added, edited, or removed.
-function invalidateQuestionCounts(qc: ReturnType<typeof useQueryClient>, solicitationId: string) {
+export function invalidateQuestionCounts(qc: ReturnType<typeof useQueryClient>, solicitationId: string) {
   qc.invalidateQueries({ queryKey: qsKey(solicitationId) });
   qc.invalidateQueries({ queryKey: ["solicitation", solicitationId] });
   qc.invalidateQueries({ queryKey: ["solicitations"] });
