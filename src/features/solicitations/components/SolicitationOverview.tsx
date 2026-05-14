@@ -44,6 +44,7 @@ import {
 } from "@/lib/validators/solicitation";
 import { LensOverridePanel } from "./LensOverridePanel";
 import { SolicitationAssignmentsCard } from "@/features/team/components/AssignmentsCard";
+import { OverviewProposalsCard, AutofillChip } from "./OverviewProposalsCard";
 
 interface Props {
   solicitation: SolicitationRow;
