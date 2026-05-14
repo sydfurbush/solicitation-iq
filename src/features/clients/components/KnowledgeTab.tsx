@@ -35,27 +35,61 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
   const upload = useUploadKnowledgeFile(clientId);
   const reingest = useReingestKnowledge(clientId);
   const del = useDeleteKnowledge(clientId);
+  const updateNote = useUpdateKnowledgeNote(clientId);
+  const updateMeta = useUpdateKnowledgeMeta(clientId);
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<KnowledgeDoc | null>(null);
   const [form, setForm] = useState({ title: "", body: "", tags: "", source_url: "" });
 
+  const isEditing = !!editingDoc;
+  const isUploadEdit = isEditing && editingDoc?.source_type === "upload";
+
+  useEffect(() => {
+    if (editingDoc) {
+      setForm({
+        title: editingDoc.title ?? "",
+        body: editingDoc.raw_text ?? "",
+        tags: (editingDoc.tags ?? []).join(", "),
+        source_url: editingDoc.source_url ?? "",
+      });
+      setOpen(true);
+    }
+  }, [editingDoc]);
+
+  const resetAndClose = () => {
+    setOpen(false);
+    setEditingDoc(null);
+    setForm({ title: "", body: "", tags: "", source_url: "" });
+  };
+
   const submitNote = async () => {
-    if (!form.title.trim() || !form.body.trim()) {
-      toast({ title: "Title and body are required", variant: "destructive" });
+    if (!form.title.trim()) {
+      toast({ title: "Title is required", variant: "destructive" });
       return;
     }
+    if (!isUploadEdit && !form.body.trim()) {
+      toast({ title: "Content is required", variant: "destructive" });
+      return;
+    }
+    const tags = form.tags.split(",").map((t) => t.trim()).filter(Boolean);
+    const source_url = form.source_url.trim() || undefined;
     try {
-      await createNote.mutateAsync({
-        title: form.title.trim(),
-        body: form.body,
-        tags: form.tags.split(",").map((t) => t.trim()).filter(Boolean),
-        source_url: form.source_url.trim() || undefined,
-      });
-      toast({ title: "Note added", description: "Embedding in the background." });
-      setOpen(false);
-      setForm({ title: "", body: "", tags: "", source_url: "" });
+      if (isEditing && editingDoc) {
+        if (isUploadEdit) {
+          await updateMeta.mutateAsync({ id: editingDoc.id, title: form.title.trim(), tags, source_url });
+          toast({ title: "Updated", description: "Title and tags saved." });
+        } else {
+          await updateNote.mutateAsync({ id: editingDoc.id, title: form.title.trim(), body: form.body, tags, source_url });
+          toast({ title: "Note updated", description: "Re-embedding in the background." });
+        }
+      } else {
+        await createNote.mutateAsync({ title: form.title.trim(), body: form.body, tags, source_url });
+        toast({ title: "Note added", description: "Embedding in the background." });
+      }
+      resetAndClose();
     } catch (e) {
-      toast({ title: "Failed to add note", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      toast({ title: "Save failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
