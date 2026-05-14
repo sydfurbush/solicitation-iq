@@ -53,6 +53,7 @@ const SCHEMA = {
             section_number: { type: "string" },
             page_allocation: { type: "number" },
             source_l_reference: { type: "string" },
+            source_section_refs: { type: "string", description: "Comma-separated [ref:N] ids from the SECTION L/M EXCERPTS that support this node, e.g. '1,3,7'" },
             linked_requirement_refs: { type: "string" },
           },
           required: ["title", "depth", "sort_order"],
