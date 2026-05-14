@@ -2140,6 +2140,71 @@ export type Database = {
         }
         Relationships: []
       }
+      question_generation_run_chunks: {
+        Row: {
+          attempts: number
+          chunk_index: number
+          completed_at: string | null
+          created_at: string
+          doc_ids: string[]
+          error_message: string | null
+          id: string
+          inserted_count: number
+          kind: string
+          label: string
+          run_id: string
+          section_slice: Json
+          solicitation_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          chunk_index: number
+          completed_at?: string | null
+          created_at?: string
+          doc_ids?: string[]
+          error_message?: string | null
+          id?: string
+          inserted_count?: number
+          kind: string
+          label: string
+          run_id: string
+          section_slice?: Json
+          solicitation_id: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          chunk_index?: number
+          completed_at?: string | null
+          created_at?: string
+          doc_ids?: string[]
+          error_message?: string | null
+          id?: string
+          inserted_count?: number
+          kind?: string
+          label?: string
+          run_id?: string
+          section_slice?: Json
+          solicitation_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "question_generation_run_chunks_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "question_generation_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       question_generation_run_events: {
         Row: {
           created_at: string
