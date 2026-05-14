@@ -174,20 +174,24 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) resetAndClose(); else setOpen(true); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add knowledge note</DialogTitle>
+            <DialogTitle>{isEditing ? (isUploadEdit ? "Edit upload" : "Edit knowledge note") : "Add knowledge note"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label htmlFor="kn-title">Title</Label>
               <Input id="kn-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. 2023 VA T4NG win — past performance language" />
             </div>
-            <div>
-              <Label htmlFor="kn-body">Content</Label>
-              <Textarea id="kn-body" rows={12} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Paste lessons learned, prior proposal sections, themes, etc." />
-            </div>
+            {isUploadEdit ? (
+              <p className="text-xs text-muted-foreground italic">Content comes from the uploaded file and can't be edited here. Re-upload the file to replace its content.</p>
+            ) : (
+              <div>
+                <Label htmlFor="kn-body">Content</Label>
+                <Textarea id="kn-body" rows={12} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Paste lessons learned, prior proposal sections, themes, etc." />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="kn-tags">Tags (comma separated)</Label>
@@ -227,10 +231,10 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={createNote.isPending}>Cancel</Button>
-            <Button onClick={submitNote} disabled={createNote.isPending}>
-              {createNote.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
-              Save & embed
+            <Button variant="outline" onClick={resetAndClose} disabled={createNote.isPending || updateNote.isPending || updateMeta.isPending}>Cancel</Button>
+            <Button onClick={submitNote} disabled={createNote.isPending || updateNote.isPending || updateMeta.isPending}>
+              {(createNote.isPending || updateNote.isPending || updateMeta.isPending) ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
+              {isEditing ? (isUploadEdit ? "Save changes" : "Save & re-embed") : "Save & embed"}
             </Button>
           </DialogFooter>
         </DialogContent>
