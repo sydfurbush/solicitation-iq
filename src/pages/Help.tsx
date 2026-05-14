@@ -7,6 +7,9 @@ const FAQS = [
   { q: "How does AI analysis work?", a: "Upload solicitation documents and click Run Analysis. The system parses and analyzes content using Lovable AI." },
   { q: "Can clients access their data directly?", a: "Yes. Invite client users from the client's Portal Access tab to give them portal access." },
   { q: "How do I export reports?", a: "Open a generated report and use the PDF or Word download buttons." },
+  { q: "How does team access work for my consultants?", a: "Each solicitation has a Lead and an Analyst (both full admin) plus optional Contributors. Only assigned people see the solicitation; Org Owners and Admins always see everything. See Settings → Help → 'How team access works' for the full guide." },
+  { q: "I can't see a solicitation a teammate showed me — why?", a: "You aren't assigned to it. Ask the Lead to add you as Analyst or Contributor, or ask an Org Admin to promote your org role." },
+  { q: "Can two people both be Lead on a solicitation?", a: "No — exactly one Lead per solicitation. Use the Analyst role for the second decision-maker; both have identical edit power." },
 ];
 
 export default function Help() {
