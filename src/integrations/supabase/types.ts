@@ -1320,6 +1320,104 @@ export type Database = {
           },
         ]
       }
+      lens_preset_versions: {
+        Row: {
+          change_note: string | null
+          content: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          preset_id: string
+          version: number
+        }
+        Insert: {
+          change_note?: string | null
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          preset_id: string
+          version: number
+        }
+        Update: {
+          change_note?: string | null
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          preset_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lens_preset_versions_preset_id_fkey"
+            columns: ["preset_id"]
+            isOneToOne: false
+            referencedRelation: "lens_presets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lens_presets: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          deleted_at: string | null
+          description: string | null
+          family: string
+          id: string
+          is_builtin: boolean
+          key: string
+          label: string
+          organization_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          family?: string
+          id?: string
+          is_builtin?: boolean
+          key: string
+          label: string
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          family?: string
+          id?: string
+          is_builtin?: boolean
+          key?: string
+          label?: string
+          organization_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lens_presets_current_version_fk"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "lens_preset_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lens_presets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunities: {
         Row: {
           client_capability_match: string | null
