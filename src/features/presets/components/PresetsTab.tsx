@@ -38,7 +38,7 @@ const presetSchema = z.object({
 });
 
 function TagEditor({ label, values, onChange, placeholder }: {
-  label: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string;
+  label: React.ReactNode; values: string[]; onChange: (v: string[]) => void; placeholder?: string;
 }) {
   const [draft, setDraft] = useState("");
   return (
