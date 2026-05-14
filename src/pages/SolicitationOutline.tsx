@@ -79,6 +79,12 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
           <div className="flex gap-2">
             <ExportMenu build={buildExport} disabled={!outline || nodes.length === 0} label="Export outline" solicitationId={solicitationId} kind="outline" />
             <ExportHistoryButton solicitationId={solicitationId} kind="outline" />
+            {outline && nodes.length > 0 && (
+              <Button variant="outline" onClick={runRelink} disabled={relink.isPending} title="Match outline nodes to source documents">
+                {relink.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Link2 className="h-4 w-4 mr-2" />}
+                Re-link sources
+              </Button>
+            )}
             <Button onClick={run} disabled={gen.isPending}>
               {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               {outline ? "Regenerate" : "Generate outline"}
