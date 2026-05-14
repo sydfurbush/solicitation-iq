@@ -1,39 +1,49 @@
-Findings:
-- The current solicitation has 252 AI-generated questions.
-- Exact duplicate question text: 0 duplicate groups, 0 extra rows.
-- Repeated source quotes: 29 groups / 35 extra rows sharing the same quote, so there are near-overlaps around the same issue even if the wording is not identical.
-- There are 2 clearly bad/truncated short questions: “Is the ” and “The MOU mentions that ”.
-- The latest run is stuck again: it reached batch 18/18 with 125 inserted, then stopped updating before the cross-document pass. Prior failed runs also timed out and retried by re-running the full unknown scope, which is why the total grew to 252.
+## Problem
 
-Recommended implementation plan:
+In the question detail panel and card, the "Source" block currently shows only the quote and a section label (e.g. "Section VOLUME I – EXPERIENCE"). It never says **which document** the quote came from, even though each question stores a `source_document_id` linking to a row in `documents` (with `file_name`). Users can't tell whether a citation refers to the PWS, an attachment, an amendment, etc.
 
-1. Add durable resumable run chunks
-- Extend generation runs so each work unit is tracked as a resumable chunk instead of only a single long background job.
-- Store chunk index, label, document ids, section slice metadata, status, inserted count, error, and timestamps.
-- This lets the app retry only unfinished chunks instead of falling back to a full re-run.
+## Recommendation (do all three)
 
-2. Split execution into small callable sets
-- Change `generate-questions` so the initial call creates a run and chunk plan, then processes only a small number of chunks per invocation, e.g. 2–4 chunks.
-- Add a follow-up mode like `runId + continue` that processes the next pending chunks.
-- The client can call continue until the run is complete, keeping each edge-function request under timeout limits.
-- Keep the cross-document contradiction pass on Gemini 2.5 Pro, but make it its own chunk after all document chunks complete.
+### 1. Always show the document file name with the citation (required fix)
 
-3. Prevent duplicate and low-quality inserts
-- Add application-level dedupe before insert using normalized question text.
-- Also dedupe against existing questions for the same solicitation so retries do not append the same issue again.
-- Skip obviously malformed output such as question text shorter than a safe threshold or not ending as a usable question/request.
-- Prefer `upsert`/ignore-duplicates if we add a database uniqueness constraint; otherwise keep this as function-level dedupe to avoid disrupting manual edits.
+In both `QuestionDetailPanel.tsx` and `QuestionCard.tsx`, resolve `question.source_document_id` against the `documents` array already passed in (id → file_name) and render it as the primary line of the source block:
 
-4. Add a cleanup/preview control for the current 252 questions
-- Provide a safe cleanup action that removes exact duplicates if any appear later, removes malformed truncated questions, and optionally flags near-overlaps by shared source quote for review rather than deleting them automatically.
-- Keep the run timeline/report so users can see which chunk failed and preview the failure.
+```
+📄 RFP-Attachment-J1-PWS.pdf
+   Section VOLUME I – EXPERIENCE
+   "The Offeror shall submit two examples..."
+```
 
-5. Improve retry behavior
-- For stuck runs, mark only unfinished chunks as failed/pending.
-- Retry resumes from the next unfinished chunk, not from the beginning.
-- If the cross-document pass fails, retry only that pass.
+- Use a `FileText` icon + filename as the headline.
+- Keep section/citation as secondary muted text.
+- If `source_document_id` is missing or unresolved, show "Document not specified" so the gap is visible instead of silently hidden.
+- `QuestionCard` currently only passes `source_citation` to `CitationLink`; extend it to also receive the resolved filename (pass `documents` down from `QuestionsList`, or look up via a small `useDocuments`-style map).
 
-Technical notes:
-- This likely needs a database migration for a `question_generation_run_chunks` table with RLS tied to the parent solicitation membership.
-- Frontend changes will update the generation hook to loop through `continue` calls and report chunk-level progress.
-- Existing tables remain intact; current questions are not deleted unless we add an explicit cleanup action and you choose to run it.
+### 2. Make the document name clickable
+
+Wrap the filename in a link/button that opens the document:
+- Primary: navigate to `/solicitations/:id?tab=phase-1&step=documents&doc=<id>` (or whichever existing route opens a document viewer — confirm during implementation).
+- Secondary: if no in-app viewer exists for that document, fall back to opening the file in a new tab via a signed URL from the `documents` storage bucket.
+
+### 3. Surface the document in list/export/filter contexts
+
+- **Question cards:** add a small `Badge` with the filename next to the category badges so users see the source doc without opening the panel.
+- **Export (`questionHelpers.ts`):** add a `Source Document` column alongside the existing `Source Citation` / `Source Quote` columns.
+- **Filters (`QuestionsFilters.tsx`):** add an optional "Source document" facet so users can filter questions by which document they came from. Useful for the 200+ question case.
+
+## Optional follow-ups (ask user before doing)
+
+- **Backfill check:** run a one-off query to count how many existing AI-generated questions have a `NULL` or invalid `source_document_id`. If many are missing, the generator prompt may need to require it explicitly. Report counts; don't auto-mutate.
+- **Generator hardening:** update `generate-questions/index.ts` so each emitted question must include the document id it was derived from, and reject/repair items missing it before insert.
+- **Section deep-link:** if the document viewer supports anchors, deep-link the citation (e.g. `&section=VOLUME%20I`) so clicking jumps directly to the cited section.
+
+## Technical notes
+
+- Data is already there: `strategic_questions.source_document_id` → `documents.id`, with `documents.file_name` available. No schema change needed for items 1–3.
+- `documents` array is already passed into `QuestionDetailPanel` and `SolicitationQuestions`; `QuestionsList` / `QuestionCard` need to receive it (or a `Map<id, file_name>`) as a new prop.
+- No backend or migration work required for the core fix.
+
+## Out of scope
+
+- Changing question generation logic.
+- Re-running generation to repopulate missing source documents (would be a separate approval).
