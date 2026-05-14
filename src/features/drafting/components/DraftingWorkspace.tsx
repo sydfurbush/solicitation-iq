@@ -172,6 +172,30 @@ export function DraftingWorkspace({ solicitationId }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <div className="inline-flex rounded-md border bg-muted/40 p-0.5 mr-1">
+              <button
+                type="button"
+                onClick={() => setMode("edit")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-1 text-xs rounded-sm",
+                  mode === "edit" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-pressed={mode === "edit"}
+              >
+                <Pencil className="h-3 w-3" /> Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("preview")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-1 text-xs rounded-sm",
+                  mode === "preview" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-pressed={mode === "preview"}
+              >
+                <Eye className="h-3 w-3" /> Preview
+              </button>
+            </div>
             <Button size="sm" variant="outline" onClick={onSave} disabled={!dirty || save.isPending}>
               {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               <span className="ml-1">Save</span>
@@ -182,13 +206,26 @@ export function DraftingWorkspace({ solicitationId }: Props) {
             </Button>
           </div>
         </div>
-        <Textarea
-          value={text}
-          onChange={(e) => { setText(e.target.value); setDirty(true); }}
-          className="flex-1 rounded-none border-0 resize-none font-mono text-sm focus-visible:ring-0"
-          placeholder="Write the section in Markdown. Cite requirements as [Req-X] and knowledge as [K1]…"
-        />
-      </Card>
+        {mode === "edit" ? (
+          <Textarea
+            value={text}
+            onChange={(e) => { setText(e.target.value); setDirty(true); }}
+            className="flex-1 rounded-none border-0 resize-none font-mono text-sm focus-visible:ring-0"
+            placeholder="Write the section in Markdown. Cite requirements as [Req-X] and knowledge as [K1]…"
+          />
+        ) : (
+          <div className="flex-1 overflow-auto p-6">
+            {text.trim() ? (
+              <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:scroll-mt-4">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+              </article>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No content yet. Click <span className="font-medium">AI Draft</span> to generate, or switch to Edit to write Markdown.
+              </div>
+            )}
+          </div>
+        )}
 
       {/* Right: context */}
       <Card className="col-span-3 flex flex-col">
