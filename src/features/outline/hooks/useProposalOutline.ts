@@ -81,8 +81,7 @@ export function useRelinkOutlineSources(solicitationId: string | undefined) {
     },
   });
 }
-
-
+export function useUpdateOutlineNode(outlineId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { id: string; patch: OutlineNodeUpdate }) => {
