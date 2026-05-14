@@ -1,40 +1,62 @@
-# Fix "Search in document text…" in the Document viewer
+## Goal
 
-## Problem
+Let you click any outline node and see exactly which source document and section the AI used to build it, so you can verify the information.
 
-In `src/features/documents/components/DocumentViewer.tsx` (the right-side sheet shown in the screenshot, Content tab), the search input only injects `<mark>` highlights into the extracted text. For a 102-page document the highlighted match is usually scrolled far below the visible area, so typing appears to do nothing. There is also no feedback on whether matches were found.
+## Current behavior
 
-Additionally, when a PDF has extracted text, the viewer currently picks the iframe path only when `extracted_text` is empty — which is correct — but the search box is also rendered above the iframe where it has no effect on the PDF iframe. We'll keep search visible only when we can actually search (extracted text is present).
+The `generate-outline` edge function pulls from three sources for each solicitation:
 
-## Fix
+1. **Section L/M excerpts** — from `document_sections` where `section_number` starts with `L` or `M`, or the title contains "instructions"/"evaluation". Up to 40 sections, 4000 chars each.
+2. **Section analyses** — from `section_analyses` (summaries built earlier in Deep Dive).
+3. **Requirements** — from `requirement_items` (the RTM, up to 200 shall-statements).
 
-Upgrade the in-document search to a real find experience:
+Each generated node already stores:
+- `source_l_reference` (e.g. "L.5.2(a)") — shown today as "→ Volume I Instructions"
+- `linked_requirement_ids` — shown as the "N reqs" badge
 
-1. **Match counting + navigation**
-   - Show "n of N" next to the input plus ChevronUp / ChevronDown buttons and Enter / Shift+Enter shortcuts.
-   - Track the active match index in component state.
+But there is **no stored link back to the actual document or `document_sections` row**, and no UI to inspect what the AI saw. So today you cannot click "Volume I Instructions" and see the underlying RFP page.
 
-2. **Scroll the active match into view**
-   - Tag each match span with a stable id (`data-match-index`).
-   - Style the active match differently (e.g. `bg-amber-400`) vs other matches (`bg-amber-200`).
-   - On index change, call `scrollIntoView({ block: "center" })` on the active node inside the `ScrollArea`.
+## Plan
 
-3. **Reset behavior**
-   - When the search term changes, reset active index to 0 and scroll to the first match.
-   - When the sheet closes or the document changes, clear the search (already done).
+### 1. Capture source provenance during generation
 
-4. **Hide the search box for the iframe path**
-   - Only render the search input when we're showing extracted text (i.e. not the raw PDF iframe), so users don't think a non-functional box is broken.
+Edit `supabase/functions/generate-outline/index.ts`:
 
-5. **Empty state**
-   - When the term is ≥ 2 chars and there are 0 matches, show "No matches" inline next to the counter.
+- Pass the L/M section list to the AI with stable IDs (e.g. `[ref:12]`) and ask the model to return a `source_section_ids` array per node alongside `source_l_reference`.
+- Persist a new `source_document_sections` JSONB column on `outline_nodes` containing `[{ document_id, document_name, section_number, section_title, page_start }]` resolved from those IDs.
+- Keep `linked_requirement_ids` as-is.
+
+This requires a small migration adding the JSONB column (nullable, default `[]`).
+
+### 2. Show provenance in the outline UI
+
+Edit `src/pages/SolicitationOutline.tsx`:
+
+- Add an "info" / chevron control on each row that opens a popover or expandable panel listing:
+  - **Source document** name (linked to the document viewer at the cited page)
+  - **Section** number + title
+  - **Page**
+  - **Linked requirements** (req_number + first 120 chars of shall_text, linked to RTM)
+- Reuse the existing `DocumentViewer` deep-link pattern (route to `/solicitations/:id/documents?doc=…&page=…&search=…`) so clicking jumps straight to the highlighted passage in the source PDF.
+
+### 3. Backfill for the existing outline (one-time)
+
+Since your current outline (v1, 73 nodes) was generated before provenance tracking, add a "Re-link sources" button next to Regenerate that:
+- Re-runs only the source-mapping pass (no AI re-generation, no version bump) — matches each node's `source_l_reference` string against `document_sections.section_number` for that solicitation and fills `source_document_sections`.
+- Avoids losing your current outline edits.
+
+If you'd rather just regenerate, you can skip this and use the existing Regenerate button after the change ships.
 
 ## Files touched
 
-- `src/features/documents/components/DocumentViewer.tsx` — only file changed. Refactor `HighlightedText` into a small component that accepts `term`, exposes match count via callback, and supports an `activeIndex` prop for styling + scroll.
+- `supabase/functions/generate-outline/index.ts` — schema + persistence
+- New migration — add `outline_nodes.source_document_sections jsonb default '[]'`
+- New edge function `relink-outline-sources` (small, optional, for backfill)
+- `src/features/outline/hooks/useProposalOutline.ts` — expose new field + relink mutation
+- `src/pages/SolicitationOutline.tsx` — per-row "Sources" disclosure + deep links
 
 ## Out of scope
 
-- The global `DocumentSearchBar` (top-of-page search across all documents) — that one already works via the `search_document_content` RPC.
-- No edge-function, schema, or RPC changes.
-- No design-system token changes; reuse existing amber highlight styling.
+- Changing the outline structure or AI prompt logic
+- Editing how requirements or section analyses are produced
+- Any change to drafting / Phase 4 / Phase 5
