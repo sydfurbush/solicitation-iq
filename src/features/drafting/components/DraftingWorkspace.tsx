@@ -10,9 +10,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Save, FileText, AlertCircle, Loader2 } from "lucide-react";
+import { Sparkles, Save, FileText, AlertCircle, Loader2, Eye, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Props { solicitationId: string }
 
@@ -36,6 +38,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
 
   const [text, setText] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [mode, setMode] = useState<"edit" | "preview">("preview");
 
   useEffect(() => {
     const md = (selectedDraft?.content_json as { markdown?: string } | null)?.markdown ?? selectedDraft?.content_html ?? "";
@@ -69,6 +72,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
     if (!selectedNode) return;
     try {
       await aiDraft.mutateAsync(selectedNode.id);
+      setMode("preview");
       toast.success("AI draft generated");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "AI draft failed");
@@ -82,6 +86,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
     }
     try {
       await aiPolish.mutateAsync({ draftId: selectedDraft.id, action });
+      setMode("preview");
       toast.success("Polish applied");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Polish failed");
@@ -167,6 +172,30 @@ export function DraftingWorkspace({ solicitationId }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <div className="inline-flex rounded-md border bg-muted/40 p-0.5 mr-1">
+              <button
+                type="button"
+                onClick={() => setMode("edit")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-1 text-xs rounded-sm",
+                  mode === "edit" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-pressed={mode === "edit"}
+              >
+                <Pencil className="h-3 w-3" /> Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("preview")}
+                className={cn(
+                  "inline-flex items-center gap-1 px-2 py-1 text-xs rounded-sm",
+                  mode === "preview" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-pressed={mode === "preview"}
+              >
+                <Eye className="h-3 w-3" /> Preview
+              </button>
+            </div>
             <Button size="sm" variant="outline" onClick={onSave} disabled={!dirty || save.isPending}>
               {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               <span className="ml-1">Save</span>
@@ -177,12 +206,26 @@ export function DraftingWorkspace({ solicitationId }: Props) {
             </Button>
           </div>
         </div>
-        <Textarea
-          value={text}
-          onChange={(e) => { setText(e.target.value); setDirty(true); }}
-          className="flex-1 rounded-none border-0 resize-none font-mono text-sm focus-visible:ring-0"
-          placeholder="Write the section in Markdown. Cite requirements as [Req-X] and knowledge as [K1]…"
-        />
+        {mode === "edit" ? (
+          <Textarea
+            value={text}
+            onChange={(e) => { setText(e.target.value); setDirty(true); }}
+            className="flex-1 rounded-none border-0 resize-none font-mono text-sm focus-visible:ring-0"
+            placeholder="Write the section in Markdown. Cite requirements as [Req-X] and knowledge as [K1]…"
+          />
+        ) : (
+          <div className="flex-1 overflow-auto p-6">
+            {text.trim() ? (
+              <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:scroll-mt-4">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+              </article>
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No content yet. Click <span className="font-medium">AI Draft</span> to generate, or switch to Edit to write Markdown.
+              </div>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* Right: context */}
