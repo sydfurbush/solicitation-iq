@@ -344,3 +344,103 @@ export async function buildClientLens(
     },
   };
 }
+
+// ============================================================================
+// Phase 2: Utility lane-aware topic nudges
+// Returns extra prompt instructions for a given (topic, lane) combination so
+// every analysis function automatically gets utility-aware extraction & framing.
+// ============================================================================
+function renderUtilityTopicNudge(topic: LensTopic, lane: string): string {
+  const lanes: Record<string, Record<string, string[]>> = {
+    requirements: {
+      it_ot: [
+        "Extract NERC CIP impact rating (Low/Medium/High BES Cyber System), CIP-002 through CIP-014 obligations, IEC 62443 SL targets, OT/ICS network segmentation requirements, patch-management windows, and any TSA Pipeline Cybersecurity Directive citations.",
+      ],
+      engineering: [
+        "Extract PE-stamp jurisdictions, design standards (IEEE, ANSI, ASCE 7, ACI 318, AWWA, ASME B31.8/B31.4), deliverable phases (30/60/90/IFC), and any utility-specific design guides (e.g., RUS Bulletins).",
+      ],
+      electric: [
+        "Extract voltage class (distribution / sub-transmission / transmission kV), OSHA 1910.269 + NFPA 70E arc-flash boundaries, minimum approach distance (MAD), EEI 587 storm-restoration posture, OQ/qualified-electrical-worker requirements, Davis-Bacon/PLA, and Buy America/BABA on IIJA-funded work.",
+      ],
+      gas: [
+        "Extract PHMSA 49 CFR Part 192 obligations, DIMP/TIMP, OQ-covered tasks, MAOP/class-location, leak-survey grade, HCA proximity, welding qualifications (API 1104, ASME IX), and pipeline integrity-management deliverables.",
+      ],
+      water: [
+        "Extract AWWA standards (C600 ductile iron, C810 LCRR service-line inventory, C651 disinfection), EPA SDWA/LCRR/PFAS triggers, NSF 61/372 material requirements, GPM/MGD plant capacity, and any state primacy-agency requirements.",
+      ],
+      civil: [
+        "Extract USACE Section 404, CWA Section 401, NPDES/SWPPP, ROW/easement scope, traffic-control (MUTCD), erosion control, and any prevailing-wage / Davis-Bacon triggers.",
+      ],
+      renewables: [
+        "Extract interconnection queue requirements (FERC LGIA/SGIA, ISO/RTO study phase), IRA domestic-content & PWA bonus thresholds, IEEE 1547, UL 3741, BESS NFPA 855, and EPC delivery milestones (NTP, MC, COD).",
+      ],
+      staffing: [
+        "Extract VMS/MSP platform (Fieldglass, Beeline, IQNavigator), rate-card / bill-rate caps, tenure limits, OQ/CDL/medical requirements, background/MVR/drug-screen panels, and any union/CBA-covered classifications.",
+      ],
+      prof_services: [
+        "Extract LCAT mappings, key-personnel resume/clearance requirements, CMMI/ISO certification floors, deliverable acceptance criteria, and any state PUC docket-support obligations.",
+      ],
+      field_services: [
+        "Extract response-time SLAs, on-call rotation, OQ-covered tasks, vehicle/tool requirements, ISN/Avetta/Veriforce prequal grade, and storm/mutual-aid call-out terms.",
+      ],
+      equipment: [
+        "Extract product spec compliance (IEEE/ANSI/AWWA/ASME), Buy America/BABA & domestic-content thresholds, FAT/SAT requirements, lead-time commitments, stocking/consignment/VMI terms, and warranty/RMA SLAs.",
+      ],
+      generic: [
+        "Extract regulatory regime (NERC/PHMSA/EPA/PUC/ISO-RTO), prequalification platform required, delivery model (MSA/T&M/EPC/unit-price), bonding/insurance limits, and any Buy America/BABA or prevailing-wage triggers.",
+      ],
+    },
+    risks: {
+      it_ot: ["Flag NERC CIP scope mismatch, OT/ICS segmentation gaps, vendor-remote-access posture, and SBOM/EO 14028 obligations."],
+      engineering: ["Flag PE-jurisdiction coverage gaps, missing utility-specific design-guide compliance, and aggressive IFC schedules vs. review cycles."],
+      electric: ["Flag outage-window liquidated damages, MAD/arc-flash posture vs. crew certifications, storm-call-out exposure, and Buy America compliance on IIJA work."],
+      gas: ["Flag DIMP/TIMP gaps, OQ task coverage, HCA exposure, and welder-qualification continuity."],
+      water: ["Flag LCRR inventory deadlines, PFAS treatment retrofit risk, NSF 61 material substitution risk, and bypass-pumping/shutdown-window exposure."],
+      civil: ["Flag permit-acquisition risk (404/401/NPDES), unsuitable-soils risk, and traffic-control plan adequacy."],
+      renewables: ["Flag interconnection-study delay, domestic-content shortfall (IRA bonus loss), BESS fire-code compliance, and supply-chain lead-time risk."],
+      staffing: ["Flag rate-card margin compression, tenure-limit churn, OQ/credential ramp time, and co-employment exposure."],
+      prof_services: ["Flag key-personnel commitment risk, clearance-ramp, and PUC docket-schedule slip."],
+      field_services: ["Flag SLA penalty exposure, prequal-grade gap, and storm-overlap capacity risk."],
+      equipment: ["Flag domestic-content/BABA non-compliance, FAT/SAT acceptance risk, and lead-time vs. ICD risk."],
+      generic: ["Flag regulatory-regime mismatch, prequal grade gap, bonding capacity gap, delivery-model mismatch, and Buy America/PWA exposure."],
+    },
+    win_themes: {
+      it_ot: ["Bias themes toward NERC CIP audit history, OT/ICS reference architectures, ISO 27001/SOC 2, and utility-specific deployments cited by name."],
+      engineering: ["Bias themes toward PE density by jurisdiction, repeat utility-design awards, and on-time IFC delivery record."],
+      electric: ["Bias themes toward TRIR/EMR vs. industry, EEI mutual-aid history, local crew/line-truck density, and self-perform percentage."],
+      gas: ["Bias themes toward OQ-task breadth, integrity-management track record, and zero-PHMSA-incident streaks."],
+      water: ["Bias themes toward AWWA accreditations, LCRR program experience, and successful PFAS/disinfection retrofits."],
+      civil: ["Bias themes toward self-perform civil capacity, SWPPP/erosion record, and on-budget delivery in similar terrain."],
+      renewables: ["Bias themes toward EPC schedule certainty, domestic-content sourcing, BESS commissioning record, and IRA-bonus eligibility."],
+      staffing: ["Bias themes toward bench depth in OQ/CDL/clearance categories, fill-rate / time-to-fill, and VMS/MSP performance scores."],
+      prof_services: ["Bias themes toward named subject-matter experts, regulatory-filing wins, and benchmarking datasets."],
+      field_services: ["Bias themes toward SLA attainment, prequal grade tier, and 24x7 dispatch readiness."],
+      equipment: ["Bias themes toward domestic-content posture, FAT pass rate, on-time delivery, and warranty performance."],
+      generic: ["Bias themes toward safety record, certification tier, local presence, and buyer-specific past performance."],
+    },
+    gaps: {
+      generic: ["Compare requirements to utility-supplier profile fields (service_categories, regulatory_bodies, delivery_models, bonding, prequal platforms, safety metrics, workforce capacity, diversity tiers, labor posture). Flag any required-but-absent capability."],
+    },
+    comparison: {
+      generic: ["Surface deltas in regulatory regime (NERC/PHMSA/EPA/PUC), prequalification platform, delivery model (MSA/T&M/EPC/unit-price), bonding/insurance, Buy America/PWA, and outage/SLA structure."],
+    },
+    outline: {
+      generic: ["If utility-buyer norms apply, ensure outline includes Safety, Quality (QA/QC), Regulatory Compliance, Local Presence / Mutual Aid, and Diversity/Tier sections in addition to Technical, Management, and Past Performance."],
+    },
+    questions: {
+      generic: ["Include questions probing: applicable regulatory regime, required prequal platform & grade, delivery model, bonding/insurance limits, Buy America/PWA applicability, outage windows & LDs, and whether incumbent self-performs."],
+    },
+    analysis: {
+      generic: ["Apply utility-supplier framing: identify regulatory regime, delivery model, prequal platform, and any Buy America/PWA triggers up front."],
+    },
+    report: {
+      generic: ["Include a Utility Bid Snapshot perspective where regulatory regime, prequal grade, bonding, safety vs. EMR/TRIR, and delivery-model fit are explicitly addressed."],
+    },
+  };
+
+  const topicMap = lanes[topic];
+  if (!topicMap) return "";
+  const items = topicMap[lane] ?? topicMap["generic"];
+  if (!items || !items.length) return "";
+  return ["**Utility lane guidance** — apply automatically:", ...items.map((s) => `  - ${s}`)].join("\n");
+}
