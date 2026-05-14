@@ -116,6 +116,7 @@ export function PresetsTab() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
