@@ -1,18 +1,37 @@
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, FileSearch, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { useActiveOutline, useOutlineNodes, useGenerateOutline } from "@/features/outline/hooks/useProposalOutline";
+import { useActiveOutline, useOutlineNodes, useGenerateOutline, useRelinkOutlineSources } from "@/features/outline/hooks/useProposalOutline";
 import { AdvancePhaseButton } from "@/features/phases/components/AdvancePhaseButton";
 import { ExportMenu } from "@/features/exports/components/ExportMenu";
 import { ExportHistoryButton } from "@/features/exports/components/ExportHistoryButton";
 import type { ExportDocument } from "@/features/exports/lib/exporters";
 
+type SourceSection = {
+  document_id: string | null;
+  document_name: string | null;
+  section_number: string | null;
+  section_title: string | null;
+  page_start: number | null;
+};
+
 export default function SolicitationOutline({ solicitationId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
   const { data: outline, isLoading } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
   const gen = useGenerateOutline(solicitationId);
+  const relink = useRelinkOutlineSources(solicitationId);
+
+  const runRelink = async () => {
+    try {
+      const r = await relink.mutateAsync();
+      toast({ title: "Sources relinked", description: `${r.updated} of ${r.total} nodes matched to documents` });
+    } catch (e) {
+      toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
 
   const buildExport = (): ExportDocument | null => {
     if (!outline || nodes.length === 0) return null;
@@ -60,6 +79,12 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
           <div className="flex gap-2">
             <ExportMenu build={buildExport} disabled={!outline || nodes.length === 0} label="Export outline" solicitationId={solicitationId} kind="outline" />
             <ExportHistoryButton solicitationId={solicitationId} kind="outline" />
+            {outline && nodes.length > 0 && (
+              <Button variant="outline" onClick={runRelink} disabled={relink.isPending} title="Match outline nodes to source documents">
+                {relink.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Link2 className="h-4 w-4 mr-2" />}
+                Re-link sources
+              </Button>
+            )}
             <Button onClick={run} disabled={gen.isPending}>
               {gen.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
               {outline ? "Regenerate" : "Generate outline"}
@@ -87,6 +112,35 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
                         {n.linked_requirement_ids?.length ? (
                           <Badge variant="outline" className="text-[10px]">{n.linked_requirement_ids.length} reqs</Badge>
                         ) : null}
+                        {(() => {
+                          const sources = ((n as any).source_document_sections ?? []) as SourceSection[];
+                          if (!sources.length) return null;
+                          return (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border border-border hover:bg-accent transition-colors">
+                                  <FileSearch className="h-3 w-3" />
+                                  {sources.length} source{sources.length > 1 ? "s" : ""}
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent align="start" className="w-96">
+                                <p className="text-xs font-semibold mb-2">Where this came from</p>
+                                <ul className="space-y-2">
+                                  {sources.map((s, i) => (
+                                    <li key={i} className="text-xs border-b last:border-0 pb-2 last:pb-0">
+                                      <div className="font-medium">{s.section_number ? `${s.section_number} ` : ""}{s.section_title ?? "Untitled section"}</div>
+                                      <div className="text-muted-foreground mt-0.5">
+                                        {s.document_name ?? "Unknown document"}
+                                        {s.page_start != null ? ` · p. ${s.page_start}` : ""}
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                                <p className="text-[10px] text-muted-foreground mt-3">Open the Documents tab to read the full passages.</p>
+                              </PopoverContent>
+                            </Popover>
+                          );
+                        })()}
                       </div>
                       {n.source_l_reference && <p className="text-xs text-muted-foreground">→ {n.source_l_reference}</p>}
                       {n.notes && <p className="text-xs text-muted-foreground mt-1">{n.notes}</p>}

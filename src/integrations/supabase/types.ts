@@ -1619,6 +1619,7 @@ export type Database = {
           parent_id: string | null
           section_number: string | null
           sort_order: number
+          source_document_sections: Json
           source_l_reference: string | null
           title: string
           updated_at: string
@@ -1637,6 +1638,7 @@ export type Database = {
           parent_id?: string | null
           section_number?: string | null
           sort_order?: number
+          source_document_sections?: Json
           source_l_reference?: string | null
           title: string
           updated_at?: string
@@ -1655,6 +1657,7 @@ export type Database = {
           parent_id?: string | null
           section_number?: string | null
           sort_order?: number
+          source_document_sections?: Json
           source_l_reference?: string | null
           title?: string
           updated_at?: string
