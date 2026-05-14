@@ -17,6 +17,7 @@ import { QuestionsFilters, type FilterCounts } from "@/features/questions/compon
 import { QuestionsList } from "@/features/questions/components/QuestionsList";
 import { QuestionsMatrix } from "@/features/questions/components/QuestionsMatrix";
 import { SubmittedQuestionsTracker } from "@/features/questions/components/SubmittedQuestionsTracker";
+import { ClarificationDrafts } from "@/features/questions/components/ClarificationDrafts";
 import {
   useBulkUpdateQuestions,
   useDeleteQuestion,
@@ -36,7 +37,7 @@ interface Props {
 
 export default function SolicitationQuestions({ solicitationId }: Props) {
   const [filters, setFilters] = useState<QuestionFilters>({});
-  const [view, setView] = useState<"list" | "matrix" | "submitted">("list");
+  const [view, setView] = useState<"list" | "matrix" | "submitted" | "clarifications">("list");
   const [selected, setSelected] = useState<QuestionRow | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -128,6 +129,14 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
               <TabsTrigger value="list"><List className="h-4 w-4 mr-1" /> List</TabsTrigger>
               <TabsTrigger value="matrix"><LayoutGrid className="h-4 w-4 mr-1" /> Matrix</TabsTrigger>
               <TabsTrigger value="submitted">Submitted</TabsTrigger>
+              {allQuestions.some((q) => q.client_decision === "clarify") && (
+                <TabsTrigger value="clarifications">
+                  Clarifications
+                  <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] px-1.5">
+                    {allQuestions.filter((q) => q.client_decision === "clarify").length}
+                  </span>
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
           <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
@@ -190,8 +199,10 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
                 setFilters({ categories: [f.category], recommendations: [f.recommendation] });
               }}
             />
-          ) : (
+          ) : view === "submitted" ? (
             <SubmittedQuestionsTracker questions={allQuestions} onSelect={setSelected} />
+          ) : (
+            <ClarificationDrafts solicitationId={solicitationId} />
           )}
         </>
       )}
