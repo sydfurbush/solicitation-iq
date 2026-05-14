@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Copy, Trash2, History, Sparkles, RotateCcw } from "lucide-react";
+import { Plus, Pencil, Copy, Trash2, History, Sparkles, RotateCcw, ChevronDown, Info } from "lucide-react";
 import {
   usePresets,
   useCreatePreset,
@@ -22,6 +24,8 @@ import {
   type PresetRow,
   type PresetContent,
 } from "../hooks/usePresets";
+import type { GeneratedPresetDraft, PresetReasoning } from "../hooks/useGeneratePreset";
+import { AIGenerateDialog } from "./AIGenerateDialog";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 import { toast } from "sonner";
 
