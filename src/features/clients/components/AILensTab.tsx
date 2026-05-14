@@ -13,13 +13,15 @@ import { Plus, Save, Sparkles, Trash2, Wand2, Zap } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useClientProfile, useUpsertClientProfile } from "@/features/clients/hooks/useClientProfile";
 import {
-  LENS_PRESETS,
   getPreset,
   isUtilityPreset,
   UTILITY_SERVICE_CATEGORIES,
   UTILITY_DELIVERY_MODELS,
   UTILITY_ISO_RTOS,
+  type LensPreset,
 } from "@/features/clients/lib/lensPresets";
+import { usePresets, type PresetContent } from "@/features/presets/hooks/usePresets";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Discriminator { title: string; evidence: string; proof_point: string }
 interface FlagRule { rule: string; reason: string }
