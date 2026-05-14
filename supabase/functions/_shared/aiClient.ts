@@ -142,7 +142,7 @@ async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Recor
 
   const body = JSON.stringify({
     model: choice.model,
-    max_tokens: choice.maxTokens ?? 4096,
+    max_completion_tokens: choice.maxTokens ?? 4096,
     messages: [
       { role: "system", content: args.system },
       { role: "user", content: args.user },
