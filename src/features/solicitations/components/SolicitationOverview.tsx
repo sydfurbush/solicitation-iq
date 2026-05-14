@@ -345,12 +345,12 @@ export function SolicitationOverview({
               </>
             ) : (
               <>
-                <DateRow label="Released" value={s.release_date} />
-                <DateRow label="Questions due" value={s.questions_due_date} />
-                <DateRow label="Proposal due" value={s.proposal_due_date} />
-                <DateRow label="Expected award" value={s.expected_award_date} />
-                <DateRow label="PoP start" value={s.period_of_performance_start} />
-                <DateRow label="PoP end" value={s.period_of_performance_end} />
+                <DateRow label="Released" value={s.release_date} field="release_date" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="Questions due" value={s.questions_due_date} field="questions_due_date" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="Proposal due" value={s.proposal_due_date} field="proposal_due_date" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="Expected award" value={s.expected_award_date} field="expected_award_date" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="PoP start" value={s.period_of_performance_start} field="period_of_performance_start" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                <DateRow label="PoP end" value={s.period_of_performance_end} field="period_of_performance_end" autofill={s.overview_autofill as Record<string, unknown> | null} />
               </>
             )}
           </CardContent>
