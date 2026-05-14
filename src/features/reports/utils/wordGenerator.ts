@@ -350,13 +350,20 @@ function questionCardTable(card: Extract<Block, { kind: "questionCard" }>) {
                 new TextRun({ text: stripMd(card.rationale), italics: true, size: 18, color: HEX.textMuted, font: FONT_DOCX }),
               ],
             })] : []),
-            ...(card.source ? [new Paragraph({
+            new Paragraph({
+              spacing: { after: 20 },
+              children: [
+                new TextRun({ text: "Section: ", bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
+                new TextRun({ text: stripMd(card.sourceSection || "—"), bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
+              ],
+            }),
+            new Paragraph({
               spacing: { after: 40 },
               children: [
-                new TextRun({ text: "Source: ", bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
-                new TextRun({ text: stripMd(card.source), bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
+                new TextRun({ text: "Document: ", bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
+                new TextRun({ text: stripMd(card.sourceDocument || "Not specified"), bold: true, size: 18, color: HEX.amber, font: FONT_DOCX }),
               ],
-            })] : []),
+            }),
             ...(card.agencyResponse ? [new Paragraph({
               children: [
                 new TextRun({ text: "Agency response: ", bold: true, italics: true, size: 18, color: HEX.text, font: FONT_DOCX }),
