@@ -115,22 +115,37 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Rec
     tool_choice: { type: "tool", name: args.tool.name },
   };
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_KEY,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const MAX_ATTEMPTS = 4;
+  let res!: Response;
+  let text = "";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) break;
+    text = await res.text();
+    const transient =
+      res.status === 503 ||
+      res.status === 529 ||
+      (res.status === 500 && /overloaded_error|temporarily unavailable/i.test(text));
+    if (!transient || attempt === MAX_ATTEMPTS) break;
+    const wait = Math.min(8000, 500 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 250);
+    console.warn(`[aiClient] anthropic ${res.status} transient, retrying in ${wait}ms (attempt ${attempt}/${MAX_ATTEMPTS - 1})`);
+    await new Promise((r) => setTimeout(r, wait));
+  }
 
   if (!res.ok) {
-    const text = await res.text();
     console.error("[aiClient] anthropic error", res.status, text);
     if (res.status === 401) throw new AiHttpError(401, "Anthropic API key invalid");
     if (res.status === 429) throw new AiHttpError(429, "Anthropic rate limit exceeded. Try again later.");
     if (res.status === 402 || res.status === 403) throw new AiHttpError(402, "Anthropic credits/permission issue. Check your account.");
+    if (res.status === 503 || res.status === 529) throw new AiHttpError(503, "Anthropic is temporarily overloaded. Please retry in a moment.");
     throw new AiHttpError(res.status, `Anthropic request failed: ${text}`);
   }
 
