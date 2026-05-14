@@ -1,10 +1,10 @@
 // Helpers to introduce wrap opportunities in long unbreakable tokens
 // (e.g. filenames joined with "+", "_", "/", ".", "-").
 
-const BREAK_CHARS = /([+_/\\.\-])/g;
+const BREAK_CHARS = /([+_/\\.\-&;,:|§#=])/g;
 
 /** Insert zero-width spaces after break chars in long tokens. For Word/HTML. */
-export function softBreakWord(input: string | null | undefined, threshold = 16): string {
+export function softBreakWord(input: string | null | undefined, threshold = 12): string {
   if (!input) return "";
   return input
     .split(/(\s+)/)
