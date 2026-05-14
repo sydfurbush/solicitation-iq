@@ -1,42 +1,35 @@
-# Fix: AI generation never runs when creating a preset
+## Issues observed
 
-## Root cause
+**1. New preset overflows the page (horizontal scrollbar)**
+The custom preset row "Technical Advisory Support Services: Transition of Food" has a long label. In `PresetRowItem` the label uses `truncate` (which sets `white-space: nowrap`) inside a `flex flex-wrap` parent without a constrained width. The unbroken span pushes the row wider than the card, which in turn pushes the right-side action buttons (history / clone / edit / **delete**) past the viewport — that's why the user can't reach Delete and why the page scrolls horizontally.
 
-In `src/features/presets/components/PresetsTab.tsx`, the header button is a plain "New preset" button that only opens the blank `CreateDialog`:
+**2. Delete returned 403 once**
+Network log shows a `PATCH …deleted_at` returning `42501 row-level security` for that preset. A second update on a sibling row succeeded with the same JWT, and the user is `owner` of the org — so RLS is configured correctly. The 403 was likely a one-off (stale session/role just after creation). Once the layout is fixed and the Delete button is reachable, retrying should work; if it still fails we'll surface the error and inspect further.
 
-```tsx
-<Button onClick={() => setCreating(true)}>
-  <Plus /> New preset
-</Button>
-```
+## Plan
 
-The `AIGenerateDialog` is imported but never rendered, and `CreateDialog` is never given an `initialDraft`. So clicking **New preset** always opens the empty form — no AI call is ever made. That matches the screenshot: the new custom preset has only the label/description the user typed and no NAICS/agencies/etc.
+### A. Fix the overflow so the Delete button is reachable
 
-The earlier intended split-button (Blank vs. Generate with AI) was lost.
+In `src/features/presets/components/PresetsTab.tsx` `PresetRowItem`:
 
-## Fix
+- Give the left column a real width budget: `flex-1 min-w-0` (currently only `min-w-0`, so it doesn't actually shrink inside the parent flex).
+- Remove `flex-wrap` from the badges row and add `min-w-0` so the truncate on the label takes effect.
+- Keep the action column `shrink-0` and `gap-1`. No new buttons.
 
-Edit only `src/features/presets/components/PresetsTab.tsx` — frontend wiring only, no schema/backend/edge-function changes.
+Result: long labels truncate with ellipsis, the row stays inside the card, and all four action icons (incl. Delete) remain visible at the current viewport.
 
-1. **Add state** for the AI dialog and the generated draft:
-   - `aiOpen: boolean`
-   - `aiDraft: GeneratedPresetDraft | null`
+### B. Make delete failures visible (defensive)
 
-2. **Replace the single header button with a split button** using the existing `DropdownMenu` (already imported):
-   - Primary action "New preset" (blank) → `setCreating(true)`
-   - Caret dropdown with two items:
-     - "Blank preset" → `setCreating(true)`
-     - "Generate with AI ✨" → `setAiOpen(true)`
+`useDeletePreset` already toasts on error — verify and keep. No code change unless retry still 403s after fix B; in that case we'll log the failing payload and revisit RLS.
 
-3. **Render `<AIGenerateDialog>`** when `aiOpen`. On `onGenerated(draft)`:
-   - `setAiDraft(draft)`
-   - `setCreating(true)`
-   - close the AI dialog
+### C. Sanity check after deploy
 
-4. **Pass `initialDraft={aiDraft}` to `<CreateDialog>`** and clear `aiDraft` in its `onClose`.
+1. Reload Settings → Service Presets.
+2. Confirm the long-label row is fully inside the card with no horizontal scrollbar.
+3. Click the trash icon on "Technical Advisory Support Services: Transition of Food" → confirm dialog → Delete. Expect a 204 and the row to disappear.
 
-## Verification
+## Files touched
 
-- Click the caret → "Generate with AI" → fill category → confirm the edge function `generate-preset` is invoked (network tab) and the editor opens pre-filled with NAICS, agencies, vehicles, compliance, discriminators, keywords, plus the Info hint icons next to section labels.
-- Click "New preset" (primary) → opens empty form as before.
-- Save → custom preset appears with full content (not just label/description).
+- `src/features/presets/components/PresetsTab.tsx` (only the `PresetRowItem` JSX classes)
+
+No DB / RLS / edge-function changes.

@@ -171,10 +171,10 @@ function PresetRowItem({ preset, onEdit, onHistory }: { preset: PresetRow; onEdi
   };
 
   return (
-    <div className="flex items-center justify-between rounded border p-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium truncate">{preset.label}</span>
+    <div className="flex items-center justify-between gap-3 rounded border p-3">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="font-medium truncate min-w-0">{preset.label}</span>
           <Badge variant="outline" className="text-xs">{preset.family}</Badge>
           {preset.is_builtin && <Badge variant="secondary" className="text-xs">built-in</Badge>}
           {current && <Badge variant="outline" className="text-xs">v{current.version}</Badge>}
