@@ -474,21 +474,31 @@ export function SolicitationOverview({
               <>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Estimated value</span>
-                  <span className="font-medium">
+                  <span className="font-medium flex items-center">
                     {formatRange(s.estimated_value_low, s.estimated_value_high)}
+                    <AutofillChip field="estimated_value_low" autofill={s.overview_autofill as Record<string, unknown> | null} />
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Contract type</span>
-                  <span className="font-medium">{s.contract_type ?? "—"}</span>
+                  <span className="font-medium flex items-center">
+                    {s.contract_type ?? "—"}
+                    <AutofillChip field="contract_type" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Agency type</span>
-                  <span className="font-medium">{s.agency_type ?? "—"}</span>
+                  <span className="font-medium flex items-center">
+                    {s.agency_type ?? "—"}
+                    <AutofillChip field="agency_type" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Set-aside</span>
-                  <span className="font-medium">{setAside ?? "—"}</span>
+                  <span className="font-medium flex items-center">
+                    {setAside ?? "—"}
+                    <AutofillChip field="set_aside" autofill={s.overview_autofill as Record<string, unknown> | null} />
+                  </span>
                 </div>
               </>
             )}
