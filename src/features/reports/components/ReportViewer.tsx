@@ -9,6 +9,18 @@ import type { ReportContent } from "../templates/types";
 import { sectionBlocks, type Block } from "../templates/blocks";
 import type { ReportRow } from "../hooks/useReports";
 import { LensSnapshotBadge } from "@/features/clients/components/LensSnapshotBadge";
+import { CATEGORY_HEX, type CategoryTone } from "../templates/theme";
+import { softBreakWord } from "../utils/textBreaks";
+
+function tone(t: CategoryTone | string | undefined) {
+  const key = (t ?? "neutral") as CategoryTone;
+  return CATEGORY_HEX[key] ?? CATEGORY_HEX.neutral;
+}
+
+function fmtDate(d: string) {
+  try { return new Date(d).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }); }
+  catch { return d; }
+}
 
 function renderInline(text: string) {
   const parts: Array<{ text: string; bold?: boolean; italic?: boolean }> = [];
