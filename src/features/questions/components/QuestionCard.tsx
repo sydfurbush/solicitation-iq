@@ -32,6 +32,7 @@ import {
 
 interface Props {
   question: QuestionRow;
+  documents?: Array<{ id: string; file_name: string }>;
   selected?: boolean;
   onSelectChange?: (checked: boolean) => void;
   onClick?: () => void;
@@ -39,7 +40,7 @@ interface Props {
   onDelete: () => void;
 }
 
-export function QuestionCard({ question, selected, onSelectChange, onClick, onUpdate, onDelete }: Props) {
+export function QuestionCard({ question, documents = [], selected, onSelectChange, onClick, onUpdate, onDelete }: Props) {
   const [expanded, setExpanded] = useState(false);
   const priority = getPriorityLevel(question.priority);
   const rec = (question.recommendation ?? "monitor") as QuestionRecommendation;
