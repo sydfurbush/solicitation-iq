@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Bell } from "lucide-react";
+import { Bell, BookOpen } from "lucide-react";
 import { RevisionNotificationFlowArticle } from "../help/RevisionNotificationFlowArticle";
+import { KnowledgeLibraryArticle } from "../help/KnowledgeLibraryArticle";
 
 type Article = {
   id: string;
@@ -13,6 +14,13 @@ type Article = {
 };
 
 const ARTICLES: Article[] = [
+  {
+    id: "knowledge-library",
+    title: "Client Knowledge Library",
+    description: "Scope, ingestion, RAG retrieval, and impact on win rate and analysis quality.",
+    icon: BookOpen,
+    body: <KnowledgeLibraryArticle />,
+  },
   {
     id: "revision-flow",
     title: "Handling a revision notification",
