@@ -25,6 +25,7 @@ import {
 
 interface Props {
   questions: QuestionRow[];
+  documents?: Array<{ id: string; file_name: string }>;
   onSelect: (q: QuestionRow) => void;
   onUpdate: (id: string, updates: Partial<QuestionRow>) => void;
   onBulkUpdate: (ids: string[], updates: Partial<QuestionRow>) => void;
@@ -32,7 +33,7 @@ interface Props {
   onExportSelected: (ids: string[]) => void;
 }
 
-export function QuestionsList({ questions, onSelect, onUpdate, onBulkUpdate, onDelete, onExportSelected }: Props) {
+export function QuestionsList({ questions, documents = [], onSelect, onUpdate, onBulkUpdate, onDelete, onExportSelected }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -112,6 +113,7 @@ export function QuestionsList({ questions, onSelect, onUpdate, onBulkUpdate, onD
                   <QuestionCard
                     key={q.id}
                     question={q}
+                    documents={documents}
                     selected={selected.has(q.id)}
                     onSelectChange={(c) => toggleSelect(q.id, c)}
                     onClick={() => onSelect(q)}

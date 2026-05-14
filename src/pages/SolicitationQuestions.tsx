@@ -89,6 +89,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
       notSubmitted: 0,
       ai: 0,
       manual: 0,
+      documents: {},
     };
     for (const q of allQuestions) {
       c.categories[q.category] = (c.categories[q.category] ?? 0) + 1;
@@ -97,6 +98,8 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
       c.priorities[p] = (c.priorities[p] ?? 0) + 1;
       if (q.is_submitted) c.submitted++; else c.notSubmitted++;
       if (q.is_ai_generated) c.ai++; else c.manual++;
+      const docKey = q.source_document_id ?? "__none__";
+      c.documents![docKey] = (c.documents![docKey] ?? 0) + 1;
     }
     return c;
   }, [allQuestions]);
@@ -178,7 +181,9 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
         </Card>
       ) : (
         <>
-          {view !== "submitted" && <QuestionsFilters filters={filters} onChange={setFilters} counts={filterCounts} />}
+          {view !== "submitted" && (
+            <QuestionsFilters filters={filters} onChange={setFilters} counts={filterCounts} documents={documents} />
+          )}
 
           {isLoading ? (
             <div className="space-y-3">
@@ -187,6 +192,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
           ) : view === "list" ? (
             <QuestionsList
               questions={filtered}
+              documents={documents}
               onSelect={setSelected}
               onUpdate={handleUpdate}
               onBulkUpdate={handleBulkUpdate}
@@ -224,6 +230,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
       />
       <QuestionExport
         questions={allQuestions}
+        documents={documents}
         open={exportOpen}
         onOpenChange={setExportOpen}
       />

@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { QuestionForm } from "./QuestionForm";
+import { SourceDocumentLink } from "./SourceDocumentLink";
 import {
   CATEGORY_LABEL,
   RECOMMENDATION_LABEL,
@@ -106,18 +107,24 @@ export function QuestionDetailPanel({ question, documents, onClose, onUpdate }: 
               </div>
             )}
 
-            {question.source_quote && (
-              <div>
-                <Label className="text-xs uppercase tracking-wide text-muted-foreground">Source</Label>
-                <blockquote className="mt-1 border-l-2 border-primary/40 pl-3 text-sm italic text-muted-foreground">
+            <div>
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">Source</Label>
+              <div className="mt-1.5">
+                <SourceDocumentLink documentId={question.source_document_id} documents={documents} />
+              </div>
+              {question.source_quote && (
+                <blockquote className="mt-2 border-l-2 border-primary/40 pl-3 text-sm italic text-muted-foreground">
                   <Quote className="inline h-3 w-3 mr-1" />
                   {question.source_quote}
                 </blockquote>
-                {question.source_citation && (
-                  <p className="mt-1 text-xs text-muted-foreground">{question.source_citation}</p>
-                )}
-              </div>
-            )}
+              )}
+              {question.source_citation && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground/70">Section: </span>
+                  {question.source_citation}
+                </p>
+              )}
+            </div>
 
             <div>
               <Label className="text-xs uppercase tracking-wide text-muted-foreground">Strategic notes</Label>

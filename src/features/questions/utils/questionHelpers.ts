@@ -76,6 +76,7 @@ export interface QuestionFilters {
   priorities?: PriorityLevel[];
   submitted?: "all" | "submitted" | "not_submitted";
   source?: "all" | "ai" | "manual";
+  sourceDocumentIds?: string[];
 }
 
 export function filterQuestions(qs: QuestionRow[], f: QuestionFilters): QuestionRow[] {
@@ -91,6 +92,10 @@ export function filterQuestions(qs: QuestionRow[], f: QuestionFilters): Question
     if (f.submitted === "not_submitted" && q.is_submitted) return false;
     if (f.source === "ai" && !q.is_ai_generated) return false;
     if (f.source === "manual" && q.is_ai_generated) return false;
+    if (f.sourceDocumentIds?.length) {
+      const id = q.source_document_id ?? "__none__";
+      if (!f.sourceDocumentIds.includes(id)) return false;
+    }
     return true;
   });
 }
@@ -103,13 +108,17 @@ export function sortQuestions(qs: QuestionRow[], by: "priority" | "recent" | "ca
   return arr;
 }
 
-export function formatQuestionForExport(q: QuestionRow): Record<string, string> {
+export function formatQuestionForExport(
+  q: QuestionRow,
+  docMap?: Record<string, string>,
+): Record<string, string> {
   return {
     Question: q.question_text,
     Category: CATEGORY_LABEL[q.category],
     Recommendation: q.recommendation ? RECOMMENDATION_LABEL[q.recommendation] : "",
     Priority: String(q.priority ?? ""),
     Rationale: q.question_rationale ?? "",
+    "Source Document": q.source_document_id ? (docMap?.[q.source_document_id] ?? "(unknown document)") : "",
     "Source Citation": q.source_citation ?? "",
     "Source Quote": q.source_quote ?? "",
     "Strategic Notes": q.strategic_advantage_notes ?? "",
@@ -118,9 +127,9 @@ export function formatQuestionForExport(q: QuestionRow): Record<string, string> 
   };
 }
 
-export function questionsToCsv(qs: QuestionRow[]): string {
+export function questionsToCsv(qs: QuestionRow[], docMap?: Record<string, string>): string {
   if (qs.length === 0) return "";
-  const rows = qs.map(formatQuestionForExport);
+  const rows = qs.map((q) => formatQuestionForExport(q, docMap));
   const headers = Object.keys(rows[0]);
   const escape = (v: string) => `"${(v ?? "").replace(/"/g, '""')}"`;
   return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
