@@ -17,6 +17,7 @@ import {
   useDeleteKnowledge,
   type KnowledgeDoc,
 } from "../hooks/useClientKnowledge";
+import { KNOWLEDGE_TAG_GROUPS } from "../lib/knowledgeTaxonomy";
 
 function StatusPill({ doc }: { doc: KnowledgeDoc }) {
   if (doc.status === "ready")
@@ -157,6 +158,33 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
                 <Label htmlFor="kn-url">Source URL (optional)</Label>
                 <Input id="kn-url" value={form.source_url} onChange={(e) => setForm({ ...form, source_url: e.target.value })} placeholder="https://…" />
               </div>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-2 bg-muted/30">
+              <p className="text-xs font-medium text-muted-foreground">Quick-pick tags (federal + utility taxonomy)</p>
+              {KNOWLEDGE_TAG_GROUPS.map((g) => (
+                <div key={g.label} className="space-y-1">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{g.label}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {g.tags.map((t) => {
+                      const current = form.tags.split(",").map((x) => x.trim()).filter(Boolean);
+                      const active = current.includes(t);
+                      return (
+                        <button
+                          type="button"
+                          key={t}
+                          onClick={() => {
+                            const next = active ? current.filter((x) => x !== t) : [...current, t];
+                            setForm({ ...form, tags: next.join(", ") });
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border transition ${active ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-accent"}`}
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
           <DialogFooter>
