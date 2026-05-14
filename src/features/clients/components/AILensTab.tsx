@@ -391,7 +391,11 @@ export function AILensTab({ clientId }: { clientId: string }) {
                   </Button>
                 )}
               </div>
-              {presetKey && <p className="text-xs text-muted-foreground">{getPreset(presetKey)?.description}</p>}
+              {presetKey && (
+                <p className="text-xs text-muted-foreground">
+                  {dbPresets.find((p) => p.key === presetKey)?.description ?? getPreset(presetKey)?.description}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Voice</Label>
