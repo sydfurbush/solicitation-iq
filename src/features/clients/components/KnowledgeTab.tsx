@@ -1,6 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format } from "date-fns";
-import { BookOpen, FileText, NotebookPen, RefreshCw, Trash2, Upload, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { BookOpen, FileText, NotebookPen, RefreshCw, Trash2, Upload, AlertCircle, Loader2, CheckCircle2, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import {
   useUploadKnowledgeFile,
   useReingestKnowledge,
   useDeleteKnowledge,
+  useUpdateKnowledgeNote,
+  useUpdateKnowledgeMeta,
   type KnowledgeDoc,
 } from "../hooks/useClientKnowledge";
 import { KNOWLEDGE_TAG_GROUPS } from "../lib/knowledgeTaxonomy";
