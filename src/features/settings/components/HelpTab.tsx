@@ -16,6 +16,13 @@ type Article = {
 
 const ARTICLES: Article[] = [
   {
+    id: "team-access",
+    title: "How team access works",
+    description: "Org → Client → Solicitation, the Lead/Analyst/Contributor model, and recommended team patterns.",
+    icon: Users,
+    body: <TeamAccessArticle />,
+  },
+  {
     id: "knowledge-library",
     title: "Client Knowledge Library",
     description: "Scope, ingestion, RAG retrieval, and impact on win rate and analysis quality.",
