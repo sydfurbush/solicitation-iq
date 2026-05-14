@@ -43,6 +43,7 @@ import {
   SET_ASIDE_TYPES,
 } from "@/lib/validators/solicitation";
 import { LensOverridePanel } from "./LensOverridePanel";
+import { SolicitationAssignmentsCard } from "@/features/team/components/AssignmentsCard";
 
 interface Props {
   solicitation: SolicitationRow;
@@ -268,6 +269,8 @@ export function SolicitationOverview({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-1 space-y-6">
+        {/* Assigned team */}
+        <SolicitationAssignmentsCard solicitationId={s.id} />
         {/* Key dates */}
         <Card>
           <EditHeader

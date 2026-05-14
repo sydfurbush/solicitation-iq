@@ -30,6 +30,7 @@ export function useKeyboardShortcuts(shortcuts: Shortcut[]) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       for (const s of shortcuts) {
+        if (!s.key || typeof e.key !== "string") continue;
         const metaPressed = e.metaKey || e.ctrlKey;
         const matches =
           e.key.toLowerCase() === s.key.toLowerCase() &&
