@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Sparkles } from "lucide-react";
@@ -26,6 +26,8 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const inviteToken = params.get("invite");
   const { signUp, signIn } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +46,8 @@ export default function Signup() {
     setError(null);
     const { error: signUpErr } = await signUp(values.email, values.password, {
       full_name: values.fullName,
-      organization_name: values.organizationName,
+      // Only pass organization_name when there's no invite — invited users join the inviter's org.
+      ...(inviteToken ? {} : { organization_name: values.organizationName }),
     });
     if (signUpErr) {
       setError(signUpErr.message);
@@ -68,9 +71,11 @@ export default function Signup() {
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <CardTitle className="text-2xl">Create your workspace</CardTitle>
+            <CardTitle className="text-2xl">{inviteToken ? "Join your team" : "Create your workspace"}</CardTitle>
             <CardDescription>
-              Set up Solicitation Intelligence Analyzer for your team
+              {inviteToken
+                ? "You've been invited. Create your account to join the workspace."
+                : "Set up Solicitation Intelligence Analyzer for your team"}
             </CardDescription>
           </div>
         </CardHeader>
@@ -95,19 +100,21 @@ export default function Signup() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="organizationName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Organization name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Acme Consulting" autoComplete="organization" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {!inviteToken && (
+                <FormField
+                  control={form.control}
+                  name="organizationName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Organization name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Acme Consulting" autoComplete="organization" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="email"
