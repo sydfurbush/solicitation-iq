@@ -654,9 +654,14 @@ function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeo
 
   rows.forEach((r, i) => {
     const t = CATEGORY_RGB[r.tone] ?? CATEGORY_RGB.neutral;
-    const topicLines = wrap(doc, hardBreakWord(r.topic), topicW - padX * 2, "normal", 8);
-    const srcLines = wrap(doc, hardBreakWord(r.source), srcW - padX * 2, "normal", 8);
-    const catLines = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 7);
+    doc.setFont(FONT_PDF, "normal"); doc.setFontSize(8);
+    const topicLinesRaw = wrap(doc, hardBreakWord(r.topic), topicW - padX * 2, "normal", 8);
+    const topicLines = clipLines(doc, topicLinesRaw, topicW - padX * 2);
+    const srcLinesRaw = wrap(doc, hardBreakWord(r.source), srcW - padX * 2, "normal", 8);
+    const srcLines = clipLines(doc, srcLinesRaw, srcW - padX * 2);
+    doc.setFont(FONT_PDF, "bold"); doc.setFontSize(7);
+    const catLinesRaw = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 7);
+    const catLines = clipLines(doc, catLinesRaw, catW - padX * 2 - 10);
     const rowH = Math.max(20, Math.max(topicLines.length, srcLines.length, catLines.length) * 10 + padY * 2);
     if (ctx.y + rowH > CONTENT_BOTTOM) {
       newPage(ctx);
