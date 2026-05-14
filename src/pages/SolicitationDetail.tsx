@@ -458,6 +458,9 @@ export default function SolicitationDetail() {
           <PhaseNavBtn phase="phase_4_win_themes" active={tab === "phase-4"} onClick={() => goTab("phase-4")}>
             {phaseLabelByKey["phase-4"]}
           </PhaseNavBtn>
+          <PhaseNavBtn phase="phase_5_drafting" active={tab === "phase-5"} onClick={() => goTab("phase-5")}>
+            {phaseLabelByKey["phase-5"]}
+          </PhaseNavBtn>
 
           <WorkspaceNavMenu
             active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity"}
