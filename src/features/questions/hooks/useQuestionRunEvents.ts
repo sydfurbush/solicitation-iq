@@ -43,9 +43,10 @@ export function useQuestionRunEvents(runId: string | undefined, enabled = true) 
 export function useReapStaleRuns(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (thresholdMinutes = 8) => {
+    mutationFn: async (thresholdMinutes = 8): Promise<number> => {
       if (!solicitationId) return 0;
-      const { data, error } = await supabase.rpc("reap_stale_question_runs", {
+      // RPC types may not yet include the new function; cast through any.
+      const { data, error } = await (supabase.rpc as any)("reap_stale_question_runs", {
         _solicitation_id: solicitationId,
         _threshold_minutes: thresholdMinutes,
       });
