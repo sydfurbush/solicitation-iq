@@ -39,6 +39,8 @@ import {
 } from "@/components/ui/select";
 import { useSolicitations, type SolicitationWithClient } from "@/features/solicitations/hooks/useSolicitations";
 import { useClients } from "@/features/clients/hooks/useClients";
+import { useMyAssignedSolicitationIds, useIsOrgAdmin } from "@/features/team/hooks/useAssignments";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const STATUS_LABELS: Record<string, string> = {
   intake: "Intake",
@@ -118,9 +120,20 @@ function ListSkeleton({ rows = 5 }: { rows?: number }) {
 export default function Dashboard() {
   const { data: solicitations, isLoading, isFetching } = useSolicitations();
   const { data: clients } = useClients();
+  const { data: myAssignments = [] } = useMyAssignedSolicitationIds();
+  const { data: isAdmin = false } = useIsOrgAdmin();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const rawClient = searchParams.get("client");
+  const rawScope = searchParams.get("scope");
+  const scope: "mine" | "watching" | "all" =
+    rawScope === "watching" || rawScope === "all" ? rawScope : "mine";
+
+  const myLeadAnalystIds = new Set(
+    myAssignments.filter((a) => a.role === "lead" || a.role === "analyst").map((a) => a.solicitation_id)
+  );
+  const myContributorIds = new Set(
+    myAssignments.filter((a) => a.role === "contributor").map((a) => a.solicitation_id)
+  );
   const rawStatus = searchParams.get("status");
 
   // Validate status against known keys; unknown -> "all"
