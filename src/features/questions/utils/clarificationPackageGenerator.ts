@@ -226,7 +226,9 @@ export async function generateClarificationDocx(
       children.push(p(label, { bold: true, size: 20, color: "666666", spacing: 60 }));
       children.push(p(body, { size: 20, spacing: 200 }));
     };
-    block("Reference", parsed.reference || q.source_citation || "");
+    block("Section", parsed.reference || q.source_citation || "");
+    const docName = q.source_document_id ? (docMap[q.source_document_id] ?? "(unknown document)") : "Not specified";
+    block("Document", docName);
     block("Quoted Text", parsed.quotedText ? `"${parsed.quotedText}"` : q.source_quote ? `"${q.source_quote}"` : "");
     block("Concern", parsed.concern);
     block("Requested Clarification", parsed.requestedClarification);
