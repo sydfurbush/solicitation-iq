@@ -529,10 +529,7 @@ export default function SolicitationDetail() {
 
         {tab === "phase-5" && (
           <PhaseShell solicitationId={s.id} phase="phase_5_drafting" currentPhase={currentPhase}>
-            <div className="p-6 border rounded-md bg-muted/30 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">Phase 5 — Drafting & Submission</p>
-              <p>The drafting workspace, color-team review, compliance matrix, proposal compiler, and submission packager are coming online in Phase 5b/5c. The data foundation (drafts, versions, comments, packages, buyer format profiles) is now in place.</p>
-            </div>
+            <Phase5Workspace solicitationId={s.id} />
           </PhaseShell>
         )}
 
