@@ -10,6 +10,8 @@ import { useClientSolicitation, useClientReports } from "@/features/portal/hooks
 import { useClientUser } from "@/features/portal/hooks/useClientUser";
 import { ClientAnnotations } from "@/features/portal/components/ClientAnnotations";
 import { ClientReportViewer } from "@/features/portal/components/ClientReportViewer";
+import { ClientQuestionTriage } from "@/features/portal/components/ClientQuestionTriage";
+import { ClientClarificationPackage } from "@/features/portal/components/ClientClarificationPackage";
 import { usePhaseApprovals, APPROVAL_LABEL, type PhaseApproval } from "@/features/phases/hooks/usePhaseApprovals";
 import { PhaseApprovalStrip } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalActionBanner } from "@/features/phases/components/ApprovalActionBanner";
@@ -174,12 +176,13 @@ export default function PortalSolicitationDetail() {
         )}
 
         {hasFullAccess && (
-          <TabsContent value="questions" className="mt-4">
-            <Card>
-              <CardContent className="p-6 text-sm text-muted-foreground">
-                Strategic questions visible to your account team will appear here.
-              </CardContent>
-            </Card>
+          <TabsContent value="questions" className="mt-4 space-y-4">
+            <ClientClarificationPackage solicitationId={id!} solicitationTitle={sol.title} />
+            <ClientQuestionTriage
+              solicitationId={id!}
+              solicitationTitle={sol.title}
+              questionsDueDate={sol.questions_due_date}
+            />
           </TabsContent>
         )}
 
