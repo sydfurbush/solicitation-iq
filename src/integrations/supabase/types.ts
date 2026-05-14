@@ -2140,6 +2140,36 @@ export type Database = {
         }
         Relationships: []
       }
+      question_generation_run_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          message: string | null
+          metadata: Json
+          run_id: string
+          solicitation_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          message?: string | null
+          metadata?: Json
+          run_id: string
+          solicitation_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          message?: string | null
+          metadata?: Json
+          run_id?: string
+          solicitation_id?: string
+        }
+        Relationships: []
+      }
       question_generation_runs: {
         Row: {
           completed_at: string | null
@@ -3239,6 +3269,10 @@ export type Database = {
           source_url: string
           tags: string[]
         }[]
+      }
+      reap_stale_question_runs: {
+        Args: { _solicitation_id: string; _threshold_minutes?: number }
+        Returns: number
       }
       search_document_content: {
         Args: { p_search_term: string; p_solicitation_id: string }
