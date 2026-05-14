@@ -31,9 +31,13 @@ import { toast } from "sonner";
 
 const keyRegex = /^[a-z0-9_]+$/;
 const presetSchema = z.object({
-  key: z.string().min(2).max(64).regex(keyRegex, "lowercase letters, digits, underscores only"),
-  label: z.string().min(2).max(120),
-  description: z.string().max(500).optional(),
+  key: z
+    .string()
+    .min(2, "Key must be at least 2 characters")
+    .max(64, "Key must be 64 characters or fewer")
+    .regex(keyRegex, "Key may only contain lowercase letters, digits, and underscores"),
+  label: z.string().min(2, "Label must be at least 2 characters").max(120, "Label must be 120 characters or fewer"),
+  description: z.string().max(500, "Description must be 500 characters or fewer").optional(),
   family: z.enum(["federal", "utility"]),
 });
 
@@ -190,16 +194,30 @@ function CreateDialog({ open, onClose, initialDraft }: { open: boolean; onClose:
     acronym_glossary: {}, always_flag: [], tone_voice: "consultative", reading_level: 12, keywords: [],
   }), []);
   const [key, setKey] = useState(() => initialDraft ? slugify(initialDraft.label) : "");
+  const [keyTouched, setKeyTouched] = useState(!!initialDraft);
   const [label, setLabel] = useState(initialDraft?.label ?? "");
   const [description, setDescription] = useState(initialDraft?.description ?? "");
   const [family, setFamily] = useState<"federal" | "utility">(initialDraft?.family ?? "federal");
   const [content, setContent] = useState<PresetContent>(initialDraft?.content ?? empty);
   const reasoning = initialDraft?.reasoning;
 
+  const handleLabel = (v: string) => {
+    setLabel(v);
+    if (!keyTouched) setKey(slugify(v));
+  };
+  const handleKey = (v: string) => {
+    setKeyTouched(true);
+    setKey(v);
+  };
+
   const submit = () => {
-    const parsed = presetSchema.safeParse({ key, label, description: description || undefined, family });
+    const trimmedLabel = label.trim();
+    const trimmedKey = key.trim();
+    if (!trimmedLabel) { toast.error("Label is required"); return; }
+    if (!trimmedKey) { toast.error("Key is required (auto-fills from Label)"); return; }
+    const parsed = presetSchema.safeParse({ key: trimmedKey, label: trimmedLabel, description: description || undefined, family });
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
-    create.mutate({ key, label, description: description || undefined, family, content }, { onSuccess: onClose });
+    create.mutate({ key: trimmedKey, label: trimmedLabel, description: description || undefined, family, content }, { onSuccess: onClose });
   };
 
   return (
@@ -218,8 +236,8 @@ function CreateDialog({ open, onClose, initialDraft }: { open: boolean; onClose:
           </div>
         )}
         <PresetFormBody
-          metaLabel={label} onMetaLabel={setLabel}
-          metaKey={key} onMetaKey={setKey}
+          metaLabel={label} onMetaLabel={handleLabel}
+          metaKey={key} onMetaKey={handleKey}
           metaDesc={description} onMetaDesc={setDescription}
           metaFamily={family} onMetaFamily={setFamily}
           content={content} onContent={setContent}
