@@ -21,6 +21,7 @@ import { CATEGORY_LABEL, RECOMMENDATION_LABEL, questionsToCsv, type QuestionRow 
 
 interface Props {
   questions: QuestionRow[];
+  documents?: Array<{ id: string; file_name: string }>;
   selectedIds?: string[];
   trigger?: React.ReactNode;
   open?: boolean;
