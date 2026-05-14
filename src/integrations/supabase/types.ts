@@ -296,6 +296,41 @@ export type Database = {
         }
         Relationships: []
       }
+      client_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          client_id: string
+          id: string
+          role: Database["public"]["Enums"]["client_assignment_role"]
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          client_id: string
+          id?: string
+          role: Database["public"]["Enums"]["client_assignment_role"]
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          client_id?: string
+          id?: string
+          role?: Database["public"]["Enums"]["client_assignment_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_assignments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_knowledge_chunks: {
         Row: {
           chunk_index: number
@@ -2395,6 +2430,41 @@ export type Database = {
           },
         ]
       }
+      solicitation_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          id: string
+          role: Database["public"]["Enums"]["solicitation_assignment_role"]
+          solicitation_id: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["solicitation_assignment_role"]
+          solicitation_id: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["solicitation_assignment_role"]
+          solicitation_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitation_assignments_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       solicitation_phases: {
         Row: {
           completed_at: string | null
@@ -2962,8 +3032,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_client_member: {
+        Args: { _client_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_client_user: { Args: { _user_id: string }; Returns: boolean }
+      is_org_admin: { Args: { _user_id: string }; Returns: boolean }
       is_org_staff: { Args: { _user_id: string }; Returns: boolean }
+      is_solicitation_admin: {
+        Args: { _sol_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_solicitation_member: {
+        Args: { _sol_id: string; _user_id: string }
+        Returns: boolean
+      }
       log_activity: {
         Args: {
           p_entity_id?: string
@@ -3019,6 +3102,7 @@ export type Database = {
         | "discriminator"
       app_role: "owner" | "admin" | "analyst" | "viewer"
       client_access_level: "full" | "summary" | "restricted"
+      client_assignment_role: "lead" | "analyst"
       document_status:
         | "uploading"
         | "processing"
@@ -3076,6 +3160,7 @@ export type Database = {
       requirement_status: "open" | "in_review" | "covered" | "waived"
       revision_kind: "pre_sol" | "amendment" | "final" | "draft" | "other"
       risk_severity: "critical" | "high" | "medium" | "low" | "informational"
+      solicitation_assignment_role: "lead" | "analyst" | "contributor"
       solicitation_stage:
         | "pre_solicitation"
         | "draft_rfp"
@@ -3238,6 +3323,7 @@ export const Constants = {
       ],
       app_role: ["owner", "admin", "analyst", "viewer"],
       client_access_level: ["full", "summary", "restricted"],
+      client_assignment_role: ["lead", "analyst"],
       document_status: [
         "uploading",
         "processing",
@@ -3301,6 +3387,7 @@ export const Constants = {
       requirement_status: ["open", "in_review", "covered", "waived"],
       revision_kind: ["pre_sol", "amendment", "final", "draft", "other"],
       risk_severity: ["critical", "high", "medium", "low", "informational"],
+      solicitation_assignment_role: ["lead", "analyst", "contributor"],
       solicitation_stage: [
         "pre_solicitation",
         "draft_rfp",
