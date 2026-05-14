@@ -15,6 +15,13 @@ type Article = {
 
 const ARTICLES: Article[] = [
   {
+    id: "knowledge-library",
+    title: "Client Knowledge Library",
+    description: "Scope, ingestion, RAG retrieval, and impact on win rate and analysis quality.",
+    icon: BookOpen,
+    body: <KnowledgeLibraryArticle />,
+  },
+  {
     id: "revision-flow",
     title: "Handling a revision notification",
     description: "Step-by-step: notification → comparison → impact → reviewed.",
