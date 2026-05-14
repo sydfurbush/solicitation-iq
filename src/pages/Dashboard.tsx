@@ -176,7 +176,13 @@ export default function Dashboard() {
     const now = new Date();
     const in14 = addDays(now, 14);
 
-    const filtered = list.filter((s) => {
+    const scoped = list.filter((s) => {
+      if (scope === "mine") return myLeadAnalystIds.has(s.id);
+      if (scope === "watching") return myContributorIds.has(s.id);
+      return true; // "all"
+    });
+
+    const filtered = scoped.filter((s) => {
       if (clientFilter !== "all" && (s.client?.id ?? "unknown") !== clientFilter) return false;
       if (statusFilter !== "all" && (s.status ?? "intake") !== statusFilter) return false;
       return true;
@@ -245,7 +251,7 @@ export default function Dashboard() {
       clientChart,
       isFiltered: clientFilter !== "all" || statusFilter !== "all",
     };
-  }, [solicitations, clients, clientFilter, statusFilter]);
+  }, [solicitations, clients, clientFilter, statusFilter, scope, myAssignments]);
 
   if (isLoading) {
     return (
