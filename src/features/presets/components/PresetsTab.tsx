@@ -165,8 +165,8 @@ function PresetRowItem({ preset, onEdit, onHistory }: { preset: PresetRow; onEdi
           onOpenChange={(v) => !v && setConfirmDel(false)}
           title={`Delete "${preset.label}"?`}
           description="Existing client lenses keyed to this preset will keep their current values; the preset just won't be selectable anymore."
-          confirmLabel="Delete"
-          variant="destructive"
+          confirmText="Delete"
+          variant="danger"
           onConfirm={() => del.mutate(preset.id)}
         />
       )}
@@ -190,7 +190,7 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const submit = () => {
     const parsed = presetSchema.safeParse({ key, label, description: description || undefined, family });
     if (!parsed.success) { toast.error(parsed.error.issues[0].message); return; }
-    create.mutate({ ...parsed.data, content }, { onSuccess: onClose });
+    create.mutate({ key, label, description: description || undefined, family, content }, { onSuccess: onClose });
   };
 
   return (
