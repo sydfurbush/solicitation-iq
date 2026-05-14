@@ -1,98 +1,101 @@
-## Add `federal_transition_assistance` lens preset
+## AI-Generated Service Presets
 
-Add a new federal-family preset to `src/features/clients/lib/lensPresets.ts` for vendors serving the Federal Transition Assistance Program (TAP) ecosystem — workforce transition, employment readiness, counseling, and training for separating service members, veterans, and federal employees.
+Add a "Generate with AI" path in the Service Presets tab. The user fills a short guided form, the AI returns a complete preset with reasoning notes, and the existing create dialog opens pre-filled for review and edits before saving as v1.
 
-### File touched
-- `src/features/clients/lib/lensPresets.ts` — append one entry to `FEDERAL_PRESETS`
+---
 
-No DB migration, no UI changes — `getPreset()` and the AI Lens dropdown read this array directly.
+### User flow
 
-### Preset content
+1. In **Settings → Service Presets**, the "New preset" button gets a split: `New preset ▾` with two options:
+   - **Blank** (current behavior)
+   - **Generate with AI** ✨
+2. "Generate with AI" opens a small dialog with the guided form (4 fields). Submit shows a streaming progress state (5–15s).
+3. When generation finishes, the existing **CreateDialog** opens pre-filled with every field. A subtle banner reads *"AI-generated draft — review before saving."*
+4. Each AI-populated section (codes, agencies, vehicles, compliance, discriminators, flags, glossary) shows a small `i` icon → hovering reveals the AI's reasoning for that section.
+5. User edits anything, then clicks **Create** — saved as a normal custom preset v1 (uses the existing `useCreatePreset` hook, no new write path).
 
-```ts
+---
+
+### Guided input form (4 fields)
+
+| Field | Type | Example |
+|---|---|---|
+| Service category | Text | "Federal Cybersecurity Services" |
+| Family | Federal / Utility | Federal |
+| Primary buyers | Text (1 line) | "DoD, DHS CISA, civilian CIOs" |
+| Differentiators / context (optional) | Textarea | "FedRAMP High, CMMC L3, cleared workforce" |
+
+Family steers the prompt toward the right vocabulary (NAICS vs. utility regulatory bodies, etc.).
+
+---
+
+### Generation contract
+
+The edge function returns a strict JSON object matching `PresetContent` plus a `reasoning` map:
+
+```text
 {
-  key: "federal_transition_assistance",
-  label: "Federal Transition Assistance (TAP)",
-  description: "DoD TAP, VA VR&E, DOL VETS — transition counseling, employment workshops, vocational rehab, career readiness.",
-  family: "federal",
-  naics_codes: [
-    "611430", // Professional & Management Development Training (TAP workshops)
-    "624310", // Vocational Rehabilitation Services (VR&E)
-    "541612", // HR Consulting
-    "611710", // Educational Support Services
-    "624190", // Other Individual & Family Services
-  ],
-  psc_codes: [
-    "U008", // Training/Curriculum Development
-    "U099", // Other Education & Training
-    "R499", // Support – Professional: Other
-    "B505", // Special Studies – Manpower
-  ],
-  set_asides: ["SDVOSB", "VOSB", "8(a)", "WOSB"],
-  agencies_focus: [
-    "DoD Transition Assistance Program (TAP)",
-    "Department of Labor – VETS",
-    "Department of Veterans Affairs – VR&E",
-    "Military Departments (Army SFL-TAP, Navy TAP, USAF TAP, USMC TRP)",
-    "Department of Homeland Security (USCG TAP)",
-    "OPM (federal workforce transition)",
-  ],
-  contract_vehicles: [
-    "GSA HCaTS / HCaTS SB (Pools 1 & 2)",
-    "OASIS+ (Human Capital domain)",
-    "GSA MAS 541612 / 611430",
-    "VA T4NG (training task orders)",
-    "SFL-TAP IDIQ (Army)",
-  ],
-  compliance_frameworks: [
-    "Section 508",
-    "FAR 52.222-50 (Trafficking)",
-    "FAR 52.222-54 (E-Verify)",
-    "Service Contract Act (SCA) / Wage Determinations",
-    "DoDI 1332.35 (Transition Assistance)",
-    "VOW Act / Veterans Opportunity to Work",
-    "FERPA (when handling participant records)",
-    "Privacy Act / PII safeguards",
-  ],
-  discriminators: [
-    {
-      title: "DoDI 1332.35-aligned curriculum library",
-      evidence: "Modular workshops mapped to TAP core, two-day, and CRS tracks",
-      proof_point: "Delivered at 10+ installations with >90% participant satisfaction",
-    },
-    {
-      title: "Credentialed counselor bench (GCDF / NCDA)",
-      evidence: "Career counselors with veteran-serving experience",
-      proof_point: "Average 8 yrs counseling tenure; bilingual coverage",
-    },
-    {
-      title: "Outcome tracking with VETS / DOL reporting cadence",
-      evidence: "Integrated CRM + LMS with 30/60/180-day employment follow-up",
-      proof_point: "Documented placement rate above DOL VETS benchmarks",
-    },
-  ],
-  acronym_glossary: {
-    TAP: "Transition Assistance Program",
-    "SFL-TAP": "Soldier for Life – Transition Assistance Program (Army)",
-    "VR&E": "Veteran Readiness and Employment (VA Chapter 31)",
-    VETS: "Veterans' Employment and Training Service (DOL)",
-    CRS: "Career Readiness Standards",
-    DoDI: "Department of Defense Instruction",
-    GCDF: "Global Career Development Facilitator",
-    SCA: "Service Contract Act",
+  label, description, family,
+  content: {
+    naics_codes[], psc_codes[], set_asides[], agencies_focus[],
+    contract_vehicles[], compliance_frameworks[],
+    discriminators[{title, evidence, proof_point}],
+    acronym_glossary{},
+    always_flag[{rule, reason}],
+    tone_voice, reading_level, keywords[]
   },
-  always_flag: [
-    { rule: "Service Contract Act wage determinations apply", reason: "Direct labor pricing must use SCA WD rates by locality" },
-    { rule: "On-installation delivery requirements", reason: "Triggers base access, background checks, and CAC/RAPIDS coordination" },
-    { rule: "Section 508 conformance for digital curriculum", reason: "Required for any LMS / e-learning deliverable" },
-    { rule: "PII handling of participant records", reason: "Privacy Act safeguards and breach reporting obligations" },
-  ],
-  tone_voice: "consultative",
-  reading_level: 12,
+  reasoning: {
+    naics_codes: "Why these codes...",
+    agencies_focus: "Why these buyers...",
+    compliance_frameworks: "...",
+    discriminators: "...",
+    always_flag: "..."
+  }
 }
 ```
 
-### Notes
-- Inserted alphabetically/contextually after `professional_services` in `FEDERAL_PRESETS`.
-- No changes to types, dropdowns, or `isUtilityPreset` logic — it's a federal-family preset and behaves like the existing six.
-- Users on the AI Lens tab will immediately see "Federal Transition Assistance (TAP)" in the Preset dropdown.
+Used via AI SDK `generateText` + `Output.object` for structured output (no manual JSON parsing).
+
+---
+
+### Grounding (few-shot)
+
+Before calling the model, the function:
+1. Loads all built-in presets matching the chosen `family` from `lens_presets` + their current versions.
+2. Picks the 3 closest by simple keyword overlap between user category and `label`/`description`.
+3. Includes them as compact JSON examples in the system prompt: *"Match this format exactly. Examples follow."*
+
+This keeps NAICS/vehicle/agency naming consistent with the existing library at near-zero token cost.
+
+---
+
+### Technical details
+
+**New edge function**: `supabase/functions/generate-preset/index.ts`
+- Auth: standard JWT validation (admin/owner only — same gate as `lens_presets` write RLS).
+- Input: Zod-validated `{ category, family, buyers, context? }`.
+- Loads few-shot examples via service-role client.
+- Calls Lovable AI Gateway with `openai/gpt-5` (best for niche regulatory accuracy + reasoning quality). Falls back to `google/gemini-3-flash-preview` on 429.
+- Returns the structured object. Surfaces 402/429 cleanly to the UI.
+
+**New client files**:
+- `src/features/presets/hooks/useGeneratePreset.ts` — wraps `supabase.functions.invoke('generate-preset')`.
+- `src/features/presets/components/AIGenerateDialog.tsx` — guided form + progress state.
+
+**Modified files**:
+- `src/features/presets/components/PresetsTab.tsx`:
+  - Split-button trigger (Blank / Generate with AI).
+  - Pass an `initialDraft` + `initialReasoning` prop into `CreateDialog`.
+  - Render reasoning tooltips next to each populated section header.
+- No DB schema changes. No new tables. Reasoning is only shown during the review step — not persisted (keeps `lens_preset_versions.content` clean).
+
+**Reuse**: the AI flow ends by handing off to the existing `useCreatePreset` mutation, so versioning, RLS, and audit trail all behave identically to a hand-built preset.
+
+---
+
+### Out of scope (can add later if useful)
+
+- Web-search grounding via sam.gov / census.gov to verify codes — adds latency + tool-loop complexity. Defer until first round of generated presets shows real hallucinations.
+- Persisting reasoning into version history.
+- Re-generating individual sections ("regenerate just the NAICS codes").
+- Bulk "generate 5 candidates and pick one" mode.
