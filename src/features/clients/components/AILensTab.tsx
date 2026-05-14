@@ -13,13 +13,15 @@ import { Plus, Save, Sparkles, Trash2, Wand2, Zap } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useClientProfile, useUpsertClientProfile } from "@/features/clients/hooks/useClientProfile";
 import {
-  LENS_PRESETS,
   getPreset,
   isUtilityPreset,
   UTILITY_SERVICE_CATEGORIES,
   UTILITY_DELIVERY_MODELS,
   UTILITY_ISO_RTOS,
+  type LensPreset,
 } from "@/features/clients/lib/lensPresets";
+import { usePresets, type PresetContent } from "@/features/presets/hooks/usePresets";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Discriminator { title: string; evidence: string; proof_point: string }
 interface FlagRule { rule: string; reason: string }
@@ -109,6 +111,7 @@ function MultiToggleList({ label, options, values, onChange }: {
 export function AILensTab({ clientId }: { clientId: string }) {
   const { data: profile, isLoading } = useClientProfile(clientId);
   const upsert = useUpsertClientProfile(clientId);
+  const { data: dbPresets = [] } = usePresets();
 
   // Federal / shared fields
   const [presetKey, setPresetKey] = useState<string>("");
@@ -221,17 +224,39 @@ export function AILensTab({ clientId }: { clientId: string }) {
     );
   }, [showUtilityManually, presetKey, serviceCategories, regulatoryBodies, isoRto, deliveryModels]);
 
-  const applyPreset = (key: string) => {
-    const p = getPreset(key);
-    if (!p) return;
+  const applyPreset = async (key: string) => {
     setPresetKey(key);
-    setNaics(p.naics_codes); setPsc(p.psc_codes); setSetAsides(p.set_asides);
-    setAgencies(p.agencies_focus); setVehicles(p.contract_vehicles);
-    setFrameworks(p.compliance_frameworks);
-    setDiscriminators(p.discriminators);
-    setGlossary(Object.entries(p.acronym_glossary).map(([k, v]) => ({ k, v })));
-    setFlags(p.always_flag);
-    setTone(p.tone_voice); setReading(p.reading_level);
+    // Try DB-backed preset first; fall back to in-code preset for legacy keys.
+    let p: (LensPreset & { content?: PresetContent }) | undefined;
+    const dbRow = dbPresets.find((r) => r.key === key);
+    if (dbRow?.current_version_id) {
+      const { data: v } = await supabase
+        .from("lens_preset_versions" as never)
+        .select("content")
+        .eq("id", dbRow.current_version_id)
+        .maybeSingle();
+      const content = (v as { content?: PresetContent } | null)?.content;
+      if (content) {
+        p = {
+          key: dbRow.key, label: dbRow.label, description: dbRow.description ?? "",
+          family: (dbRow.family as "federal" | "utility") ?? undefined,
+          naics_codes: [], psc_codes: [], set_asides: [], agencies_focus: [],
+          contract_vehicles: [], compliance_frameworks: [], discriminators: [],
+          acronym_glossary: {}, always_flag: [], tone_voice: "consultative", reading_level: 12,
+          ...content,
+        } as LensPreset;
+      }
+    }
+    if (!p) p = getPreset(key);
+    if (!p) return;
+
+    setNaics(p.naics_codes ?? []); setPsc(p.psc_codes ?? []); setSetAsides(p.set_asides ?? []);
+    setAgencies(p.agencies_focus ?? []); setVehicles(p.contract_vehicles ?? []);
+    setFrameworks(p.compliance_frameworks ?? []);
+    setDiscriminators(p.discriminators ?? []);
+    setGlossary(Object.entries(p.acronym_glossary ?? {}).map(([k, v]) => ({ k, v })));
+    setFlags(p.always_flag ?? []);
+    setTone(p.tone_voice ?? "consultative"); setReading(p.reading_level ?? 12);
 
     // Utility-side preset fields (federal presets leave these empty -> reset).
     setServiceCategories(p.service_categories ?? []);
@@ -342,13 +367,21 @@ export function AILensTab({ clientId }: { clientId: string }) {
                   <SelectTrigger><SelectValue placeholder="Choose a starter preset" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">None (custom)</SelectItem>
-                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Federal</div>
-                    {LENS_PRESETS.filter((p) => p.family !== "utility").map((p) => (
-                      <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+                    {dbPresets.some((p) => !p.is_builtin) && (
+                      <>
+                        <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Custom (your org)</div>
+                        {dbPresets.filter((p) => !p.is_builtin).map((p) => (
+                          <SelectItem key={p.id} value={p.key}>{p.label}</SelectItem>
+                        ))}
+                      </>
+                    )}
+                    <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t mt-1 pt-2">Federal</div>
+                    {dbPresets.filter((p) => p.is_builtin && p.family !== "utility").map((p) => (
+                      <SelectItem key={p.id} value={p.key}>{p.label}</SelectItem>
                     ))}
                     <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-t mt-1 pt-2">Utility supplier</div>
-                    {LENS_PRESETS.filter((p) => p.family === "utility").map((p) => (
-                      <SelectItem key={p.key} value={p.key}>{p.label}</SelectItem>
+                    {dbPresets.filter((p) => p.is_builtin && p.family === "utility").map((p) => (
+                      <SelectItem key={p.id} value={p.key}>{p.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -358,7 +391,11 @@ export function AILensTab({ clientId }: { clientId: string }) {
                   </Button>
                 )}
               </div>
-              {presetKey && <p className="text-xs text-muted-foreground">{getPreset(presetKey)?.description}</p>}
+              {presetKey && (
+                <p className="text-xs text-muted-foreground">
+                  {dbPresets.find((p) => p.key === presetKey)?.description ?? getPreset(presetKey)?.description}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Voice</Label>
