@@ -12,6 +12,15 @@ export function TeamAccessArticle() {
         </p>
       </header>
 
+      <HelpCallout tone="warning" title="Strict access is now active">
+        Assigned-only access is live across the platform. Solicitations, clients, documents,
+        analyses, reports, risks, win themes, questions, outlines, the writing queue, and the
+        activity log are visible only to the people assigned (Lead, Analyst, Contributor) — plus
+        Org Owners and Admins, who retain full override. If a teammate can't see a project they
+        should be working on, an Org Admin or the current Lead needs to assign them on the
+        solicitation (or set them as the default on the parent client).
+      </HelpCallout>
+
       <HelpSection title="The hierarchy">
         <p>
           Everything in Solicitation IQ is scoped to your <strong>Organization</strong>. Inside the
