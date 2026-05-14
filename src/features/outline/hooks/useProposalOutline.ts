@@ -64,6 +64,23 @@ export function useGenerateOutline(solicitationId: string | undefined) {
   });
 }
 
+export function useRelinkOutlineSources(solicitationId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!solicitationId) throw new Error("Missing solicitationId");
+      const { data, error } = await supabase.functions.invoke("relink-outline-sources", {
+        body: { solicitationId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { updated: number; total: number };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["outline-nodes"] });
+    },
+  });
+
 export function useUpdateOutlineNode(outlineId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
