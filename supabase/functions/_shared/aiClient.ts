@@ -40,6 +40,7 @@ export interface CallAiArgs {
   system: string;
   user: string;
   tool: OpenAIToolSchema; // forced structured output
+  modelOverride?: ModelChoice; // bypass MODEL_CONFIG and DB override for this call
 }
 
 export class AiHttpError extends Error {
@@ -86,11 +87,12 @@ async function loadOverride(functionName: string): Promise<ModelChoice | null> {
 
 export async function callAiTool(args: CallAiArgs): Promise<Record<string, unknown>> {
   const fallback = MODEL_CONFIG[args.functionName];
-  const override = await loadOverride(args.functionName);
-  const choice = override ?? fallback;
+  const override = args.modelOverride ? null : await loadOverride(args.functionName);
+  const choice = args.modelOverride ?? override ?? fallback;
   if (!choice) throw new Error(`No model configured for ${args.functionName}`);
+  const source = args.modelOverride ? "call-override" : override ? "db-override" : "code-fallback";
   console.log(
-    `[aiClient] resolved ${args.functionName} -> provider=${choice.provider} model=${choice.model} maxTokens=${choice.maxTokens} source=${override ? "db-override" : "code-fallback"}`
+    `[aiClient] resolved ${args.functionName} -> provider=${choice.provider} model=${choice.model} maxTokens=${choice.maxTokens} source=${source}`
   );
 
   if (choice.provider === "anthropic") return callAnthropic(choice, args);
