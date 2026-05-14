@@ -62,12 +62,40 @@ function formatDuration(startedAt: string, completedAt: string | null): string {
 export function QuestionRunsHistorySheet({ solicitationId, documents, open, onOpenChange }: Props) {
   const { data: runs = [], isLoading } = useQuestionGenerationRuns(open ? solicitationId : undefined);
   const generate = useGenerateQuestions(solicitationId);
+  const reap = useReapStaleRuns(solicitationId);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ completed: number; total: number; inserted: number; step: string | null } | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Auto-reap stale runs whenever the sheet opens so the latest "running" row
+  // that's actually dead is surfaced as failed (and becomes previewable + retryable).
+  useEffect(() => {
+    if (!open || !solicitationId) return;
+    reap.mutateAsync(8).then((reaped) => {
+      if (reaped > 0) {
+        toast({
+          title: `Recovered ${reaped} stalled run${reaped === 1 ? "" : "s"}`,
+          description: "Marked as failed so you can preview details and retry.",
+        });
+      }
+    }).catch(() => { /* non-fatal */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, solicitationId]);
 
   const docMap = useMemo(() => new Map(documents.map((d) => [d.id, d.file_name])), [documents]);
   const runById = useMemo(() => new Map(runs.map((r) => [r.id, r])), [runs]);
+
+  const handleMarkFailed = async () => {
+    try {
+      const reaped = await reap.mutateAsync(0); // force-reap any running runs now
+      toast({
+        title: reaped > 0 ? `Marked ${reaped} run(s) as failed` : "No running runs to recover",
+      });
+    } catch (e) {
+      toast({ title: "Recovery failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
 
   const handleRetry = async (run: QuestionRun) => {
     setRetryingId(run.id);
