@@ -118,9 +118,15 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
             </CardDescription>
           </div>
           <div className="flex gap-2 shrink-0">
-            <input ref={fileRef} type="file" accept=".txt,.md,text/plain,text/markdown" className="hidden" onChange={onFile} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".txt,.md,.pdf,.doc,.docx,.xls,.xlsx,text/plain,text/markdown,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={onFile}
+            />
             <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={upload.isPending}>
-              <Upload className="h-3.5 w-3.5 mr-1" /> Upload .txt/.md
+              <Upload className="h-3.5 w-3.5 mr-1" /> Upload file
             </Button>
             <Button size="sm" onClick={() => setOpen(true)}>
               <NotebookPen className="h-3.5 w-3.5 mr-1" /> Add note
@@ -132,7 +138,7 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : docs.length === 0 ? (
             <div className="text-sm text-muted-foreground border border-dashed rounded-md p-6 text-center">
-              No knowledge yet. Add a pasted note or upload a .txt/.md file. PDF and Word support coming next.
+              No knowledge yet. Add a pasted note or upload a PDF, Word, Excel, .txt, or .md file.
             </div>
           ) : (
             <ul className="divide-y">
