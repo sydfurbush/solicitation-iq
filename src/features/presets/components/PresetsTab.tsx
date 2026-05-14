@@ -99,9 +99,8 @@ export function PresetsTab() {
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">Reusable AI Lens starters: NAICS, agencies, vehicles, compliance, and keywords.</p>
         </div>
-        <Button onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-2" />New preset</Button>
-      </CardHeader>
-        <Button onClick={() => setCreating(true)} className="rounded-r-none"><Plus className="h-4 w-4 mr-2" />New preset</Button>
+        <div className="flex">
+          <Button onClick={() => setCreating(true)} className="rounded-r-none"><Plus className="h-4 w-4 mr-2" />New preset</Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button className="rounded-l-none border-l border-primary-foreground/20 px-2" aria-label="More create options">
