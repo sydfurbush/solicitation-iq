@@ -40,14 +40,20 @@ function downloadFile(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-function buildText(qs: QuestionRow[], opts: { rationale: boolean; citations: boolean; notes: boolean }) {
+function buildText(
+  qs: QuestionRow[],
+  opts: { rationale: boolean; citations: boolean; notes: boolean },
+  docMap?: Record<string, string>,
+) {
   return qs
     .map((q, i) => {
       const lines: string[] = [`${i + 1}. ${q.question_text}`];
       lines.push(`   Category: ${CATEGORY_LABEL[q.category]}  ·  Recommendation: ${q.recommendation ? RECOMMENDATION_LABEL[q.recommendation] : "—"}`);
       if (opts.rationale && q.question_rationale) lines.push(`   Rationale: ${q.question_rationale}`);
-      if (opts.citations && (q.source_citation || q.source_quote)) {
-        if (q.source_citation) lines.push(`   Source: ${q.source_citation}`);
+      if (opts.citations && (q.source_document_id || q.source_citation || q.source_quote)) {
+        const docName = q.source_document_id ? (docMap?.[q.source_document_id] ?? "(unknown document)") : null;
+        if (docName) lines.push(`   Document: ${docName}`);
+        if (q.source_citation) lines.push(`   Section: ${q.source_citation}`);
         if (q.source_quote) lines.push(`   Quote: "${q.source_quote}"`);
       }
       if (opts.notes && q.strategic_advantage_notes) lines.push(`   Notes: ${q.strategic_advantage_notes}`);
@@ -56,12 +62,14 @@ function buildText(qs: QuestionRow[], opts: { rationale: boolean; citations: boo
     .join("\n\n");
 }
 
-export function QuestionExport({ questions, selectedIds = [], trigger, open, onOpenChange }: Props) {
+export function QuestionExport({ questions, documents = [], selectedIds = [], trigger, open, onOpenChange }: Props) {
   const [scope, setScope] = useState<Scope>("all");
   const [format, setFormat] = useState<"csv" | "txt" | "json">("csv");
   const [includeRationale, setIncludeRationale] = useState(true);
   const [includeCitations, setIncludeCitations] = useState(true);
   const [includeNotes, setIncludeNotes] = useState(false);
+
+  const docMap = Object.fromEntries(documents.map((d) => [d.id, d.file_name]));
 
   const handleExport = () => {
     let pool = questions;
@@ -69,9 +77,9 @@ export function QuestionExport({ questions, selectedIds = [], trigger, open, onO
     else if (scope === "submitted") pool = pool.filter((q) => q.is_submitted);
     else if (scope === "not_submitted") pool = pool.filter((q) => !q.is_submitted);
 
-    if (format === "csv") downloadFile(questionsToCsv(pool), "questions.csv", "text/csv");
+    if (format === "csv") downloadFile(questionsToCsv(pool, docMap), "questions.csv", "text/csv");
     else if (format === "json") downloadFile(JSON.stringify(pool, null, 2), "questions.json", "application/json");
-    else downloadFile(buildText(pool, { rationale: includeRationale, citations: includeCitations, notes: includeNotes }), "questions.txt", "text/plain");
+    else downloadFile(buildText(pool, { rationale: includeRationale, citations: includeCitations, notes: includeNotes }, docMap), "questions.txt", "text/plain");
 
     onOpenChange?.(false);
   };
