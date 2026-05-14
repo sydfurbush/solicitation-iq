@@ -508,6 +508,12 @@ Deno.serve(async (req) => {
       else console.log(`[generate-questions] sol=${solicitationId} wiped prior AI questions before run`);
     }
 
+    await logEvent(runId, "started",
+      isRetry
+        ? `Retry started (${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""})`
+        : `Run started (${batches.length} batch(es)${runCrossDoc ? " + cross-doc pass" : ""})`,
+      { docs: documents.length, total_batches: totalBatches, retry: isRetry, parent_run_id: parentRunId });
+
     const work = (async () => {
       let totalInserted = 0;
       let completed = 0;
@@ -529,6 +535,7 @@ Deno.serve(async (req) => {
         const batchLabel = `${i + 1}/${batches.length}`;
         const batchNames = unit.label;
         await updateRun({ current_step: `Batch ${batchLabel}: ${batchNames}` });
+        await logEvent(runId, "batch_started", `Batch ${batchLabel}: ${batchNames}`, { index: i + 1, total: batches.length });
 
         // Build prompt for this batch
         const perDocBudget = Math.floor(PER_BATCH_BUDGET / batch.length);
