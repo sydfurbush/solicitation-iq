@@ -264,6 +264,7 @@ export default function SolicitationDetail() {
     "phase-2": "Phase 2 · Deep Dive",
     "phase-3": "Phase 3 · Outline",
     "phase-4": "Phase 4 · Win Themes",
+    "phase-5": "Phase 5 · Drafting",
   };
 
   const renderPhase1 = () => {
