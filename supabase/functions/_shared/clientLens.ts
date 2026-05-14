@@ -231,6 +231,27 @@ export async function buildClientLens(
     if (techEntries.length) {
       lines.push(`  - Tech stack: ${techEntries.slice(0, 10).map(([k, v]) => `${k}=${v}`).join(", ")}`);
     }
+
+    // ---- Lane-aware utility topic nudges (Phase 2) ----
+    const presetKeyForLane = String((merged as { preset_key?: string | null }).preset_key ?? "");
+    const lane: string =
+      presetKeyForLane.startsWith("utility_it_ot") ? "it_ot"
+      : presetKeyForLane.startsWith("utility_engineering") ? "engineering"
+      : presetKeyForLane.startsWith("utility_electric_construction") ? "electric"
+      : presetKeyForLane.startsWith("utility_gas_construction") ? "gas"
+      : presetKeyForLane.startsWith("utility_water_construction") ? "water"
+      : presetKeyForLane.startsWith("utility_civil_construction") ? "civil"
+      : presetKeyForLane.startsWith("utility_renewables_epc") ? "renewables"
+      : presetKeyForLane.startsWith("utility_staffing") ? "staffing"
+      : presetKeyForLane.startsWith("utility_professional_services") ? "prof_services"
+      : presetKeyForLane.startsWith("utility_field_services") ? "field_services"
+      : presetKeyForLane.startsWith("utility_equipment") ? "equipment"
+      : "generic";
+    const nudge = renderUtilityTopicNudge(opts.topic, lane);
+    if (nudge) {
+      lines.push("");
+      lines.push(nudge);
+    }
   }
 
   if (merged.tone_voice) {
