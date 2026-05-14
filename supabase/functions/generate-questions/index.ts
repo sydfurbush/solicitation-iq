@@ -651,6 +651,7 @@ Deno.serve(async (req) => {
                   system: lensifiedCrossDoc,
                   user: prompt,
                   tool: SCHEMA,
+                  modelOverride: { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 },
                 })) as Record<string, any>;
                 lastErr = null;
                 break;
