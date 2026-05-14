@@ -40,6 +40,7 @@ export interface CallAiArgs {
   system: string;
   user: string;
   tool: OpenAIToolSchema; // forced structured output
+  modelOverride?: ModelChoice; // bypass MODEL_CONFIG and DB override for this call
 }
 
 export class AiHttpError extends Error {
