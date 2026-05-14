@@ -165,8 +165,11 @@ function buildHtml(
 }
 
 export async function downloadRunReport(input: RunReportInput): Promise<number> {
-  const questions = await fetchRunQuestions(input);
-  const html = buildHtml(input, questions);
+  const [questions, docMap] = await Promise.all([
+    fetchRunQuestions(input),
+    fetchDocMap(input.solicitationId),
+  ]);
+  const html = buildHtml(input, questions, docMap);
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
