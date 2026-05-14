@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Download, Loader2, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronUp, ExternalLink, Download, Loader2, Search, X } from "lucide-react";
 import {
   Sheet,
   SheetContent,
