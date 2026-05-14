@@ -53,12 +53,23 @@ interface Props {
   onGenerateQuestions?: () => void;
 }
 
-function DateRow({ label, value }: { label: string; value: string | null | undefined }) {
+function DateRow({
+  label,
+  value,
+  field,
+  autofill,
+}: {
+  label: string;
+  value: string | null | undefined;
+  field?: string;
+  autofill?: Record<string, unknown> | null;
+}) {
   return (
     <div className="flex justify-between text-sm py-1.5 border-b last:border-0">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">
+      <span className="font-medium flex items-center">
         {value ? format(new Date(value), "MMM d, yyyy") : "—"}
+        {field && <AutofillChip field={field} autofill={autofill} />}
       </span>
     </div>
   );
