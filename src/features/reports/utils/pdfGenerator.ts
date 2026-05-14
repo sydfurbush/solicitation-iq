@@ -247,11 +247,17 @@ function drawQuestionCard(
   setText(doc, RGB.navy);
   doc.text(`Q${card.index}`, MARGIN.left + accentW + 10, ctx.y + 22);
 
-  // Category badge (under Q#)
+  // Category badge (under Q#) — auto-shrink font if needed to avoid mid-word wrap
   const badgeText = card.categoryLabel.toUpperCase();
+  const badgeMaxW = labelW - 12;
+  let badgeFont = 7;
   doc.setFont(FONT_PDF, "bold");
-  doc.setFontSize(7);
-  const badgeLines = doc.splitTextToSize(badgeText, labelW - 12);
+  doc.setFontSize(badgeFont);
+  while (badgeFont > 5.5 && doc.getTextWidth(badgeText) > badgeMaxW) {
+    badgeFont -= 0.5;
+    doc.setFontSize(badgeFont);
+  }
+  const badgeLines = clipLines(doc, doc.splitTextToSize(badgeText, badgeMaxW), badgeMaxW);
   const badgeH = badgeLines.length * 9 + 6;
   setFill(doc, t.tint);
   doc.rect(MARGIN.left + accentW + 6, ctx.y + 30, labelW - 12, badgeH, "F");
