@@ -25,6 +25,7 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "draft-section": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8000 },
   "polish-section": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 6000 },
   "generate-preset": { provider: "lovable", model: "openai/gpt-5", maxTokens: 8000 },
+  "draft-clarification-request": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 4000 },
 };
 
 export interface OpenAIToolSchema {
