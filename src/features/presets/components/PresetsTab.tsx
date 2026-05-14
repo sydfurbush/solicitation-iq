@@ -336,16 +336,51 @@ function HistoryDialog({ preset, open, onClose }: { preset: PresetRow; open: boo
   );
 }
 
+function ReasoningHint({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" className="inline-flex items-center text-primary/70 hover:text-primary" aria-label="Why these values?">
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs text-xs">{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function HintLabel({ children, hint }: { children: React.ReactNode; hint?: string }) {
+  return (
+    <Label className="inline-flex items-center gap-1.5">
+      {children}
+      <ReasoningHint text={hint} />
+    </Label>
+  );
+}
+
 function PresetFormBody(props: {
   metaLabel: string; onMetaLabel: (v: string) => void;
   metaKey: string; onMetaKey: (v: string) => void;
   metaDesc: string; onMetaDesc: (v: string) => void;
   metaFamily: "federal" | "utility"; onMetaFamily: (v: "federal" | "utility") => void;
   content: PresetContent; onContent: (c: PresetContent) => void;
+  reasoning?: PresetReasoning;
   showKey?: boolean; readOnly?: boolean;
 }) {
   const c = props.content;
+  const r = props.reasoning ?? {};
   const set = (patch: Partial<PresetContent>) => props.onContent({ ...c, ...patch });
+
+  // Helper: tag editor with hint as label
+  const TagEditorH = ({ label, hint, values, onChange, placeholder }: { label: string; hint?: string; values: string[]; onChange: (v: string[]) => void; placeholder?: string }) => (
+    <div className="space-y-2">
+      <HintLabel hint={hint}>{label}</HintLabel>
+      <TagEditorBare values={values} onChange={onChange} placeholder={placeholder} />
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -385,20 +420,20 @@ function PresetFormBody(props: {
         <TabsContent value="codes" className="space-y-4 mt-4">
           <fieldset disabled={props.readOnly} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <TagEditor label="NAICS codes" values={c.naics_codes ?? []} onChange={(v) => set({ naics_codes: v })} placeholder="541512" />
-              <TagEditor label="PSC codes" values={c.psc_codes ?? []} onChange={(v) => set({ psc_codes: v })} placeholder="DA01" />
-              <TagEditor label="Set-asides" values={c.set_asides ?? []} onChange={(v) => set({ set_asides: v })} placeholder="8(a)" />
-              <TagEditor label="Agencies / buyers" values={c.agencies_focus ?? []} onChange={(v) => set({ agencies_focus: v })} placeholder="VA / GSA" />
-              <TagEditor label="Contract vehicles" values={c.contract_vehicles ?? []} onChange={(v) => set({ contract_vehicles: v })} placeholder="GSA MAS" />
-              <TagEditor label="Keywords" values={c.keywords ?? []} onChange={(v) => set({ keywords: v })} placeholder="cloud, modernization" />
+              <TagEditorH label="NAICS codes" hint={r.naics_codes} values={c.naics_codes ?? []} onChange={(v) => set({ naics_codes: v })} placeholder="541512" />
+              <TagEditorH label="PSC codes" hint={r.psc_codes} values={c.psc_codes ?? []} onChange={(v) => set({ psc_codes: v })} placeholder="DA01" />
+              <TagEditorH label="Set-asides" values={c.set_asides ?? []} onChange={(v) => set({ set_asides: v })} placeholder="8(a)" />
+              <TagEditorH label="Agencies / buyers" hint={r.agencies_focus} values={c.agencies_focus ?? []} onChange={(v) => set({ agencies_focus: v })} placeholder="VA / GSA" />
+              <TagEditorH label="Contract vehicles" hint={r.contract_vehicles} values={c.contract_vehicles ?? []} onChange={(v) => set({ contract_vehicles: v })} placeholder="GSA MAS" />
+              <TagEditorH label="Keywords" values={c.keywords ?? []} onChange={(v) => set({ keywords: v })} placeholder="cloud, modernization" />
             </div>
           </fieldset>
         </TabsContent>
         <TabsContent value="compliance" className="space-y-4 mt-4">
           <fieldset disabled={props.readOnly} className="space-y-4">
-            <TagEditor label="Compliance frameworks" values={c.compliance_frameworks ?? []} onChange={(v) => set({ compliance_frameworks: v })} placeholder="NIST 800-53" />
+            <TagEditorH label="Compliance frameworks" hint={r.compliance_frameworks} values={c.compliance_frameworks ?? []} onChange={(v) => set({ compliance_frameworks: v })} placeholder="NIST 800-53" />
             <div className="space-y-2">
-              <Label>Always-flag rules (one per line, format: rule | reason)</Label>
+              <HintLabel hint={r.always_flag}>Always-flag rules (one per line, format: rule | reason)</HintLabel>
               <Textarea
                 rows={4}
                 value={(c.always_flag ?? []).map((f) => `${f.rule} | ${f.reason}`).join("\n")}
