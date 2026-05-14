@@ -236,8 +236,8 @@ function CreateDialog({ open, onClose, initialDraft }: { open: boolean; onClose:
           </div>
         )}
         <PresetFormBody
-          metaLabel={label} onMetaLabel={setLabel}
-          metaKey={key} onMetaKey={setKey}
+          metaLabel={label} onMetaLabel={handleLabel}
+          metaKey={key} onMetaKey={handleKey}
           metaDesc={description} onMetaDesc={setDescription}
           metaFamily={family} onMetaFamily={setFamily}
           content={content} onContent={setContent}
