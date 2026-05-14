@@ -4,7 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3.23.8";
-import { chunkText, embedTexts } from "../_shared/embeddings.ts";
+import { chunkText, embedTexts, EmbeddingsUnavailableError } from "../_shared/embeddings.ts";
 
 const Body = z.object({ documentId: z.string().uuid() });
 
