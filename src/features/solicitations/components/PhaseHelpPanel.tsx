@@ -16,6 +16,7 @@ const DOCS = {
   phase_2_deep_dive: phase2Doc,
   phase_3_outline: phase3Doc,
   phase_4_win_themes: phase4Doc,
+  phase_5_drafting: phase5Doc,
 } as const;
 
 const PHASE_NUM: Record<PhaseType, number> = {
@@ -23,6 +24,7 @@ const PHASE_NUM: Record<PhaseType, number> = {
   phase_2_deep_dive: 2,
   phase_3_outline: 3,
   phase_4_win_themes: 4,
+  phase_5_drafting: 5,
 };
 
 export const PHASE_COLOR_TEXT: Record<PhaseType, string> = {
@@ -30,6 +32,7 @@ export const PHASE_COLOR_TEXT: Record<PhaseType, string> = {
   phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
   phase_3_outline: "text-[hsl(var(--phase-3))]",
   phase_4_win_themes: "text-[hsl(var(--phase-4))]",
+  phase_5_drafting: "text-[hsl(var(--phase-5))]",
 };
 
 export const PHASE_COLOR_BG: Record<PhaseType, string> = {
@@ -37,6 +40,7 @@ export const PHASE_COLOR_BG: Record<PhaseType, string> = {
   phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
   phase_3_outline: "bg-[hsl(var(--phase-3))]",
   phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
+  phase_5_drafting: "bg-[hsl(var(--phase-5))]",
 };
 
 export const PHASE_COLOR_BORDER: Record<PhaseType, string> = {
@@ -44,6 +48,7 @@ export const PHASE_COLOR_BORDER: Record<PhaseType, string> = {
   phase_2_deep_dive: "border-[hsl(var(--phase-2))]",
   phase_3_outline: "border-[hsl(var(--phase-3))]",
   phase_4_win_themes: "border-[hsl(var(--phase-4))]",
+  phase_5_drafting: "border-[hsl(var(--phase-5))]",
 };
 
 export const PHASE_COLOR_SOFT: Record<PhaseType, string> = {
@@ -51,6 +56,7 @@ export const PHASE_COLOR_SOFT: Record<PhaseType, string> = {
   phase_2_deep_dive: "bg-[hsl(var(--phase-2)/0.12)]",
   phase_3_outline: "bg-[hsl(var(--phase-3)/0.12)]",
   phase_4_win_themes: "bg-[hsl(var(--phase-4)/0.12)]",
+  phase_5_drafting: "bg-[hsl(var(--phase-5)/0.12)]",
 };
 
 export function PhaseHelpPanel({

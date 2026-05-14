@@ -7,6 +7,7 @@ export const PHASE_TAB: Record<PhaseType, string> = {
   phase_2_deep_dive: "phase-2",
   phase_3_outline: "phase-3",
   phase_4_win_themes: "phase-4",
+  phase_5_drafting: "phase-5",
 };
 
 export const TAB_PHASE: Record<string, PhaseType> = {

@@ -102,6 +102,7 @@ const PHASE_LABELS: Record<string, string> = {
   phase_2_outline: "Phase 2 — Outline",
   phase_3_deep_dive: "Phase 3 — Deep Dive",
   phase_4_win_themes: "Phase 4 — Win Themes",
+  phase_5_drafting: "Phase 5 — Drafting",
   phase_5_complete: "Phase 5 — Complete",
 };
 
