@@ -246,9 +246,16 @@ export function useDeletePreset() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (presetId: string) => {
+      // Clear current_version_id first to avoid FK conflict, then hard delete
+      // (lens_preset_versions cascades). Soft-delete via UPDATE failed RLS
+      // because the row would no longer satisfy the visibility policy.
+      await supabase
+        .from("lens_presets" as never)
+        .update({ current_version_id: null } as never)
+        .eq("id", presetId);
       const { error } = await supabase
         .from("lens_presets" as never)
-        .update({ deleted_at: new Date().toISOString() } as never)
+        .delete()
         .eq("id", presetId);
       if (error) throw error;
     },
