@@ -92,6 +92,21 @@ function wrap(doc: jsPDF, text: string, w: number, fontStyle: "normal" | "bold" 
   return doc.splitTextToSize(text || "", w);
 }
 
+/** Clip each rendered line to a max width by truncating with an ellipsis.
+ *  Caller must have already set the desired font + size. */
+function clipLines(doc: jsPDF, lines: string[], maxW: number): string[] {
+  return lines.map((line) => {
+    if (doc.getTextWidth(line) <= maxW) return line;
+    let lo = 0, hi = line.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (doc.getTextWidth(line.slice(0, mid) + "…") <= maxW) lo = mid;
+      else hi = mid - 1;
+    }
+    return line.slice(0, lo).replace(/\s+$/, "") + "…";
+  });
+}
+
 function drawCoverBand(ctx: Ctx, content: ReportContent) {
   const { doc } = ctx;
   const x = MARGIN.left;
@@ -196,7 +211,7 @@ function drawQuestionCard(
 ) {
   const { doc } = ctx;
   const t = CATEGORY_RGB[card.tone] ?? CATEGORY_RGB.neutral;
-  const labelW = 70;
+  const labelW = 84;
   const accentW = 4;
   const bodyX = MARGIN.left + accentW + labelW;
   const bodyW = CONTENT_W - accentW - labelW;
@@ -232,11 +247,17 @@ function drawQuestionCard(
   setText(doc, RGB.navy);
   doc.text(`Q${card.index}`, MARGIN.left + accentW + 10, ctx.y + 22);
 
-  // Category badge (under Q#)
+  // Category badge (under Q#) — auto-shrink font if needed to avoid mid-word wrap
   const badgeText = card.categoryLabel.toUpperCase();
+  const badgeMaxW = labelW - 12;
+  let badgeFont = 7;
   doc.setFont(FONT_PDF, "bold");
-  doc.setFontSize(7);
-  const badgeLines = doc.splitTextToSize(badgeText, labelW - 12);
+  doc.setFontSize(badgeFont);
+  while (badgeFont > 5.5 && doc.getTextWidth(badgeText) > badgeMaxW) {
+    badgeFont -= 0.5;
+    doc.setFontSize(badgeFont);
+  }
+  const badgeLines = clipLines(doc, doc.splitTextToSize(badgeText, badgeMaxW), badgeMaxW);
   const badgeH = badgeLines.length * 9 + 6;
   setFill(doc, t.tint);
   doc.rect(MARGIN.left + accentW + 6, ctx.y + 30, labelW - 12, badgeH, "F");
@@ -639,9 +660,14 @@ function drawIndexTable(ctx: Ctx, rows: Array<{ index: number; tone: keyof typeo
 
   rows.forEach((r, i) => {
     const t = CATEGORY_RGB[r.tone] ?? CATEGORY_RGB.neutral;
-    const topicLines = wrap(doc, hardBreakWord(r.topic), topicW - padX * 2, "normal", 8);
-    const srcLines = wrap(doc, hardBreakWord(r.source), srcW - padX * 2, "normal", 8);
-    const catLines = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 7);
+    doc.setFont(FONT_PDF, "normal"); doc.setFontSize(8);
+    const topicLinesRaw = wrap(doc, hardBreakWord(r.topic), topicW - padX * 2, "normal", 8);
+    const topicLines = clipLines(doc, topicLinesRaw, topicW - padX * 2);
+    const srcLinesRaw = wrap(doc, hardBreakWord(r.source), srcW - padX * 2, "normal", 8);
+    const srcLines = clipLines(doc, srcLinesRaw, srcW - padX * 2);
+    doc.setFont(FONT_PDF, "bold"); doc.setFontSize(7);
+    const catLinesRaw = wrap(doc, r.categoryLabel.toUpperCase(), catW - padX * 2, "bold", 7);
+    const catLines = clipLines(doc, catLinesRaw, catW - padX * 2 - 10);
     const rowH = Math.max(20, Math.max(topicLines.length, srcLines.length, catLines.length) * 10 + padY * 2);
     if (ctx.y + rowH > CONTENT_BOTTOM) {
       newPage(ctx);
