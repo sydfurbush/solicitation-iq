@@ -46,7 +46,8 @@ export default function Signup() {
     setError(null);
     const { error: signUpErr } = await signUp(values.email, values.password, {
       full_name: values.fullName,
-      organization_name: values.organizationName,
+      // Only pass organization_name when there's no invite — invited users join the inviter's org.
+      ...(inviteToken ? {} : { organization_name: values.organizationName }),
     });
     if (signUpErr) {
       setError(signUpErr.message);
