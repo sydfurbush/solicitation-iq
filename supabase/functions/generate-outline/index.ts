@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
     const { data: lmSections } = docIds.length
       ? await supabase
           .from("document_sections")
-          .select("section_number, section_title, content, page_start")
+          .select("document_id, section_number, section_title, content, page_start")
           .in("document_id", docIds)
           .or("section_number.ilike.L%,section_number.ilike.M%,section_title.ilike.%instructions%,section_title.ilike.%evaluation%")
           .limit(40)
