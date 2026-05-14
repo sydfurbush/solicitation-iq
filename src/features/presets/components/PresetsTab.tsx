@@ -178,18 +178,23 @@ function PresetRowItem({ preset, onEdit, onHistory }: { preset: PresetRow; onEdi
   );
 }
 
-function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function slugify(s: string): string {
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 60) || "preset";
+}
+
+function CreateDialog({ open, onClose, initialDraft }: { open: boolean; onClose: () => void; initialDraft?: GeneratedPresetDraft | null }) {
   const create = useCreatePreset();
-  const [key, setKey] = useState("");
-  const [label, setLabel] = useState("");
-  const [description, setDescription] = useState("");
-  const [family, setFamily] = useState<"federal" | "utility">("federal");
   const empty: PresetContent = useMemo(() => ({
     naics_codes: [], psc_codes: [], set_asides: [], agencies_focus: [],
     contract_vehicles: [], compliance_frameworks: [], discriminators: [],
     acronym_glossary: {}, always_flag: [], tone_voice: "consultative", reading_level: 12, keywords: [],
   }), []);
-  const [content, setContent] = useState<PresetContent>(empty);
+  const [key, setKey] = useState(() => initialDraft ? slugify(initialDraft.label) : "");
+  const [label, setLabel] = useState(initialDraft?.label ?? "");
+  const [description, setDescription] = useState(initialDraft?.description ?? "");
+  const [family, setFamily] = useState<"federal" | "utility">(initialDraft?.family ?? "federal");
+  const [content, setContent] = useState<PresetContent>(initialDraft?.content ?? empty);
+  const reasoning = initialDraft?.reasoning;
 
   const submit = () => {
     const parsed = presetSchema.safeParse({ key, label, description: description || undefined, family });
@@ -200,13 +205,25 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>New service preset</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {initialDraft && <Sparkles className="h-4 w-4 text-primary" />}
+            New service preset
+          </DialogTitle>
+        </DialogHeader>
+        {initialDraft && (
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+            <span className="font-medium">AI-generated draft.</span>{" "}
+            Review every field below — hover the <Info className="inline h-3 w-3" /> icons to see why each section was chosen. Edits are saved as v1.
+          </div>
+        )}
         <PresetFormBody
           metaLabel={label} onMetaLabel={setLabel}
           metaKey={key} onMetaKey={setKey}
           metaDesc={description} onMetaDesc={setDescription}
           metaFamily={family} onMetaFamily={setFamily}
           content={content} onContent={setContent}
+          reasoning={reasoning}
           showKey
         />
         <DialogFooter>
