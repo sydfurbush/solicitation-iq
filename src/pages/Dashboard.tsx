@@ -134,6 +134,7 @@ export default function Dashboard() {
   const myContributorIds = new Set(
     myAssignments.filter((a) => a.role === "contributor").map((a) => a.solicitation_id)
   );
+  const rawClient = searchParams.get("client");
   const rawStatus = searchParams.get("status");
 
   // Validate status against known keys; unknown -> "all"
