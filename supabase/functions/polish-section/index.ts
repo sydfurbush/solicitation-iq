@@ -97,7 +97,7 @@ ${currentMd}`;
 
     const result = await callAiTool({
       functionName: "polish-section",
-      system: "You polish proposal section drafts. Always return the full updated Markdown — never a partial diff.",
+      system: "You polish proposal section drafts. Always return the full updated Markdown — never a partial diff. FORMATTING: Do NOT hard-wrap lines at 80 columns or any fixed width. Write each paragraph as a SINGLE continuous line. Separate paragraphs and list items with one blank line. Preserve existing paragraph and list structure; do not introduce baked-in line breaks.",
       user: userPrompt,
       tool: SCHEMA,
     });

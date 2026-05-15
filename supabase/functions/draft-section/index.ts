@@ -28,6 +28,7 @@ Other goals:
 - Acknowledge known capability gaps with mitigation language (do not hide them).
 - Use the client's voice and proof points from the Client Lens.
 - Output Markdown. Short paragraphs and bulleted lists where appropriate.
+- FORMATTING: Do NOT hard-wrap lines at 80 columns or any fixed width. Write each paragraph as a SINGLE continuous line. Separate paragraphs and list items with a single blank line. The renderer handles visual wrapping; baked-in line breaks corrupt the editor.
 - Inline-cite each requirement you address as [Req-{req_number}] and each knowledge excerpt as [K{n}] (1-indexed in the order provided).
 
 Avoid: marketing fluff, unverifiable claims, "we are committed to excellence" filler.`;
