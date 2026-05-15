@@ -86,8 +86,8 @@ Apply these rules:
 2. REMOVE any question about standard FAR/DFARS boilerplate, representation checkboxes, or "reservation of rights" language.
 3. REMOVE any question whose cited regulation/deviation does not actually govern the topic.
 4. REMOVE exact duplicates and near-duplicates (>50% quote overlap or same normalized text).
-5. CONSOLIDATE: when 3 or more questions share the same topic_tag (e.g. section_508, sca_wages, pii_privacy), merge them into AT MOST 2 sharper consolidated questions. Pick the strongest existing question as the keeper and rewrite its question_text + question_rationale to subsume the others. List the merged question IDs.
-6. Do NOT remove genuinely distinct, sharp questions just to hit a number. Quality over volume.
+5. CONSOLIDATE: when 5 or more questions share the same topic_tag (e.g. section_508, sca_wages, pii_privacy), merge them into AT MOST 2 sharper consolidated questions. Pick the strongest existing question as the keeper and rewrite its question_text + question_rationale to subsume the others. List the merged question IDs.
+6. Do NOT remove genuinely distinct, sharp questions just to hit a number. Quality over volume. Removing more than ~25% of the drafts indicates over-cutting — be CONSERVATIVE. When unsure, keep the question.
 
 Return ONLY the JSON via the tool call with two arrays:
 - remove: [{ id, reason }]  — questions to delete entirely.
