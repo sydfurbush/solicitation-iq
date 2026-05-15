@@ -211,8 +211,10 @@ export function DraftingWorkspace({ solicitationId }: Props) {
           <Textarea
             value={text}
             onChange={(e) => { setText(e.target.value); setDirty(true); }}
-            className="flex-1 rounded-none border-0 resize-none font-mono text-sm focus-visible:ring-0"
-            placeholder="Write the section in Markdown. Cite requirements as [Req-X] and knowledge as [K1]…"
+            wrap="soft"
+            spellCheck
+            className="flex-1 rounded-none border-0 resize-none text-sm leading-relaxed p-6 focus-visible:ring-0"
+            placeholder="Write the section in Markdown. One paragraph per line — the renderer handles wrapping. Cite requirements as [Req-X] and knowledge as [K1]…"
           />
         ) : (
           <div className="flex-1 overflow-auto p-6">
