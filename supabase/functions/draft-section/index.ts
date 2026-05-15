@@ -200,10 +200,16 @@ Draft the section now.`;
       });
     }
 
+    const citationsForStorage = (lens.citations ?? []).slice(0, 6).map((c, i) => ({
+      key: `K${i + 1}`,
+      title: c.title ?? "Excerpt",
+      snippet: c.snippet ?? "",
+    }));
+
     const upsert = {
       outline_node_id: outlineNodeId,
       solicitation_id: solicitationId,
-      content_json: { markdown, requirement_coverage: result.requirement_coverage ?? [], themes_woven: result.themes_woven ?? [], open_questions: result.open_questions ?? [] },
+      content_json: { markdown, requirement_coverage: result.requirement_coverage ?? [], themes_woven: result.themes_woven ?? [], open_questions: result.open_questions ?? [], citations: citationsForStorage },
       content_html: markdown,
       word_count: wordCount,
       page_estimate: pageEstimate,
