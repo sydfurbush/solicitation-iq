@@ -227,12 +227,21 @@ export function DraftingWorkspace({ solicitationId }: Props) {
             onChange={(md) => { setText(md); setDirty(true); }}
             placeholder="Write the section. Use the toolbar for formatting. Cite requirements as [Req-X] and knowledge as [K1]…"
             className="flex-1"
+            citationLookup={citationLookup}
           />
         ) : (
           <div className="flex-1 overflow-auto p-6">
             {text.trim() ? (
               <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:scroll-mt-4">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ children }) => <p>{renderWithCitations(children, citationLookup)}</p>,
+                    li: ({ children }) => <li>{renderWithCitations(children, citationLookup)}</li>,
+                  }}
+                >
+                  {text}
+                </ReactMarkdown>
               </article>
             ) : (
               <div className="text-sm text-muted-foreground">
