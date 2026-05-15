@@ -32,11 +32,48 @@ export function useStrategicQuestions(
         .from("strategic_questions")
         .select("*")
         .eq("solicitation_id", solicitationId!)
+        .is("synthesis_status", null)
         .order("priority", { ascending: false });
       if (error) throw error;
       return (data ?? []) as QuestionRow[];
     },
     select: (data) => sortQuestions(filters ? filterQuestions(data, filters) : data, sortBy),
+  });
+}
+
+export function useSuppressedQuestions(solicitationId: string | undefined) {
+  return useQuery({
+    queryKey: solicitationId ? ["suppressed-questions", solicitationId] : ["suppressed-questions", "none"],
+    enabled: !!solicitationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("strategic_questions")
+        .select("*")
+        .eq("solicitation_id", solicitationId!)
+        .not("synthesis_status", "is", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as QuestionRow[];
+    },
+  });
+}
+
+export function useRestoreSuppressedQuestion(solicitationId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("strategic_questions")
+        .update({ synthesis_status: null, synthesis_reason: null, synthesis_merged_into: null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      if (solicitationId) {
+        invalidateQuestionCounts(qc, solicitationId);
+        qc.invalidateQueries({ queryKey: ["suppressed-questions", solicitationId] });
+      }
+    },
   });
 }
 

@@ -12,6 +12,7 @@ import { CreateQuestionDialog } from "@/features/questions/components/CreateQues
 import { GenerateQuestionsDialog } from "@/features/questions/components/GenerateQuestionsDialog";
 import { QuestionRunsHistorySheet } from "@/features/questions/components/QuestionRunsHistorySheet";
 import { CleanupQuestionsButton } from "@/features/questions/components/CleanupQuestionsButton";
+import { SynthesisReviewSheet } from "@/features/questions/components/SynthesisReviewSheet";
 import { QuestionDetailPanel } from "@/features/questions/components/QuestionDetailPanel";
 import { QuestionExport } from "@/features/questions/components/QuestionExport";
 import { QuestionsFilters, type FilterCounts } from "@/features/questions/components/QuestionsFilters";
@@ -147,6 +148,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
             <History className="h-4 w-4 mr-1" /> History
           </Button>
           <CleanupQuestionsButton solicitationId={solicitationId} questions={allQuestions} />
+          <SynthesisReviewSheet solicitationId={solicitationId} />
           <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={allQuestions.length === 0}>
             <Download className="h-4 w-4 mr-1" /> Export
           </Button>
