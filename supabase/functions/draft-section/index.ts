@@ -211,6 +211,8 @@ Notes: ${node.notes ?? "—"}
 
 ${boundaryText}
 
+${priorBlock}
+
 REQUIREMENTS TO ADDRESS
 ${reqText}
 
