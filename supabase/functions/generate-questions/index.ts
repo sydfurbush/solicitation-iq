@@ -125,12 +125,57 @@ const SCHEMA = {
             source_quote: { type: "string" },
             conflict_with_document: { type: "string" },
             conflict_with_section: { type: "string" },
+            topic_tag: {
+              type: "string",
+              enum: [
+                "section_508", "sca_wages", "pii_privacy", "cybersecurity",
+                "small_business", "key_personnel", "oci", "clearances",
+                "baa_taa", "buy_american", "evms", "indemnification",
+                "pricing", "delivery", "evaluation", "scope", "staffing",
+                "transition", "reporting", "other",
+              ],
+            },
           },
           required: ["question_text", "category", "recommendation", "priority", "question_rationale"],
         },
       },
     },
     required: ["questions"],
+  },
+};
+
+const SYNTHESIS_SCHEMA = {
+  name: "synthesize_questions",
+  description: "Final dedupe + consolidation of strategic questions",
+  parameters: {
+    type: "object",
+    properties: {
+      remove: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            reason: { type: "string" },
+          },
+          required: ["id", "reason"],
+        },
+      },
+      merge: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            keep_id: { type: "string" },
+            merge_ids: { type: "array", items: { type: "string" } },
+            new_question_text: { type: "string" },
+            new_question_rationale: { type: "string" },
+          },
+          required: ["keep_id", "merge_ids"],
+        },
+      },
+    },
+    required: ["remove", "merge"],
   },
 };
 
