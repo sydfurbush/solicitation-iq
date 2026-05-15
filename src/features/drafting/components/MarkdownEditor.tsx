@@ -96,14 +96,16 @@ function Toolbar({ editor }: { editor: Editor | null }) {
   );
 }
 
-export function MarkdownEditor({ value, onChange, placeholder, className }: Props) {
+export function MarkdownEditor({ value, onChange, placeholder, className, citationLookup }: Props) {
   const initialHtml = useMemo(() => marked.parse(value || "") as string, []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastEmittedRef = useRef<string>(value);
+  const citationPluginKey = useMemo(() => new PluginKey("citationTooltip"), []);
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3, 4] } }),
       Placeholder.configure({ placeholder: placeholder ?? "Start writing…" }),
+      CitationTooltip.configure({ lookup: citationLookup ?? {} }),
     ],
     content: initialHtml,
     editorProps: {
@@ -130,6 +132,13 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Prop
     editor.commands.setContent(html, { emitUpdate: false });
     lastEmittedRef.current = value;
   }, [value, editor]);
+
+  // Push updated lookup to the decoration plugin without recreating the editor
+  useEffect(() => {
+    if (!editor) return;
+    const tr = editor.state.tr.setMeta(citationPluginKey, citationLookup ?? {});
+    editor.view.dispatch(tr);
+  }, [citationLookup, editor, citationPluginKey]);
 
   return (
     <div className={cn("flex flex-col h-full overflow-hidden", className)}>
