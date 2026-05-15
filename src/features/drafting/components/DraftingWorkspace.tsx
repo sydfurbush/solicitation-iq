@@ -19,6 +19,33 @@ import { normalizeIfWrapped } from "../utils/markdownNormalize";
 
 interface Props { solicitationId: string }
 
+const CITATION_RE = /\[(K\d+|Req-[A-Za-z0-9._-]+)\]/g;
+
+function renderWithCitations(children: React.ReactNode, lookup: Record<string, string>): React.ReactNode {
+  return Array.isArray(children)
+    ? children.map((c, i) => <span key={i}>{wrapNode(c, lookup)}</span>)
+    : wrapNode(children, lookup);
+}
+
+function wrapNode(node: React.ReactNode, lookup: Record<string, string>): React.ReactNode {
+  if (typeof node !== "string") return node;
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  CITATION_RE.lastIndex = 0;
+  while ((m = CITATION_RE.exec(node)) !== null) {
+    if (m.index > last) parts.push(node.slice(last, m.index));
+    const token = m[1];
+    const tip = lookup[token] ?? `${token} — no reference found`;
+    parts.push(
+      <span key={`${token}-${m.index}`} className="citation-token" title={tip} data-citation={token}>{m[0]}</span>
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < node.length) parts.push(node.slice(last));
+  return parts.length ? parts : node;
+}
+
 export function DraftingWorkspace({ solicitationId }: Props) {
   const { data: outline } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
@@ -104,6 +131,20 @@ export function DraftingWorkspace({ solicitationId }: Props) {
     if (!selectedNode) return [];
     return themes.filter((t) => (t.linked_outline_node_ids ?? []).includes(selectedNode.id));
   }, [selectedNode, themes]);
+
+  // Build hover-tooltip lookup for [K#] citations + [Req-X] requirements
+  const citationLookup = useMemo(() => {
+    const map: Record<string, string> = {};
+    const cites = (selectedDraft?.content_json as { citations?: Array<{ key: string; title?: string; snippet?: string }> } | null)?.citations ?? [];
+    for (const c of cites) {
+      const tip = [c.title, c.snippet].filter(Boolean).join(" — ");
+      if (c.key) map[c.key] = tip || c.key;
+    }
+    for (const r of linkedReqs) {
+      if (r.req_number) map[`Req-${r.req_number}`] = r.shall_text ?? `Req-${r.req_number}`;
+    }
+    return map;
+  }, [selectedDraft, linkedReqs]);
 
   if (!outline) {
     return (
@@ -213,12 +254,21 @@ export function DraftingWorkspace({ solicitationId }: Props) {
             onChange={(md) => { setText(md); setDirty(true); }}
             placeholder="Write the section. Use the toolbar for formatting. Cite requirements as [Req-X] and knowledge as [K1]…"
             className="flex-1"
+            citationLookup={citationLookup}
           />
         ) : (
           <div className="flex-1 overflow-auto p-6">
             {text.trim() ? (
               <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:scroll-mt-4">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ children }) => <p>{renderWithCitations(children, citationLookup)}</p>,
+                    li: ({ children }) => <li>{renderWithCitations(children, citationLookup)}</li>,
+                  }}
+                >
+                  {text}
+                </ReactMarkdown>
               </article>
             ) : (
               <div className="text-sm text-muted-foreground">

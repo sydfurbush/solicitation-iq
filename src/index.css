@@ -120,3 +120,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Citation tokens (e.g. [K1], [Req-027]) — show native browser tooltip on hover */
+.citation-token {
+  background-color: hsl(var(--accent) / 0.5);
+  color: hsl(var(--accent-foreground));
+  padding: 0 0.2rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  font-weight: 500;
+  cursor: help;
+  border-bottom: 1px dotted hsl(var(--accent-foreground) / 0.5);
+}
+.citation-token:hover {
+  background-color: hsl(var(--accent));
+}
