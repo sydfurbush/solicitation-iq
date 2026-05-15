@@ -19,6 +19,33 @@ import { normalizeIfWrapped } from "../utils/markdownNormalize";
 
 interface Props { solicitationId: string }
 
+const CITATION_RE = /\[(K\d+|Req-[A-Za-z0-9._-]+)\]/g;
+
+function renderWithCitations(children: React.ReactNode, lookup: Record<string, string>): React.ReactNode {
+  return Array.isArray(children)
+    ? children.map((c, i) => <span key={i}>{wrapNode(c, lookup)}</span>)
+    : wrapNode(children, lookup);
+}
+
+function wrapNode(node: React.ReactNode, lookup: Record<string, string>): React.ReactNode {
+  if (typeof node !== "string") return node;
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  CITATION_RE.lastIndex = 0;
+  while ((m = CITATION_RE.exec(node)) !== null) {
+    if (m.index > last) parts.push(node.slice(last, m.index));
+    const token = m[1];
+    const tip = lookup[token] ?? `${token} — no reference found`;
+    parts.push(
+      <span key={`${token}-${m.index}`} className="citation-token" title={tip} data-citation={token}>{m[0]}</span>
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < node.length) parts.push(node.slice(last));
+  return parts.length ? parts : node;
+}
+
 export function DraftingWorkspace({ solicitationId }: Props) {
   const { data: outline } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
