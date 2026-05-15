@@ -12,6 +12,7 @@ import { CreateQuestionDialog } from "@/features/questions/components/CreateQues
 import { GenerateQuestionsDialog } from "@/features/questions/components/GenerateQuestionsDialog";
 import { QuestionRunsHistorySheet } from "@/features/questions/components/QuestionRunsHistorySheet";
 import { CleanupQuestionsButton } from "@/features/questions/components/CleanupQuestionsButton";
+import { SynthesisReviewSheet } from "@/features/questions/components/SynthesisReviewSheet";
 import { QuestionDetailPanel } from "@/features/questions/components/QuestionDetailPanel";
 import { QuestionExport } from "@/features/questions/components/QuestionExport";
 import { QuestionsFilters, type FilterCounts } from "@/features/questions/components/QuestionsFilters";
