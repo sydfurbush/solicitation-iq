@@ -1078,9 +1078,14 @@ async function runSynthesis(supabase: Supa, solicitationId: string): Promise<num
     new_question_rationale?: string;
   }>;
 
-  const idsToDelete = new Set<string>();
+  // Build suppression map: id -> { status, reason, mergedInto }
+  type Suppress = { status: "removed" | "merged"; reason: string; mergedInto: string | null };
+  const suppress = new Map<string, Suppress>();
+
   for (const r of removeList) {
-    if (validIds.has(r.id)) idsToDelete.add(r.id);
+    if (validIds.has(r.id)) {
+      suppress.set(r.id, { status: "removed", reason: r.reason ?? "removed by synthesis", mergedInto: null });
+    }
   }
 
   for (const m of mergeList) {
@@ -1096,22 +1101,49 @@ async function runSynthesis(supabase: Supa, solicitationId: string): Promise<num
       await supabase.from("strategic_questions").update(updates).eq("id", m.keep_id);
     }
     for (const mid of m.merge_ids ?? []) {
-      if (mid !== m.keep_id && validIds.has(mid)) idsToDelete.add(mid);
+      if (mid !== m.keep_id && validIds.has(mid)) {
+        suppress.set(mid, { status: "merged", reason: `merged into ${m.keep_id}`, mergedInto: m.keep_id });
+      }
     }
   }
 
-  // Never delete a question we just elected to keep
-  for (const m of mergeList) idsToDelete.delete(m.keep_id);
+  // Never suppress a question we just elected to keep
+  for (const m of mergeList) suppress.delete(m.keep_id);
 
-  if (idsToDelete.size > 0) {
-    const { error: delErr } = await supabase
-      .from("strategic_questions")
-      .delete()
-      .in("id", Array.from(idsToDelete));
-    if (delErr) console.error("[generate-questions] synthesis delete failed", delErr);
+  // Hard ceiling: never suppress more than 25% of drafts. Trim by trusting the
+  // model's order (earlier = higher confidence).
+  const MAX_CUT_RATIO = 0.25;
+  const cap = Math.max(1, Math.floor(drafts.length * MAX_CUT_RATIO));
+  let trimmed = 0;
+  if (suppress.size > cap) {
+    const ordered = Array.from(suppress.keys());
+    const toKeep = ordered.slice(cap);
+    for (const id of toKeep) suppress.delete(id);
+    trimmed = toKeep.length;
   }
 
-  console.log(`[generate-questions] synthesis: removed=${idsToDelete.size} merged=${mergeList.length} kept=${drafts.length - idsToDelete.size}`);
-  // Return 0: synthesis doesn't insert, it prunes. inserted_count for the chunk reflects net additions.
+  // Apply soft-suppression in batches
+  const removedIds: string[] = [];
+  const mergedRows: Array<{ id: string; reason: string; mergedInto: string | null }> = [];
+  for (const [id, s] of suppress.entries()) {
+    if (s.status === "removed") removedIds.push(id);
+    mergedRows.push({ id, reason: s.reason, mergedInto: s.mergedInto });
+  }
+
+  for (const [id, s] of suppress.entries()) {
+    const { error: updErr } = await supabase
+      .from("strategic_questions")
+      .update({
+        synthesis_status: s.status,
+        synthesis_reason: s.reason,
+        synthesis_merged_into: s.mergedInto,
+      })
+      .eq("id", id);
+    if (updErr) console.error("[generate-questions] synthesis update failed", id, updErr);
+  }
+
+  console.log(
+    `[generate-questions] synthesis: suppressed=${suppress.size} (removed=${removedIds.length}) merged_groups=${mergeList.length} cap_trimmed=${trimmed} kept=${drafts.length - suppress.size}`,
+  );
   return 0;
 }
