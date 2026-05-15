@@ -939,6 +939,10 @@ async function runChunk(
     return await insertDeduped(supabase, solicitationId, questions, docByName, existingNorms);
   }
 
+  if (chunk.kind === "synthesis") {
+    return await runSynthesis(supabase, solicitationId);
+  }
+
   const PER_DOC_ENTITY_CAP = 40;
   const TOC_CAP = 25;
   const SNIPPET_CAP = 60;
