@@ -1,7 +1,6 @@
 import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { PluginKey } from "@tiptap/pm/state";
 import { useEffect, useMemo, useRef } from "react";
 import { marked } from "marked";
 import TurndownService from "turndown";
