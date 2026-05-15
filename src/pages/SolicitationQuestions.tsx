@@ -148,6 +148,7 @@ export default function SolicitationQuestions({ solicitationId }: Props) {
             <History className="h-4 w-4 mr-1" /> History
           </Button>
           <CleanupQuestionsButton solicitationId={solicitationId} questions={allQuestions} />
+          <SynthesisReviewSheet solicitationId={solicitationId} />
           <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={allQuestions.length === 0}>
             <Download className="h-4 w-4 mr-1" /> Export
           </Button>
