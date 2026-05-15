@@ -118,6 +118,54 @@ ${siblings.length ? siblings.map((s) => `  - ${fmt(s)}`).join("\n") : "  (none)"
 CHILDREN (each will be drafted separately — do NOT write their content or headings):
 ${children.length ? children.map((c) => `  - ${fmt(c)}`).join("\n") : "  (none — this is a leaf; write full body)"}`;
 
+    // PRIOR SECTIONS context: pull existing drafts for nodes that come BEFORE this one,
+    // so the AI doesn't repeat company identification, intros, tables, themes, etc.
+    const priorNodes = allNodesArr
+      .filter((n) => n.id !== node.id && n.sort_order < node.sort_order);
+    const priorNodeIds = priorNodes.map((n) => n.id);
+    const { data: priorDraftsRaw } = priorNodeIds.length
+      ? await supabase
+          .from("proposal_drafts")
+          .select("outline_node_id, content_json, content_html, word_count")
+          .in("outline_node_id", priorNodeIds)
+      : { data: [] };
+    const priorDraftMap = new Map<string, { md: string; words: number }>();
+    for (const d of (priorDraftsRaw ?? []) as Array<{ outline_node_id: string; content_json: any; content_html: string | null; word_count: number | null }>) {
+      const md = String(d.content_json?.markdown ?? d.content_html ?? "").trim();
+      if (md.length > 0) priorDraftMap.set(d.outline_node_id, { md, words: d.word_count ?? 0 });
+    }
+
+    // Build summary block. Budget ~5000 chars total.
+    const PER_SECTION_CHAR_BUDGET = 500;
+    const TOTAL_BUDGET = 5000;
+    const orderedPrior = priorNodes
+      .filter((n) => priorDraftMap.has(n.id))
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    let priorBlock = "";
+    let used = 0;
+    const includedSummaries: string[] = [];
+    // Walk most-recent-first so the immediate context is always included.
+    for (const n of [...orderedPrior].reverse()) {
+      const entry = priorDraftMap.get(n.id)!;
+      const snippet = entry.md.replace(/\s+/g, " ").slice(0, PER_SECTION_CHAR_BUDGET);
+      const line = `### ${fmt(n)} (~${entry.words} words)\n${snippet}${entry.md.length > PER_SECTION_CHAR_BUDGET ? "…" : ""}`;
+      if (used + line.length > TOTAL_BUDGET) break;
+      includedSummaries.unshift(line); // restore document order
+      used += line.length;
+    }
+    const omittedTitles = orderedPrior
+      .filter((n) => !includedSummaries.some((s) => s.includes(fmt(n))))
+      .map((n) => `  - ${fmt(n)}`);
+
+    if (orderedPrior.length === 0) {
+      priorBlock = `PRIOR SECTIONS ALREADY DRAFTED
+(none — this is the first section being drafted)`;
+    } else {
+      priorBlock = `PRIOR SECTIONS ALREADY DRAFTED (do NOT repeat their content; build on them)
+${includedSummaries.join("\n\n")}${omittedTitles.length ? `\n\nOther earlier sections already drafted (titles only — assume their content exists; do not repeat):\n${omittedTitles.join("\n")}` : ""}`;
+    }
+
     const { data: sol } = await supabase.from("solicitations").select("title, client_id, lens_overrides").eq("id", solicitationId).maybeSingle();
 
     const reqIds = (node.linked_requirement_ids ?? []) as string[];
