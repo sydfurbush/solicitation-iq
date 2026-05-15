@@ -42,8 +42,8 @@ export function DraftingWorkspace({ solicitationId }: Props) {
   const [mode, setMode] = useState<"edit" | "preview">("preview");
 
   useEffect(() => {
-    const md = (selectedDraft?.content_json as { markdown?: string } | null)?.markdown ?? selectedDraft?.content_html ?? "";
-    setText(md);
+    const raw = (selectedDraft?.content_json as { markdown?: string } | null)?.markdown ?? selectedDraft?.content_html ?? "";
+    setText(normalizeIfWrapped(raw));
     setDirty(false);
   }, [selectedDraft?.id, selectedDraft?.updated_at]);
 
