@@ -3000,6 +3000,9 @@ export type Database = {
           source_section_id: string | null
           strategic_advantage_notes: string | null
           submitted_at: string | null
+          synthesis_merged_into: string | null
+          synthesis_reason: string | null
+          synthesis_status: string | null
           updated_at: string | null
         }
         Insert: {
@@ -3031,6 +3034,9 @@ export type Database = {
           source_section_id?: string | null
           strategic_advantage_notes?: string | null
           submitted_at?: string | null
+          synthesis_merged_into?: string | null
+          synthesis_reason?: string | null
+          synthesis_status?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -3062,6 +3068,9 @@ export type Database = {
           source_section_id?: string | null
           strategic_advantage_notes?: string | null
           submitted_at?: string | null
+          synthesis_merged_into?: string | null
+          synthesis_reason?: string | null
+          synthesis_status?: string | null
           updated_at?: string | null
         }
         Relationships: [
