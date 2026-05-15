@@ -6,7 +6,7 @@ import {
   useProposalDrafts, useSaveDraft, useAiDraftSection, useAiPolishSection,
 } from "../hooks/useProposalDrafts";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { MarkdownEditor } from "./MarkdownEditor";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
