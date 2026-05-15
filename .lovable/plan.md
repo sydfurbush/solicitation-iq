@@ -1,69 +1,51 @@
-## What happened to the missing 34 questions
+## Problem
 
-The edge function log tells the whole story:
+When drafting sections one at a time, `draft-section` has no awareness of what was **already written** in earlier sections of the same proposal. Each call is essentially stateless against prior drafts, so the AI re-introduces the company (Offeror Identification table, address, CAGE, DUNS, POC, etc.) in 1.0, then again in 1.1, and likely again in 2.1 Executive Summary.
 
-```
-[generate-questions] synthesis: removed=34 merged=6 kept=35
-```
+The existing OUTLINE BOUNDARY block tells the model what sibling/child *titles* exist, but not what content has already been drafted into them.
 
-The new **synthesis pass** in `supabase/functions/generate-questions/index.ts` (`runSynthesis`, lines 1035–1117) ran after generation, sent all 69 drafts to Gemini 2.5 Pro with `SYNTHESIS_SYSTEM_PROMPT`, and the model returned:
+## Fix
 
-- `remove`: 34 IDs (questions it judged self-answering / boilerplate / wrong-citation / duplicate)
-- `merge`: 6 groups (each kept one, deleted the others — counted in the 34)
+Feed the model a compact summary of **already-drafted sections that come before this one** in `sort_order`, and add explicit non-repetition rules to the system prompt.
 
-The code then **hard-deleted** all 34 rows from `strategic_questions` (line 1107–1110). They are gone — not hidden, not soft-deleted, not logged. That's why you see 35 in the UI.
+### Changes to `supabase/functions/draft-section/index.ts`
 
-This is exactly what we built last turn, but two things are wrong in practice:
+1. After loading `allNodesArr`, fetch existing `proposal_drafts` for this outline (only nodes with `sort_order < current` and non-empty content):
+   ```ts
+   const priorNodeIds = allNodesArr
+     .filter(n => n.sort_order < node.sort_order && n.id !== node.id)
+     .map(n => n.id);
+   const { data: priorDrafts } = await supabase
+     .from("proposal_drafts")
+     .select("outline_node_id, content_json, word_count")
+     .in("outline_node_id", priorNodeIds);
+   ```
 
-1. **49% deletion rate is too aggressive.** The prompt says "quality over volume" but gives the model no ceiling. With 69 drafts on a complex solicitation, removing half is almost certainly cutting good questions alongside the noise.
-2. **Destructive with no audit trail.** You can't review what was cut or restore anything. You only know the count from the log.
+2. Build a `PRIOR SECTIONS ALREADY DRAFTED` block — for each prior node with a draft, include:
+   - Section number + title
+   - A short summary (first ~400 chars of the markdown, or a 2-sentence trim) plus key facts already stated (company name, address, CAGE, DUNS, POC, themes already woven if available).
+   - Cap total at ~3–4k chars; when over budget, keep the most recent N siblings + the parent's intro + the volume intro, and replace the rest with a short titles-only list.
 
-## Plan — three changes, all in `supabase/functions/generate-questions/index.ts`
+3. Update `SYSTEM_PROMPT` with a new "NON-REPETITION RULES" block:
+   - Do NOT restate company identification (name, address, CAGE, DUNS, POC, telephone, email, business size) once it has appeared in a prior section. Reference it as "as identified in Section X" when needed.
+   - Do NOT re-introduce the offeror, the program, or the solicitation purpose if a prior section already did so.
+   - Do NOT duplicate tables, certifications, or boilerplate already present in a prior section.
+   - When a prior section has covered a topic, build on it — don't restart it.
 
-### 1. Make synthesis non-destructive (soft-hide instead of delete)
+4. Pass the new `PRIOR SECTIONS ALREADY DRAFTED` block into the user prompt, placed right after the OUTLINE BOUNDARY block.
 
-Instead of `DELETE`, mark suppressed questions with a flag so they're hidden from the default UI but auditable and restorable.
+### Optional UX follow-up (not required for fix)
 
-- Add a column `synthesis_status text` to `strategic_questions` via migration with values `null` (kept), `'removed'`, `'merged_into'`, plus `synthesis_reason text` and `synthesis_merged_into uuid` (FK to the keeper).
-- In `runSynthesis`, replace the `.delete()` with an `.update({ synthesis_status, synthesis_reason, synthesis_merged_into })`.
-- Update the questions list query (`useStrategicQuestions`) to filter `synthesis_status is null` by default.
+Add a small "Drafted" indicator in the section list (already shows "8/73 drafted") tooltip listing which prior sections will be used as context — purely informational.
 
-### 2. Cap the synthesis cut rate
+## Out of scope
 
-Add a hard ceiling in `runSynthesis` after parsing the LLM response:
+- No DB schema changes.
+- No changes to `polish-section` (it already operates on a single existing draft).
+- No changes to UI flow; user keeps clicking AI Draft per section.
 
-```
-const MAX_CUT_RATIO = 0.25; // never remove more than 25% of drafts
-const cap = Math.floor(drafts.length * MAX_CUT_RATIO);
-if (idsToDelete.size > cap) {
-  // keep the LLM's first `cap` removals (highest-confidence), restore the rest
-  const trimmed = new Set(Array.from(idsToDelete).slice(0, cap));
-  idsToDelete.clear();
-  trimmed.forEach((id) => idsToDelete.add(id));
-}
-```
+## Technical notes
 
-Tighten the prompt too: change rule 5 to "consolidate clusters of **5 or more**" (was 3) and add an explicit "removing more than ~25% of drafts indicates over-cutting — be conservative."
-
-### 3. Surface synthesis decisions in the UI
-
-In `CleanupQuestionsButton` area (or a new "Synthesis review" button on the Questions page), show:
-
-- count of questions hidden by synthesis
-- a panel listing each with its `synthesis_reason` and a "Restore" action that nulls the flag
-
-This turns synthesis from a black box into a reviewable step.
-
-## What this gets you for the current run
-
-After the migration + UI filter change, the 34 questions become viewable again. We add a one-shot script (or a Supabase SQL the user runs) to retroactively un-mark this run's deletions — but since they were *already deleted*, **the 34 from this specific run cannot be recovered**. Only future runs benefit. Worth flagging up front.
-
-## Open question before I build
-
-Pick one:
-
-- **A. Full plan (1 + 2 + 3):** soft-delete + cap + review UI. ~1 migration, edits to `runSynthesis`, the questions hook, and a new review panel.
-- **B. Minimal (just 2):** keep the destructive delete but cap at 25% and tighten the prompt. No schema change, no UI work. Fastest, but still no audit trail.
-- **C. Disable synthesis entirely** until we redesign it. One-line: comment out the `synthesis` chunk enqueue at line 518.
-
-I'd recommend **A**. Tell me which to proceed with.
+- `proposal_drafts` is keyed by `outline_node_id` (unique), so the lookup is one query.
+- Token budget: 73 sections × full content would blow context; the trimming/summary step is essential. 400 chars × ~30 prior sections ≈ 12k chars worst case — acceptable for Claude Sonnet 4.5's 200k context, but we still cap to keep cost down.
+- "Bulk draft all" workflows (if added later) would benefit from this same context.
