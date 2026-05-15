@@ -514,6 +514,12 @@ async function planRun(
     doc_ids: docIds,
     section_slice: {},
   });
+  planned.push({
+    kind: "synthesis",
+    label: "Synthesis & dedupe pass",
+    doc_ids: docIds,
+    section_slice: {},
+  });
 
   const { error: wipeErr } = await supabase
     .from("strategic_questions")
