@@ -208,13 +208,11 @@ export function DraftingWorkspace({ solicitationId }: Props) {
           </div>
         </div>
         {mode === "edit" ? (
-          <Textarea
+          <MarkdownEditor
             value={text}
-            onChange={(e) => { setText(e.target.value); setDirty(true); }}
-            wrap="soft"
-            spellCheck
-            className="flex-1 rounded-none border-0 resize-none text-sm leading-relaxed p-6 focus-visible:ring-0"
-            placeholder="Write the section in Markdown. One paragraph per line — the renderer handles wrapping. Cite requirements as [Req-X] and knowledge as [K1]…"
+            onChange={(md) => { setText(md); setDirty(true); }}
+            placeholder="Write the section. Use the toolbar for formatting. Cite requirements as [Req-X] and knowledge as [K1]…"
+            className="flex-1"
           />
         ) : (
           <div className="flex-1 overflow-auto p-6">
