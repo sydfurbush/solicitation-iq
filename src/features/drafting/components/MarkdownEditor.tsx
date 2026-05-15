@@ -98,7 +98,7 @@ function Toolbar({ editor }: { editor: Editor | null }) {
 export function MarkdownEditor({ value, onChange, placeholder, className, citationLookup }: Props) {
   const initialHtml = useMemo(() => marked.parse(value || "") as string, []); // eslint-disable-line react-hooks/exhaustive-deps
   const lastEmittedRef = useRef<string>(value);
-  const citationPluginKey = useMemo(() => new PluginKey("citationTooltip"), []);
+  
 
   const editor = useEditor({
     extensions: [
