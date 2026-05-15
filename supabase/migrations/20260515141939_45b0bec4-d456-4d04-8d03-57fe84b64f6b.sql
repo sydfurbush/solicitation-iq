@@ -1,0 +1,2 @@
+ALTER TABLE public.question_generation_run_chunks DROP CONSTRAINT question_generation_run_chunks_kind_check;
+ALTER TABLE public.question_generation_run_chunks ADD CONSTRAINT question_generation_run_chunks_kind_check CHECK (kind = ANY (ARRAY['doc_batch'::text, 'cross_doc'::text, 'synthesis'::text]));
