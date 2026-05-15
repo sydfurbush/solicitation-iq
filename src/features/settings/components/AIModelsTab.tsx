@@ -27,6 +27,8 @@ const FUNCTIONS: { name: string; label: string; description: string; defaultMax:
   { name: "compare-solicitations", label: "Comparison", description: "Compares the current solicitation to a prior one.", defaultMax: 8192 },
   { name: "extract-entities", label: "Entity Extraction", description: "Pulls dates, requirements, dollar amounts, and other entities from documents.", defaultMax: 16000 },
   { name: "reconcile-solicitation-overview", label: "Overview Auto-fill", description: "Maps extracted entities to overview fields (dates, value, agency, set-aside).", defaultMax: 4000 },
+  { name: "draft-section", label: "Proposal Drafting", description: "Drafts proposal sections from outline, requirements, and knowledge.", defaultMax: 8000 },
+  { name: "polish-section", label: "Proposal Polish", description: "Tightens, expands, rewrites to theme, or runs compliance check on a draft.", defaultMax: 6000 },
 ];
 
 const ANTHROPIC_MODELS = ["claude-sonnet-4-5", "claude-opus-4-5", "claude-haiku-4-5"];
