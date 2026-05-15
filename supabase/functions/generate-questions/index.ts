@@ -1031,3 +1031,87 @@ async function insertDeduped(
   if (error) throw new Error(`insert failed: ${error.message}`);
   return fresh.length;
 }
+
+async function runSynthesis(supabase: Supa, solicitationId: string): Promise<number> {
+  const { data: rows, error: fetchErr } = await supabase
+    .from("strategic_questions")
+    .select("id, question_text, question_rationale, category, source_citation, source_quote")
+    .eq("solicitation_id", solicitationId)
+    .eq("is_ai_generated", true);
+  if (fetchErr) throw new Error(`synthesis fetch failed: ${fetchErr.message}`);
+  const drafts = rows ?? [];
+  if (drafts.length < 5) {
+    console.log(`[generate-questions] synthesis skipped (only ${drafts.length} drafts)`);
+    return 0;
+  }
+
+  const compact = drafts.map((d) => ({
+    id: d.id,
+    question_text: (d.question_text as string ?? "").slice(0, 400),
+    category: d.category,
+    source: d.source_citation ?? null,
+    quote: ((d.source_quote as string) ?? "").slice(0, 240),
+  }));
+
+  const userPrompt = `Here are ${compact.length} draft strategic questions for one solicitation. Apply the synthesis rules and return the IDs to remove and the merge groups.\n\nDRAFTS:\n${JSON.stringify(compact, null, 2)}`;
+
+  let parsed: Record<string, any> = {};
+  try {
+    parsed = (await callAiTool({
+      functionName: "generate-questions",
+      system: SYNTHESIS_SYSTEM_PROMPT,
+      user: userPrompt,
+      tool: SYNTHESIS_SCHEMA,
+      modelOverride: { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
+    })) as Record<string, any>;
+  } catch (e) {
+    console.error("[generate-questions] synthesis LLM failed (non-fatal)", e);
+    return 0;
+  }
+
+  const validIds = new Set(drafts.map((d) => d.id as string));
+  const removeList = (parsed.remove ?? []) as Array<{ id: string; reason?: string }>;
+  const mergeList = (parsed.merge ?? []) as Array<{
+    keep_id: string;
+    merge_ids: string[];
+    new_question_text?: string;
+    new_question_rationale?: string;
+  }>;
+
+  const idsToDelete = new Set<string>();
+  for (const r of removeList) {
+    if (validIds.has(r.id)) idsToDelete.add(r.id);
+  }
+
+  for (const m of mergeList) {
+    if (!validIds.has(m.keep_id)) continue;
+    const updates: Record<string, unknown> = {};
+    if (m.new_question_text && m.new_question_text.trim().length >= 20) {
+      updates.question_text = m.new_question_text.trim();
+    }
+    if (m.new_question_rationale && m.new_question_rationale.trim().length > 0) {
+      updates.question_rationale = m.new_question_rationale.trim();
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase.from("strategic_questions").update(updates).eq("id", m.keep_id);
+    }
+    for (const mid of m.merge_ids ?? []) {
+      if (mid !== m.keep_id && validIds.has(mid)) idsToDelete.add(mid);
+    }
+  }
+
+  // Never delete a question we just elected to keep
+  for (const m of mergeList) idsToDelete.delete(m.keep_id);
+
+  if (idsToDelete.size > 0) {
+    const { error: delErr } = await supabase
+      .from("strategic_questions")
+      .delete()
+      .in("id", Array.from(idsToDelete));
+    if (delErr) console.error("[generate-questions] synthesis delete failed", delErr);
+  }
+
+  console.log(`[generate-questions] synthesis: removed=${idsToDelete.size} merged=${mergeList.length} kept=${drafts.length - idsToDelete.size}`);
+  // Return 0: synthesis doesn't insert, it prunes. inserted_count for the chunk reflects net additions.
+  return 0;
+}
