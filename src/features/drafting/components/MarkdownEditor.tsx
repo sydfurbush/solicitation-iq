@@ -10,7 +10,7 @@ import {
   Quote, Code, Undo, Redo,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CitationTooltip } from "./citationTooltipExtension";
+import { CitationTooltip, citationPluginKey } from "./citationTooltipExtension";
 
 interface Props {
   value: string;            // markdown
