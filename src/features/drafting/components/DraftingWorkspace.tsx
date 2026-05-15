@@ -105,6 +105,20 @@ export function DraftingWorkspace({ solicitationId }: Props) {
     return themes.filter((t) => (t.linked_outline_node_ids ?? []).includes(selectedNode.id));
   }, [selectedNode, themes]);
 
+  // Build hover-tooltip lookup for [K#] citations + [Req-X] requirements
+  const citationLookup = useMemo(() => {
+    const map: Record<string, string> = {};
+    const cites = (selectedDraft?.content_json as { citations?: Array<{ key: string; title?: string; snippet?: string }> } | null)?.citations ?? [];
+    for (const c of cites) {
+      const tip = [c.title, c.snippet].filter(Boolean).join(" — ");
+      if (c.key) map[c.key] = tip || c.key;
+    }
+    for (const r of linkedReqs) {
+      if (r.req_number) map[`Req-${r.req_number}`] = r.shall_text ?? `Req-${r.req_number}`;
+    }
+    return map;
+  }, [selectedDraft, linkedReqs]);
+
   if (!outline) {
     return (
       <div className="p-6 border rounded-md bg-muted/30 text-sm text-muted-foreground">
