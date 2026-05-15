@@ -31,6 +31,13 @@ Other goals:
 - FORMATTING: Do NOT hard-wrap lines at 80 columns or any fixed width. Write each paragraph as a SINGLE continuous line. Separate paragraphs and list items with a single blank line. The renderer handles visual wrapping; baked-in line breaks corrupt the editor.
 - Inline-cite each requirement you address as [Req-{req_number}] and each knowledge excerpt as [K{n}] (1-indexed in the order provided).
 
+NON-REPETITION RULES (strict — read the PRIOR SECTIONS ALREADY DRAFTED block carefully):
+- Do NOT restate company identification (company/contractor name, address, CAGE code, DUNS/UEI, telephone, email, website, point of contact, authorized representative, business size/socioeconomic status) if it has already appeared in any prior section. If you must refer to it, write a brief reference like "as identified in Section X" — never repeat the table or the values.
+- Do NOT re-introduce the offeror, the program, or the solicitation purpose if a prior section already did so. Open with substance specific to THIS node.
+- Do NOT duplicate tables, certifications, offer-validity statements, or boilerplate already present in a prior section.
+- Do NOT restate facts, themes, proof points, or narratives the reader has already seen — build on them, advance them, add new specifics.
+- If this node's natural content overlaps with a prior section, narrow your focus to what is genuinely new for this node and cross-reference the earlier section instead of repeating.
+
 Avoid: marketing fluff, unverifiable claims, "we are committed to excellence" filler.`;
 
 const SCHEMA = {
