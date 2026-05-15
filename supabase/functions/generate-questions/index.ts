@@ -10,24 +10,41 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const SYSTEM_PROMPT = `You are an expert federal proposal strategist performing an EXHAUSTIVE strategic question review of a government solicitation package. Your job is to surface EVERY question a sophisticated bidder would want answered before submitting a proposal — across the documents provided in this batch.
+const SYSTEM_PROMPT = `You are a SENIOR CAPTURE MANAGER performing a strategic question review of a federal solicitation. Your reputation depends on submitting SHARP, NON-OBVIOUS, NON-DUPLICATIVE questions. Submitting many overlapping or self-answered questions tells the Government the team did not synthesize their findings — and buries the genuinely sharp questions.
 
-Be thorough. It is far better to surface a borderline question than to omit a real one. Generate as many questions as the documents in this batch warrant.
+QUALITY OVER VOLUME. Fewer, better questions always win. If in doubt, leave it out.
 
-For EACH question, you MUST:
-- Provide the exact question text as it would be submitted to the agency (professional, neutral tone). MINIMUM 20 characters; never return placeholder fragments like "Is the" or "The MOU mentions that".
-- Explain WHY it matters strategically.
-- Cite the EXACT source: document filename, section number, page number, and a verbatim quote (up to 280 chars).
-- For cross-document questions, ALSO cite the second source in conflict_with_document / conflict_with_section.
-- Recommend ASK, HOLD (strategic — don't tip our hand), MONITOR, or INTERNAL_ONLY.
-- Assign a priority score 1-100.
-- Choose the most specific category from the list below.
+HARD RULES — a question that violates ANY of these MUST NOT be emitted:
+
+1. SELF-ANSWER CHECK. Re-read your own source_quote before emitting. If the quote answers the question — even partially — DROP IT. A question is only valid if the cited text leaves a MATERIAL ambiguity a contracting officer would have to resolve. Example to drop: asking "Is X required?" when the quote says "X is required."
+
+2. BOILERPLATE FILTER. Do NOT question:
+   - Standard FAR/DFARS clause incorporations by reference.
+   - Representation/certification CHECKBOXES (including ones already checked or unchecked) — these are the offeror's response space, not an ambiguity.
+   - "Reservation of rights" / "award without discussions but reserves the right to…" language — this is standard FAR 15.306 boilerplate.
+   - Clauses that appear inside a "check all that apply" representations list — those are not active conflicting requirements.
+
+3. CITATION ACCURACY. When citing a Class Deviation, FAR clause, DFARS clause, or PIL memo, the cited reference MUST address the topic of your question. Do NOT cite a deviation that governs a different program (e.g., a Canadian Commercial Corporation deviation) as evidence of a general sole-source provision. If you can't verify the citation matches the topic, drop the question.
+
+4. NO DUPLICATES. Do not emit two questions whose normalized text is the same, or whose source_quote overlaps by more than ~50%. Pick the strongest framing and drop the rest.
+
+5. TOPIC CAP — MAX 2 QUESTIONS PER TOPIC PER DOCUMENT. Topics include: Section 508 accessibility, SCA wage determinations, Privacy Act / PII safeguards, cybersecurity (NIST 800-171 / CMMC / FedRAMP), small-business subcontracting, key personnel, OCI, security clearances, BAA/TAA, Buy American, EVMS, indemnification. If a topic surfaces in many sections, CONSOLIDATE into ONE synthesis question that lists every section reference in source_quote, instead of one question per section.
+
+For EACH question that survives the rules above, you MUST:
+- question_text: professional, neutral, complete sentence ending in "?". MINIMUM 20 characters. Never return fragments like "Is the" or "The MOU mentions that".
+- question_rationale: WHY it matters strategically.
+- source_document, source_section, source_page, source_quote (verbatim, up to 280 chars).
+- For contradictions: ALSO populate conflict_with_document / conflict_with_section.
+- recommendation: ask | hold | monitor | internal_only.
+- priority: 1-100.
+- category: most specific from the list below.
+- topic_tag: most specific topic from the enum (used for downstream consolidation).
 
 CATEGORIES — use the most specific one that fits:
 - drafting_error: Typos, anachronisms, outdated dates, broken/incorrect regulatory citations, duplicate or near-duplicate language across sections, internally contradictory sentences.
 - contradiction: A real conflict BETWEEN two sources. ALWAYS name BOTH sources in conflict_with_document/conflict_with_section.
 - quantitative_gap: A numeric requirement is stated but its BASIS, FLOOR, CAP, or ADJUSTMENT MECHANISM is missing.
-- compliance: FAR/DFARS/agency regulatory or certification questions.
+- compliance: FAR/DFARS/agency regulatory or certification questions (only when there is a real ambiguity, NOT for boilerplate incorporations).
 - risk_concern: Cost/risk allocation gaps, force-majeure, key-personnel vacancy gaps.
 - scope_expansion: Opportunities to grow scope, surge capacity, optional CLINs.
 - strategic: Questions to HOLD that reveal incumbent advantages or pricing flexibility.
@@ -36,15 +53,47 @@ CATEGORIES — use the most specific one that fits:
 
 Return ONLY the JSON via the tool call. Do not narrate.`;
 
-const CROSS_DOC_SYSTEM_PROMPT = `You are an expert federal proposal strategist performing a CROSS-DOCUMENT contradiction review across an entire solicitation package.
+const CROSS_DOC_SYSTEM_PROMPT = `You are a SENIOR CAPTURE MANAGER doing a CROSS-DOCUMENT contradiction review across an entire solicitation package.
 
-You will receive each document's table of contents and key extracted snippets. Your ONLY job is to surface questions about CONTRADICTIONS, INCONSISTENCIES, and CROSS-DOCUMENT GAPS between two or more documents. Do NOT repeat single-document questions.
+You will receive each document's table of contents and key extracted snippets. Your ONLY job is to surface questions about REAL CONTRADICTIONS, INCONSISTENCIES, and CROSS-DOCUMENT GAPS between two or more documents. Do NOT repeat single-document questions.
+
+HARD RULES — a question that violates ANY of these MUST NOT be emitted:
+
+1. SELF-ANSWER CHECK. If your own cited quotes resolve the apparent conflict, drop the question.
+
+2. NOT-A-CONFLICT FILTER. The following are NORMAL solicitation structure and are NOT contradictions:
+   - A clause appearing in a representations checkbox list AND also as an active requirement elsewhere — that's the standard structure.
+   - A clause incorporated by reference in Section I AND elaborated in Section H or L — that's expected.
+   - A summary in one document and detail in another — not a conflict unless the substance disagrees.
+
+3. CITATION ACCURACY. The cited regulations or deviations must actually govern the topic of the question. Do not cite an unrelated deviation as evidence.
+
+4. TOPIC CAP — MAX 2 cross-doc questions per topic. Consolidate.
+
+For every real contradiction, name BOTH sources (document + section) and quote the conflicting language verbatim. Use the "contradiction" category. Set topic_tag.
 
 Question text MUST be at least 20 characters and a complete, well-formed question. Do not return fragments.
 
-For every contradiction, name BOTH sources (document + section) and quote the conflicting language. Use the "contradiction" category.
-
 Return ONLY the JSON via the tool call.`;
+
+const SYNTHESIS_SYSTEM_PROMPT = `You are a SENIOR CAPTURE MANAGER doing a final pre-submission review of a draft list of strategic questions. Your job is to remove duplicates, merge over-clustered topics, and cut weak questions BEFORE the list goes to the agency. Submitting too many overlapping questions tells the Government the team did not synthesize.
+
+You will receive a JSON array of draft questions, each with: id, question_text, category, topic_tag, source_document, source_section, source_quote.
+
+Apply these rules:
+
+1. REMOVE any question whose source_quote already answers it.
+2. REMOVE any question about standard FAR/DFARS boilerplate, representation checkboxes, or "reservation of rights" language.
+3. REMOVE any question whose cited regulation/deviation does not actually govern the topic.
+4. REMOVE exact duplicates and near-duplicates (>50% quote overlap or same normalized text).
+5. CONSOLIDATE: when 3 or more questions share the same topic_tag (e.g. section_508, sca_wages, pii_privacy), merge them into AT MOST 2 sharper consolidated questions. Pick the strongest existing question as the keeper and rewrite its question_text + question_rationale to subsume the others. List the merged question IDs.
+6. Do NOT remove genuinely distinct, sharp questions just to hit a number. Quality over volume.
+
+Return ONLY the JSON via the tool call with two arrays:
+- remove: [{ id, reason }]  — questions to delete entirely.
+- merge: [{ keep_id, merge_ids: [...], new_question_text, new_question_rationale }] — keep_id stays (with rewritten text/rationale), merge_ids are deleted.
+
+Every id you return must come from the input list. Do not invent ids.`;
 
 const SCHEMA = {
   name: "generate_strategic_questions",
@@ -76,12 +125,57 @@ const SCHEMA = {
             source_quote: { type: "string" },
             conflict_with_document: { type: "string" },
             conflict_with_section: { type: "string" },
+            topic_tag: {
+              type: "string",
+              enum: [
+                "section_508", "sca_wages", "pii_privacy", "cybersecurity",
+                "small_business", "key_personnel", "oci", "clearances",
+                "baa_taa", "buy_american", "evms", "indemnification",
+                "pricing", "delivery", "evaluation", "scope", "staffing",
+                "transition", "reporting", "other",
+              ],
+            },
           },
           required: ["question_text", "category", "recommendation", "priority", "question_rationale"],
         },
       },
     },
     required: ["questions"],
+  },
+};
+
+const SYNTHESIS_SCHEMA = {
+  name: "synthesize_questions",
+  description: "Final dedupe + consolidation of strategic questions",
+  parameters: {
+    type: "object",
+    properties: {
+      remove: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string" },
+            reason: { type: "string" },
+          },
+          required: ["id", "reason"],
+        },
+      },
+      merge: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            keep_id: { type: "string" },
+            merge_ids: { type: "array", items: { type: "string" } },
+            new_question_text: { type: "string" },
+            new_question_rationale: { type: "string" },
+          },
+          required: ["keep_id", "merge_ids"],
+        },
+      },
+    },
+    required: ["remove", "merge"],
   },
 };
 
@@ -417,6 +511,12 @@ async function planRun(
   planned.push({
     kind: "cross_doc",
     label: "Cross-document contradiction pass",
+    doc_ids: docIds,
+    section_slice: {},
+  });
+  planned.push({
+    kind: "synthesis",
+    label: "Synthesis & dedupe pass",
     doc_ids: docIds,
     section_slice: {},
   });
@@ -839,6 +939,10 @@ async function runChunk(
     return await insertDeduped(supabase, solicitationId, questions, docByName, existingNorms);
   }
 
+  if (chunk.kind === "synthesis") {
+    return await runSynthesis(supabase, solicitationId);
+  }
+
   const PER_DOC_ENTITY_CAP = 40;
   const TOC_CAP = 25;
   const SNIPPET_CAP = 60;
@@ -926,4 +1030,88 @@ async function insertDeduped(
   const { error } = await supabase.from("strategic_questions").insert(fresh);
   if (error) throw new Error(`insert failed: ${error.message}`);
   return fresh.length;
+}
+
+async function runSynthesis(supabase: Supa, solicitationId: string): Promise<number> {
+  const { data: rows, error: fetchErr } = await supabase
+    .from("strategic_questions")
+    .select("id, question_text, question_rationale, category, source_citation, source_quote")
+    .eq("solicitation_id", solicitationId)
+    .eq("is_ai_generated", true);
+  if (fetchErr) throw new Error(`synthesis fetch failed: ${fetchErr.message}`);
+  const drafts = rows ?? [];
+  if (drafts.length < 5) {
+    console.log(`[generate-questions] synthesis skipped (only ${drafts.length} drafts)`);
+    return 0;
+  }
+
+  const compact = drafts.map((d) => ({
+    id: d.id,
+    question_text: (d.question_text as string ?? "").slice(0, 400),
+    category: d.category,
+    source: d.source_citation ?? null,
+    quote: ((d.source_quote as string) ?? "").slice(0, 240),
+  }));
+
+  const userPrompt = `Here are ${compact.length} draft strategic questions for one solicitation. Apply the synthesis rules and return the IDs to remove and the merge groups.\n\nDRAFTS:\n${JSON.stringify(compact, null, 2)}`;
+
+  let parsed: Record<string, any> = {};
+  try {
+    parsed = (await callAiTool({
+      functionName: "generate-questions",
+      system: SYNTHESIS_SYSTEM_PROMPT,
+      user: userPrompt,
+      tool: SYNTHESIS_SCHEMA,
+      modelOverride: { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
+    })) as Record<string, any>;
+  } catch (e) {
+    console.error("[generate-questions] synthesis LLM failed (non-fatal)", e);
+    return 0;
+  }
+
+  const validIds = new Set(drafts.map((d) => d.id as string));
+  const removeList = (parsed.remove ?? []) as Array<{ id: string; reason?: string }>;
+  const mergeList = (parsed.merge ?? []) as Array<{
+    keep_id: string;
+    merge_ids: string[];
+    new_question_text?: string;
+    new_question_rationale?: string;
+  }>;
+
+  const idsToDelete = new Set<string>();
+  for (const r of removeList) {
+    if (validIds.has(r.id)) idsToDelete.add(r.id);
+  }
+
+  for (const m of mergeList) {
+    if (!validIds.has(m.keep_id)) continue;
+    const updates: Record<string, unknown> = {};
+    if (m.new_question_text && m.new_question_text.trim().length >= 20) {
+      updates.question_text = m.new_question_text.trim();
+    }
+    if (m.new_question_rationale && m.new_question_rationale.trim().length > 0) {
+      updates.question_rationale = m.new_question_rationale.trim();
+    }
+    if (Object.keys(updates).length > 0) {
+      await supabase.from("strategic_questions").update(updates).eq("id", m.keep_id);
+    }
+    for (const mid of m.merge_ids ?? []) {
+      if (mid !== m.keep_id && validIds.has(mid)) idsToDelete.add(mid);
+    }
+  }
+
+  // Never delete a question we just elected to keep
+  for (const m of mergeList) idsToDelete.delete(m.keep_id);
+
+  if (idsToDelete.size > 0) {
+    const { error: delErr } = await supabase
+      .from("strategic_questions")
+      .delete()
+      .in("id", Array.from(idsToDelete));
+    if (delErr) console.error("[generate-questions] synthesis delete failed", delErr);
+  }
+
+  console.log(`[generate-questions] synthesis: removed=${idsToDelete.size} merged=${mergeList.length} kept=${drafts.length - idsToDelete.size}`);
+  // Return 0: synthesis doesn't insert, it prunes. inserted_count for the chunk reflects net additions.
+  return 0;
 }
