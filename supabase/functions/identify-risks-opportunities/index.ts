@@ -163,6 +163,10 @@ Deno.serve(async (req) => {
     const risks = parsed.risks ?? [];
     const opportunities = parsed.opportunities ?? [];
 
+    if (risks.length === 0 && opportunities.length === 0) {
+      throw new Error("AI returned no risks or opportunities. Existing data was not modified. Try again, or raise max_tokens for this function in AI Models settings.");
+    }
+
     if (regenerate) {
       await supabase.from("risks").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
       await supabase.from("opportunities").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
