@@ -197,6 +197,12 @@ export default function PortalSolicitationDetail() {
         )}
 
         {hasFullAccess && (
+          <TabsContent value="gaps" className="mt-4">
+            <ClientGapTracker solicitationId={id!} canEdit={hasFullAccess} />
+          </TabsContent>
+        )}
+
+        {hasFullAccess && (
           <TabsContent value="annotations" className="mt-4">
             <ClientAnnotations solicitationId={id!} hasFullAccess={hasFullAccess} />
           </TabsContent>
