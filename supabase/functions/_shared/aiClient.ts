@@ -154,6 +154,12 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Rec
   console.log(`[aiClient] anthropic stop_reason=${json.stop_reason} model=${choice.model}`);
   const toolUse = (json.content ?? []).find((c: { type: string }) => c.type === "tool_use");
   if (!toolUse?.input) throw new Error("AI did not return structured tool_use output");
+  if (json.stop_reason === "max_tokens") {
+    throw new AiHttpError(
+      502,
+      `AI response truncated by token limit (model=${choice.model}, max_tokens=${choice.maxTokens ?? 4096}). Raise max_tokens for this function in AI Models settings, or switch to a roomier model.`,
+    );
+  }
   return toolUse.input as Record<string, unknown>;
 }
 
