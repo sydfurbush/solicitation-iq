@@ -1,51 +1,69 @@
-## Problem
+# Risk Mitigation Improvements
 
-When drafting sections one at a time, `draft-section` has no awareness of what was **already written** in earlier sections of the same proposal. Each call is essentially stateless against prior drafts, so the AI re-introduces the company (Offeror Identification table, address, CAGE, DUNS, POC, etc.) in 1.0, then again in 1.1, and likely again in 2.1 Executive Summary.
+Implement three improvements to the Risk Mitigation workflow so clients/team produce stronger, reusable mitigation content for downstream proposal drafting.
 
-The existing OUTLINE BOUNDARY block tells the model what sibling/child *titles* exist, but not what content has already been drafted into them.
+## Scope
 
-## Fix
+Targeting `RiskMitigationTracker` (Phase 1 → Risks step) and the `RiskCard` mitigation block.
 
-Feed the model a compact summary of **already-drafted sections that come before this one** in `sort_order`, and add explicit non-repetition rules to the system prompt.
+### #2 — "Suggest mitigation" AI button (per risk)
 
-### Changes to `supabase/functions/draft-section/index.ts`
+Add a per-risk AI button that drafts a tailored mitigation paragraph using the client's actual context — not just solicitation language.
 
-1. After loading `allNodesArr`, fetch existing `proposal_drafts` for this outline (only nodes with `sort_order < current` and non-empty content):
-   ```ts
-   const priorNodeIds = allNodesArr
-     .filter(n => n.sort_order < node.sort_order && n.id !== node.id)
-     .map(n => n.id);
-   const { data: priorDrafts } = await supabase
-     .from("proposal_drafts")
-     .select("outline_node_id, content_json, word_count")
-     .in("outline_node_id", priorNodeIds);
-   ```
+- New button in `UnmitigatedRow` (RiskMitigationTracker) and inside `RiskCard` mitigation block when risk is open.
+- Label: "Suggest mitigation" when textarea empty, "Suggest again" when not. If not empty, confirm before replacing.
+- Calls a new edge function `suggest-risk-mitigation` with `{ riskId }`.
+- Edge function gathers context:
+  - The risk (title, description, severity, source_quote, source_citation)
+  - Solicitation overview (title, agency, contract type, set-aside, incumbent info)
+  - Client profile + capability templates (`client_profiles`, `capability_templates`)
+  - Top-matching client knowledge chunks via `match_client_knowledge` (past performance, certs, tooling) using the risk text as the query
+  - Existing mitigation_strategy (if user wants "improve" rather than replace)
+- Prompts Lovable AI (`google/gemini-2.5-flash`) to return a single mitigation paragraph structured as **Approach / Owner / Evidence** (plain text, labeled lines) so the same output is reusable downstream and renders cleanly in the textarea.
+- Returns `{ mitigation_strategy: string, used_sources: [{document_title, snippet}] }`.
+- UI inserts text into the local textarea state (user must still click Save notes to persist) and shows a small "AI suggested" pill + collapsible "Sources used" list under the textarea.
 
-2. Build a `PRIOR SECTIONS ALREADY DRAFTED` block — for each prior node with a draft, include:
-   - Section number + title
-   - A short summary (first ~400 chars of the markdown, or a 2-sentence trim) plus key facts already stated (company name, address, CAGE, DUNS, POC, themes already woven if available).
-   - Cap total at ~3–4k chars; when over budget, keep the most recent N siblings + the parent's intro + the volume intro, and replace the rest with a short titles-only list.
+### #3 — Require notes before "Mark mitigated"
 
-3. Update `SYSTEM_PROMPT` with a new "NON-REPETITION RULES" block:
-   - Do NOT restate company identification (name, address, CAGE, DUNS, POC, telephone, email, business size) once it has appeared in a prior section. Reference it as "as identified in Section X" when needed.
-   - Do NOT re-introduce the offeror, the program, or the solicitation purpose if a prior section already did so.
-   - Do NOT duplicate tables, certifications, or boilerplate already present in a prior section.
-   - When a prior section has covered a topic, build on it — don't restart it.
+Soft validation in `UnmitigatedRow` and `RiskCard`:
 
-4. Pass the new `PRIOR SECTIONS ALREADY DRAFTED` block into the user prompt, placed right after the OUTLINE BOUNDARY block.
+- Disable the "Mark mitigated" button when `mitigation_strategy` (saved value) is empty/whitespace.
+- Tooltip on hover: "Add mitigation notes before marking mitigated."
+- If user has unsaved text in the textarea, show inline hint: "Save notes first, then mark mitigated."
+- No DB constraint change — purely UX guard so rationale is always captured.
 
-### Optional UX follow-up (not required for fix)
+### #4 — "Convert to clarification question" action
 
-Add a small "Drafted" indicator in the section list (already shows "8/73 drafted") tooltip listing which prior sections will be used as context — purely informational.
+Add a secondary action on each open risk that pushes it into the Questions workflow when the team can't mitigate it internally.
 
-## Out of scope
-
-- No DB schema changes.
-- No changes to `polish-section` (it already operates on a single existing draft).
-- No changes to UI flow; user keeps clicking AI Draft per section.
+- Button: "Ask the agency" (icon: MessageCircleQuestion) next to Save notes / Mark mitigated.
+- Opens a small dialog prefilled with:
+  - Question text (AI-derived one-liner from risk title + description, or simple template: "Regarding {risk.title}: can the agency clarify…")
+  - Category dropdown (default: clarification)
+  - Priority (default mirrors risk.severity → critical/high → high; medium → medium; low → low)
+  - Source citation copied from risk
+- On submit: inserts into `strategic_questions` via existing `useStrategicQuestions` create mutation, links back to the risk by storing `risk_id` in metadata (no schema change required — use existing notes/metadata field if present; otherwise add `strategic_advantage_notes` prefix "From risk: {title}").
+- Toast: "Added to Questions" with action link to Questions tab.
+- Optional small badge on the risk card after conversion: "Sent to Questions" (driven by checking if any question references this risk id in its notes/metadata — best-effort, no schema migration).
 
 ## Technical notes
 
-- `proposal_drafts` is keyed by `outline_node_id` (unique), so the lookup is one query.
-- Token budget: 73 sections × full content would blow context; the trimming/summary step is essential. 400 chars × ~30 prior sections ≈ 12k chars worst case — acceptable for Claude Sonnet 4.5's 200k context, but we still cap to keep cost down.
-- "Bulk draft all" workflows (if added later) would benefit from this same context.
+- New edge function: `supabase/functions/suggest-risk-mitigation/index.ts`. Uses service role, validates JWT in code, CORS via `npm:@supabase/supabase-js@2/cors`. Zod-validates `{ riskId: uuid }`.
+- Reuses `_shared/aiClient.ts` (`callAiTool` or simple `callAi`) and `_shared/clientLens.ts` to build the client context block, plus `_shared/embeddings.ts` to embed the risk text for `match_client_knowledge`.
+- New hook `useSuggestRiskMitigation(solicitationId)` in `src/features/risks/hooks/` calling `supabase.functions.invoke("suggest-risk-mitigation", { body: { riskId } })`.
+- No database migration needed for #2 and #3.
+- For #4: if we want a clean back-link, we can add a nullable `source_risk_id uuid` column to `strategic_questions` in a follow-up. For this plan, store the link inside an existing free-text field to avoid a migration; flag this as a known limitation.
+
+## Files touched
+
+- `supabase/functions/suggest-risk-mitigation/index.ts` (new)
+- `src/features/risks/hooks/useSuggestRiskMitigation.ts` (new)
+- `src/features/risks/hooks/useConvertRiskToQuestion.ts` (new)
+- `src/features/risks/components/ConvertRiskToQuestionDialog.tsx` (new)
+- `src/features/analysis/components/RiskMitigationTracker.tsx` (edit — add buttons + guard)
+- `src/features/risks/components/RiskCard.tsx` (edit — add Suggest + Ask agency + guard)
+
+## Out of scope
+
+- Structured Approach/Owner/Evidence as separate DB columns (option #1) — kept as a single textarea; AI output uses labeled lines so it reads structured without a schema change.
+- Risk → Capability gap link (option #5).
