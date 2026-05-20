@@ -39,6 +39,13 @@ export const SEVERITY_DOT: Record<RiskSeverity, string> = {
   informational: "bg-blue-500",
 };
 
+export const STATUS_PILL_OPEN =
+  "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+export const STATUS_PILL_MITIGATED =
+  "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+export const STATUS_STRIPE_OPEN = "border-l-4 border-l-amber-500";
+export const STATUS_STRIPE_MITIGATED = "border-l-4 border-l-emerald-500 opacity-75";
+
 export const OPPORTUNITY_LABEL: Record<OpportunityType, string> = {
   innovation: "Innovation",
   cost_reduction: "Cost Reduction",
