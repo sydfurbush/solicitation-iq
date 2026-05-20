@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { CheckCircle2, Sparkles, Loader2, MessageCircleQuestion, ChevronDown, Check, RotateCcw } from "lucide-react";
+import { CheckCircle2, Sparkles, Loader2, Send, ChevronDown, Check, RotateCcw, Clock, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -34,7 +34,7 @@ import {
   useSuggestRiskMitigation,
   type SuggestedSource,
 } from "@/features/risks/hooks/useSuggestRiskMitigation";
-import { ConvertRiskToQuestionDialog } from "@/features/risks/components/ConvertRiskToQuestionDialog";
+import { useUser } from "@/features/auth/hooks/useUser";
 
 interface Props {
   solicitationId: string;
@@ -94,7 +94,6 @@ export function RiskMitigationTracker({ solicitationId, risks }: Props) {
                   <UnmitigatedRow
                     key={r.id}
                     risk={r}
-                    solicitationId={solicitationId}
                     onSaveStrategy={(strategy) =>
                       updateRisk.mutate({ id: r.id, updates: { mitigation_strategy: strategy } })
                     }
@@ -146,6 +145,7 @@ function MitigatedRow({
 }) {
   const sev = (risk.severity ?? "medium") as RiskSeverity;
   const notes = risk.mitigation_strategy ?? "";
+  const byClient = (risk as any).sent_to_client === true;
   return (
     <div className="rounded-md border p-3 space-y-2 bg-emerald-500/5 border-emerald-500/30">
       <div className="flex items-start justify-between gap-2">
@@ -158,6 +158,11 @@ function MitigatedRow({
             >
               <CheckCircle2 className="h-3 w-3" /> Mitigated
             </Badge>
+            {byClient && (
+              <Badge variant="outline" className="text-[10px]">
+                via client
+              </Badge>
+            )}
           </div>
           <p className="font-medium text-sm">{risk.title}</p>
           {notes && (
@@ -180,12 +185,10 @@ function MitigatedRow({
 
 function UnmitigatedRow({
   risk,
-  solicitationId,
   onSaveStrategy,
   onMarkMitigated,
 }: {
   risk: RiskRow;
-  solicitationId: string;
   onSaveStrategy: (s: string) => void;
   onMarkMitigated: (s: string) => void | Promise<void>;
 }) {
@@ -193,11 +196,53 @@ function UnmitigatedRow({
   const [strategy, setStrategy] = useState(saved);
   const [aiSuggested, setAiSuggested] = useState(false);
   const [sources, setSources] = useState<SuggestedSource[]>([]);
-  const [convertOpen, setConvertOpen] = useState(false);
   const suggest = useSuggestRiskMitigation();
+  const updateRisk = useUpdateRisk(risk.solicitation_id);
+  const { user } = useUser();
   const sev = (risk.severity ?? "medium") as RiskSeverity;
+  const sentToClient = (risk as any).sent_to_client === true;
 
   const hasUnsaved = strategy !== saved;
+
+  const handleSendToClient = async () => {
+    try {
+      await updateRisk.mutateAsync({
+        id: risk.id,
+        updates: {
+          sent_to_client: true,
+          sent_to_client_at: new Date().toISOString(),
+          sent_to_client_by: user?.id ?? null,
+        } as any,
+      });
+      toast({ title: "Sent to client", description: "Client can now edit notes and mark mitigated." });
+    } catch (e) {
+      toast({
+        title: "Could not send",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleUnsend = async () => {
+    try {
+      await updateRisk.mutateAsync({
+        id: risk.id,
+        updates: {
+          sent_to_client: false,
+          sent_to_client_at: null,
+          sent_to_client_by: null,
+        } as any,
+      });
+      toast({ title: "Recalled from client" });
+    } catch (e) {
+      toast({
+        title: "Could not recall",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleSuggest = async () => {
     if (strategy.trim().length > 0) {
@@ -233,6 +278,11 @@ function UnmitigatedRow({
             <Badge variant="outline" className={cn("text-[10px] gap-1", STATUS_PILL_OPEN)}>
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Open
             </Badge>
+            {sentToClient && (
+              <Badge variant="outline" className="text-[10px] gap-1 border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                <Clock className="h-3 w-3" /> Awaiting client
+              </Badge>
+            )}
             {aiSuggested && (
               <Badge variant="outline" className="text-[10px] gap-1">
                 <Sparkles className="h-3 w-3" /> AI suggested
@@ -293,13 +343,25 @@ function UnmitigatedRow({
               ? "Suggest again"
               : "Suggest mitigation"}
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setConvertOpen(true)}
-        >
-          <MessageCircleQuestion className="h-4 w-4 mr-2" /> Ask the agency
-        </Button>
+        {sentToClient ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleUnsend}
+            disabled={updateRisk.isPending}
+          >
+            <X className="h-4 w-4 mr-2" /> Recall from client
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSendToClient}
+            disabled={updateRisk.isPending}
+          >
+            <Send className="h-4 w-4 mr-2" /> Send to client
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -329,13 +391,6 @@ function UnmitigatedRow({
           </Tooltip>
         </TooltipProvider>
       </div>
-
-      <ConvertRiskToQuestionDialog
-        open={convertOpen}
-        onOpenChange={setConvertOpen}
-        risk={risk}
-        solicitationId={solicitationId}
-      />
     </div>
   );
 }
