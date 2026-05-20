@@ -244,7 +244,10 @@ export type Database = {
       }
       capability_gaps: {
         Row: {
+          client_confirmed: boolean | null
           client_note: string | null
+          client_responded_at: string | null
+          client_response: string | null
           created_at: string
           description: string | null
           gap_type: Database["public"]["Enums"]["gap_type"]
@@ -255,13 +258,19 @@ export type Database = {
             | Database["public"]["Enums"]["gap_recommendation"]
             | null
           requirement_id: string | null
+          sent_to_client: boolean
+          sent_to_client_at: string | null
+          sent_to_client_by: string | null
           severity: Database["public"]["Enums"]["gap_severity"]
           solicitation_id: string
           title: string
           updated_at: string
         }
         Insert: {
+          client_confirmed?: boolean | null
           client_note?: string | null
+          client_responded_at?: string | null
+          client_response?: string | null
           created_at?: string
           description?: string | null
           gap_type?: Database["public"]["Enums"]["gap_type"]
@@ -272,13 +281,19 @@ export type Database = {
             | Database["public"]["Enums"]["gap_recommendation"]
             | null
           requirement_id?: string | null
+          sent_to_client?: boolean
+          sent_to_client_at?: string | null
+          sent_to_client_by?: string | null
           severity?: Database["public"]["Enums"]["gap_severity"]
           solicitation_id: string
           title: string
           updated_at?: string
         }
         Update: {
+          client_confirmed?: boolean | null
           client_note?: string | null
+          client_responded_at?: string | null
+          client_response?: string | null
           created_at?: string
           description?: string | null
           gap_type?: Database["public"]["Enums"]["gap_type"]
@@ -289,12 +304,23 @@ export type Database = {
             | Database["public"]["Enums"]["gap_recommendation"]
             | null
           requirement_id?: string | null
+          sent_to_client?: boolean
+          sent_to_client_at?: string | null
+          sent_to_client_by?: string | null
           severity?: Database["public"]["Enums"]["gap_severity"]
           solicitation_id?: string
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "capability_gaps_sent_to_client_by_fkey"
+            columns: ["sent_to_client_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clarification_packages: {
         Row: {

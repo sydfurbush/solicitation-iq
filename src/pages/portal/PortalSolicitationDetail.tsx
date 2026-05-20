@@ -13,6 +13,7 @@ import { ClientReportViewer } from "@/features/portal/components/ClientReportVie
 import { ClientQuestionTriage } from "@/features/portal/components/ClientQuestionTriage";
 import { ClientClarificationPackage } from "@/features/portal/components/ClientClarificationPackage";
 import { ClientRiskTracker } from "@/features/portal/components/ClientRiskTracker";
+import { ClientGapTracker } from "@/features/portal/components/ClientGapTracker";
 import { usePhaseApprovals, APPROVAL_LABEL, type PhaseApproval } from "@/features/phases/hooks/usePhaseApprovals";
 import { PhaseApprovalStrip } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalActionBanner } from "@/features/phases/components/ApprovalActionBanner";
@@ -89,6 +90,7 @@ export default function PortalSolicitationDetail() {
           {hasFullAccess && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
           {hasFullAccess && <TabsTrigger value="questions">Questions</TabsTrigger>}
           {hasFullAccess && <TabsTrigger value="risks">Risks</TabsTrigger>}
+          {hasFullAccess && <TabsTrigger value="gaps">Gaps</TabsTrigger>}
           {hasFullAccess && <TabsTrigger value="annotations">Annotations</TabsTrigger>}
         </TabsList>
 
@@ -191,6 +193,12 @@ export default function PortalSolicitationDetail() {
         {hasFullAccess && (
           <TabsContent value="risks" className="mt-4">
             <ClientRiskTracker solicitationId={id!} canEdit={hasFullAccess} />
+          </TabsContent>
+        )}
+
+        {hasFullAccess && (
+          <TabsContent value="gaps" className="mt-4">
+            <ClientGapTracker solicitationId={id!} canEdit={hasFullAccess} />
           </TabsContent>
         )}
 
