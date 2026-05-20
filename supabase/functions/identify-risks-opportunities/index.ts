@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-import { callAiTool } from "../_shared/aiClient.ts";
+import { aiErrorResponse, callAiTool } from "../_shared/aiClient.ts";
 import { buildClientLens } from "../_shared/clientLens.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -103,6 +103,21 @@ const SCHEMA = {
   },
 };
 
+const asObjectArray = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) return value.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  if (typeof value === "string") {
+    try {
+      return asObjectArray(JSON.parse(value));
+    } catch {
+      return [];
+    }
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  }
+  return [];
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -160,8 +175,8 @@ Deno.serve(async (req) => {
       user: userPrompt,
       tool: SCHEMA,
     }) as Record<string, any>;
-    const risks = parsed.risks ?? [];
-    const opportunities = parsed.opportunities ?? [];
+    const risks = asObjectArray(parsed.risks);
+    const opportunities = asObjectArray(parsed.opportunities);
 
     if (risks.length === 0 && opportunities.length === 0) {
       throw new Error("AI returned no risks or opportunities. Existing data was not modified. Try again, or raise max_tokens for this function in AI Models settings.");
@@ -224,8 +239,6 @@ Deno.serve(async (req) => {
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[identify-risks-opportunities] error", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return aiErrorResponse(e, corsHeaders);
   }
 });
