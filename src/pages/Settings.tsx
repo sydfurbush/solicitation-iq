@@ -18,6 +18,7 @@ import { HelpTab } from "@/features/settings/components/HelpTab";
 import { BrandTab } from "@/features/branding/components/BrandTab";
 import { PresetsTab } from "@/features/presets/components/PresetsTab";
 import { TeamTab } from "@/features/team/components/TeamTab";
+import { FormatProfilesTab } from "@/features/formatProfiles/components/FormatProfilesTab";
 
 export default function Settings() {
   const { role } = useUser();
