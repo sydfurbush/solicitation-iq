@@ -115,7 +115,6 @@ function UnmitigatedRow({
   const suggest = useSuggestRiskMitigation();
   const sev = (risk.severity ?? "medium") as RiskSeverity;
 
-  const hasSaved = saved.trim().length > 0;
   const hasUnsaved = strategy !== saved;
 
   const handleSuggest = async () => {
