@@ -18,6 +18,7 @@ import { HelpTab } from "@/features/settings/components/HelpTab";
 import { BrandTab } from "@/features/branding/components/BrandTab";
 import { PresetsTab } from "@/features/presets/components/PresetsTab";
 import { TeamTab } from "@/features/team/components/TeamTab";
+import { FormatProfilesTab } from "@/features/formatProfiles/components/FormatProfilesTab";
 
 export default function Settings() {
   const { role } = useUser();
@@ -40,6 +41,7 @@ export default function Settings() {
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           {isAdmin && <TabsTrigger value="ai-models">AI Models</TabsTrigger>}
           {isAdmin && <TabsTrigger value="presets">Service Presets</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="format-profiles">Format Profiles</TabsTrigger>}
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="help">Help</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
@@ -52,6 +54,7 @@ export default function Settings() {
         <TabsContent value="notifications" className="mt-6"><NotificationsTab /></TabsContent>
         {isAdmin && <TabsContent value="ai-models" className="mt-6"><AIModelsTab /></TabsContent>}
         {isAdmin && <TabsContent value="presets" className="mt-6"><PresetsTab /></TabsContent>}
+        {isAdmin && <TabsContent value="format-profiles" className="mt-6"><FormatProfilesTab /></TabsContent>}
         <TabsContent value="integrations" className="mt-6"><IntegrationsTab /></TabsContent>
         <TabsContent value="help" className="mt-6"><HelpTab /></TabsContent>
         <TabsContent value="billing" className="mt-6"><PlaceholderTab title="Billing" body="Subscription and billing details will appear here." /></TabsContent>
