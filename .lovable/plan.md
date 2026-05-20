@@ -1,48 +1,61 @@
-# Fix: "Delete solicitation" shows success but row stays
+# Buyer format profiles — full rollout
 
-## What's happening
+Bring the empty `buyer_format_profiles` table to life in three sequenced steps so Phase 5 (compile & export) has real buyer-specific formatting rules instead of the generic table defaults.
 
-You clicked Delete on a solicitation and got a "Deleted" toast, but the card remained in the list. After investigation, the underlying database row was never updated.
+## Step 1 — Seed a default federal profile per org
 
-The specific solicitation you tried to delete ("Technical Advisory Support Services: Transition of Food for Peace to USDA", id `137d51e3...`) belongs to a **different organization** ("LLM Placement" under another org), not your Emergence CG org. Your account can see that row in the list because the visibility rule treats any owner/admin as a member of every solicitation, but the write rule (correctly) only allows updates inside your own org. The update therefore matched 0 rows and Supabase returned a 204 success with no error — so the UI happily showed "Deleted".
+Insert one row per existing organization so every org starts with a usable baseline.
 
-Two distinct problems to fix:
+Per-row values:
+- `name`: "Federal default"
+- `vertical`: `federal`
+- `is_default`: `true`
+- `font`: Times New Roman, `size_pt`: 12, `margins_in`: 1.0, `line_spacing`: 1.0
+- `page_number_format`: `{volume} - {page} of {pages}`
+- `file_name_pattern`: `{firm}_{solnumber}_{volume}`
+- `volume_page_limits`: `{}` (none enforced by default)
+- `header_html` / `footer_html`: null
+- `notes`: "Auto-seeded baseline. Edit in Settings → Format profiles."
 
-1. **UX bug** — the mutation does not verify that a row was actually updated, so a no-op (RLS-filtered) write looks like a success.
-2. **Cross-org leak** — your org's user list view contains rows owned by other organizations because `is_solicitation_member` only checks role, not org. This is also why archive/restore would behave the same way for those rows.
+Also enforce going forward: when a new organization is created, auto-seed the same row (database trigger on `organizations` insert).
 
-## Plan
+## Step 2 — Settings UI to manage profiles
 
-### 1. Make destructive mutations honest about no-ops
+New tab **Settings → Format profiles** (admins/owners only; staff read-only).
 
-Update `useDeleteSolicitation`, `useRestoreSolicitation`, and `useArchiveSolicitation` (and the parallel client/solicitation mutations if they share the pattern) so each one:
+List view:
+- Table of org profiles with columns: Name, Vertical, Default, Font / size, Margins, Updated.
+- Row actions: Edit, Duplicate, Set as default, Delete (blocked if it's the only profile or currently in use by a solicitation).
+- "New profile" button.
 
-- adds `.select("id")` to the update
-- throws a clear error ("You don't have permission to modify this solicitation" or "Solicitation not found") when 0 rows come back
+Editor (drawer or dialog):
+- Fields mirror the table columns: name, vertical (federal/utility/commercial), font, size_pt, margins_in, line_spacing, page_number_format, file_name_pattern, header_html, footer_html, volume_page_limits (key/value editor: volume name → max pages), notes.
+- "Mark as default for this vertical" toggle — clears the flag on any sibling in the same vertical inside the same org.
+- Live preview chip showing a rendered page-number sample and resolved file name using placeholder firm/sol values.
 
-The dialog in `src/pages/Solicitations.tsx` already catches errors and shows a destructive toast, so this surfaces immediately.
+Behavior:
+- All writes scoped to `current_user_org()` (existing RLS already enforces this).
+- Cannot delete a profile that is referenced by `solicitations.format_profile_id`; show a friendly error listing the affected solicitations.
 
-### 2. Scope solicitation visibility to the current org
+## Step 3 — Per-solicitation profile picker
 
-Change `is_solicitation_member(_user_id, _sol_id)` so the org-admin / org-staff branch only matches when the solicitation's client belongs to the user's org. New shape:
+On the Phase 5 tab in `SolicitationDeepDive` (and the compile/export entry point):
+- Add a "Format profile" selector that lists the org's profiles, defaulting to the org's `is_default = true` federal row when unset.
+- Persist to `solicitations.format_profile_id`.
+- Surface the resolved font/size/margins inline so the analyst sees what will be applied.
+- `compile-proposal` already reads `buyer_format_profiles`; update it to honor `solicitations.format_profile_id` first, then fall back to the org default, then to the schema defaults.
 
-```text
-is_org_admin(_user_id) AND solicitation belongs to a client in current_user_org()
-OR EXISTS solicitation_assignments row for (_sol_id, _user_id)
-```
+## Verification
 
-This stops cross-org rows from appearing in the staff list and from being readable by SELECT policies that reuse this helper (annotations, documents, executive_reports, delta_actions, capability_gaps, etc.). Client-portal policies are not affected — they use `current_client_id()` paths.
+- Step 1: `select count(*) from buyer_format_profiles where is_default` equals number of orgs; creating a brand-new org auto-creates its row.
+- Step 2: New profile shows in list, edit persists, deleting an in-use profile is blocked, only one default per vertical per org.
+- Step 3: Selecting a profile on a solicitation updates the row; compile output uses that profile's font/margins/page numbering; clearing the selection falls back to the org default.
 
-After the helper changes, the existing `staff manage solicitations` write policy continues to work; the SELECT policy `view accessible solicitations` will simply stop returning foreign-org rows.
+## Technical notes
 
-### 3. Verify
-
-- Re-list solicitations as the affected user; the LLM Placement row should disappear.
-- Delete one of your own org's solicitations; it should disappear and the toast should say "Deleted".
-- Attempt the delete in a way that hits a foreign-org row (e.g. via direct id) — the toast should now be a destructive "You don't have permission…" message instead of a fake success.
-
-## Out of scope
-
-- Hard delete vs soft delete (still soft delete via `deleted_at`).
-- Reviewing every other shared helper for org scoping beyond `is_solicitation_member`.
-- Notifying other orgs that previously-visible rows are no longer visible.
+- Step 1 mixes a data insert (seed existing orgs — use the insert tool) and a schema change (new trigger on `organizations` — migration tool). Two separate calls.
+- Trigger: `after insert on public.organizations` → `insert into public.buyer_format_profiles (organization_id, name, is_default) values (new.id, 'Federal default', true);` (other columns get table defaults).
+- Add a partial unique index to keep one default per (organization_id, vertical): `create unique index bfp_one_default_per_vertical on buyer_format_profiles(organization_id, vertical) where is_default;`.
+- New files (Step 2): `src/features/settings/components/FormatProfilesTab.tsx`, `src/features/formatProfiles/hooks/useFormatProfiles.ts`, plus a small editor component. Wire the tab into `src/pages/Settings.tsx`.
+- Step 3 touches `src/pages/SolicitationDeepDive.tsx` (Phase 5 section), a new `useSolicitationFormatProfile` hook, and `supabase/functions/compile-proposal/index.ts` for the lookup order.
+- No new RLS policies required — existing `staff manage format profiles` / `view org format profiles` policies cover all reads/writes.
