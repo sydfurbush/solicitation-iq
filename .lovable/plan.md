@@ -1,41 +1,29 @@
-# Risk status visibility — Option A + B
+# Show all risks by default
 
-Make it obvious at a glance which risks are **Open** vs **Mitigated** across the Risks list and the Risk Mitigation tracker.
+## Problem
 
-## What changes (user-facing)
+On the Risks step, only 5 of 12 risks are visible. Two causes:
 
-1. **Status pill (Option A)** on every risk card, next to the severity badge:
-   - Open → amber pill: `● Open`
-   - Mitigated → green pill: `✓ Mitigated`
-2. **Left accent stripe + dimming (Option B)** on each risk card:
-   - Open → 4px amber left border, full opacity
-   - Mitigated → 4px green left border, card opacity ~70% so it visually recedes
-3. **Counter** at the top of the Risks list page: `Open (N) · Mitigated (M) · Total (T)`.
-4. The Risk Mitigation tracker (Phase 1 → Risks) keeps showing only open risks (unchanged), but each row gets the amber stripe + `Open` pill for consistency.
+1. **`RisksList`** groups risks by severity in collapsible sections, but only `Critical` and `High` are expanded by default. `Medium`, `Low`, and `Informational` groups stay collapsed, hiding their risks until clicked.
+2. **`RiskMitigationTracker`** (the progress card) only renders open risks by design, so mitigated ones don't show there.
 
-No behavior changes — just visual status indicators. Existing "Mitigated on {date}" line and Reopen button stay as-is.
+## Fix
 
-## Files to edit
+### 1. Expand every severity group by default (`src/features/risks/components/RisksList.tsx`)
+- Change `<Collapsible defaultOpen={sev === "critical" || sev === "high"}>` to `defaultOpen` (always open).
+- Group counts already render in the header — users can collapse manually if they want.
 
-- `src/features/risks/components/RiskCard.tsx` — add status pill + conditional border/opacity classes on the `<Card>`.
-- `src/features/risks/components/RisksList.tsx` — add the Open/Mitigated/Total counter strip above the list.
-- `src/features/analysis/components/RiskMitigationTracker.tsx` — add the amber stripe + `Open` pill on `UnmitigatedRow`.
+### 2. Counter clarifies what's hidden where (already added)
+- The new `Open N · Mitigated M · Total T` strip at the top of `RisksList` already makes the full count obvious.
 
-## Design tokens
+### 3. RiskMitigationTracker — no change
+- It's a "what still needs work" widget, so hiding mitigated risks is correct. The status pill + counter on the full list below makes it clear where mitigated risks live.
 
-Use semantic tokens already defined for severity. Add two small helpers in `src/features/risks/utils/riskHelpers.ts`:
+## Files changed
 
-```ts
-export const STATUS_PILL_OPEN = "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-export const STATUS_PILL_MITIGATED = "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-export const STATUS_STRIPE_OPEN = "border-l-4 border-l-amber-500";
-export const STATUS_STRIPE_MITIGATED = "border-l-4 border-l-emerald-500 opacity-75";
-```
-
-(If the project prefers HSL semantic tokens over Tailwind named colors, swap to `--warning` / `--success` tokens from `index.css`; I'll check both files and pick whichever matches the existing convention before applying.)
+- `src/features/risks/components/RisksList.tsx` — one-line change to default-open all severity groups.
 
 ## Out of scope
 
-- Tabs/segmented filter (Option D).
-- Changing the "Mark mitigated" button styling (Option C).
-- Heatmap, exports, or schema changes.
+- Adding a "Mitigated" section to the tracker (would dilute its purpose).
+- Persisting the user's collapse/expand preference.
