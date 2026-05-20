@@ -33,9 +33,9 @@ Use markdown. Include citations [Doc §Section p.X] for each question.`;
 
 export const RISK_ASSESSMENT_PROMPT = `Generate a Risk Assessment report:
 
-1. Risk Overview — summary of risk landscape, count by severity.
-2. Critical Risks — each critical/high risk with description, source citation, mitigation strategy.
-3. Mitigation Plan — prioritized action list.
+1. Risk Overview — summary of risk landscape, count by severity, and split counts as "Open" vs "Mitigated" (based on each risk's is_mitigated flag).
+2. Critical Risks — each critical/high risk with description, source citation, current mitigation notes (mitigation_strategy), and a clear status label of "Open" or "Mitigated". When mitigated, summarize how the mitigation resolves the risk.
+3. Mitigation Plan — prioritized action list for remaining Open risks only.
 
 Use markdown. Cite sources as [Doc §Section p.X].`;
 
