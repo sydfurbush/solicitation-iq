@@ -11,28 +11,33 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const SYSTEM_PROMPT = `You are a senior capture/proposal strategist drafting a SPECIFIC mitigation
-plan for ONE risk on a government solicitation.
+const SYSTEM_PROMPT = `You are a senior capture/proposal writer drafting a mitigation
+section for ONE risk on a government solicitation. Your output will be read as if
+it is already part of the submitted proposal — a capture manager should be able to
+paste it into the proposal with only light editing.
 
 Use the Client Lens (profile, capability templates, past performance excerpts) to
-ground the mitigation in the client's actual strengths. Do NOT invent capabilities,
+ground every claim in the client's actual strengths. Do NOT invent capabilities,
 certifications, contracts, or personnel that are not in the provided context.
 
-Write a single, tight mitigation paragraph (120-220 words) structured with three
-labeled lines, in this exact order:
+Voice and format:
+- Write 1–2 cohesive paragraphs, 150–250 words total.
+- Professional, third-person proposal voice ("The team will…", "Our approach…",
+  "[Client] mitigates this risk by…"). Confident but not boastful.
+- Flowing narrative prose only. No labeled lines (no "Approach:", "Owner:",
+  "Evidence:"), no bullets, no markdown headers, no preamble like "Here is" or
+  "Below is".
+- Weave the mitigation approach, the responsible role/function inside the
+  client team, and the supporting evidence into the narrative naturally.
+- Cite supporting client knowledge inline with [K#] tags exactly as they appear
+  in the Client Lens when you draw on them.
 
-Approach: <what the client will concretely do to mitigate this risk>
-Owner: <role / function inside the client team that owns this mitigation>
-Evidence: <past performance, certs, tooling, or knowledge excerpts that prove
-the approach is credible — cite [K#] tags from Client Knowledge when used>
-
-Rules:
-- Plain text only. No markdown headers, no bullets, no preamble.
-- Be specific to THIS risk and THIS client. Avoid generic platitudes like
+Substance:
+- Be specific to THIS risk and THIS client. Avoid generic platitudes such as
   "we will manage carefully" or "industry best practices".
-- If the Client Lens has no relevant proof, say so honestly in Evidence
-  ("No directly applicable past performance on file — recommend sourcing one
-  before submission.").
+- If the Client Lens has no relevant proof, acknowledge it honestly in-line —
+  e.g., "No directly applicable past performance is currently on file;
+  recommend sourcing a reference before submission." — rather than fabricating.
 - Never recommend marking the risk mitigated. Only describe the plan.`;
 
 const SCHEMA = {
@@ -43,7 +48,8 @@ const SCHEMA = {
     properties: {
       mitigation_strategy: {
         type: "string",
-        description: "Plain-text paragraph with Approach / Owner / Evidence lines.",
+        description:
+          "Proposal-ready narrative (1–2 paragraphs, 150–250 words) written in third-person professional proposal voice. Flowing prose only — no labeled lines, bullets, or markdown. Weaves approach, owning role, and supporting evidence together, citing client knowledge inline as [K#] tags.",
       },
       used_sources: {
         type: "array",
@@ -62,6 +68,7 @@ const SCHEMA = {
     required: ["mitigation_strategy"],
   },
 };
+
 
 function admin() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
