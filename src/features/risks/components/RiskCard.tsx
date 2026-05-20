@@ -29,6 +29,10 @@ import { toast } from "@/hooks/use-toast";
 import {
   SEVERITY_BADGE,
   SEVERITY_LABEL,
+  STATUS_PILL_MITIGATED,
+  STATUS_PILL_OPEN,
+  STATUS_STRIPE_MITIGATED,
+  STATUS_STRIPE_OPEN,
   type RiskSeverity,
 } from "@/features/risks/utils/riskHelpers";
 import { useUpdateRisk, type RiskRow } from "@/features/risks/hooks/useRisks";
@@ -87,13 +91,30 @@ export function RiskCard({ risk, onToggleMitigated, onEdit, onDelete }: RiskCard
   };
 
   return (
-    <Card>
+    <Card className={cn(risk.is_mitigated ? STATUS_STRIPE_MITIGATED : STATUS_STRIPE_OPEN)}>
       <CardContent className="p-5 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge className={cn("border capitalize", SEVERITY_BADGE[sev])}>
                 {SEVERITY_LABEL[sev]}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px] gap-1",
+                  risk.is_mitigated ? STATUS_PILL_MITIGATED : STATUS_PILL_OPEN,
+                )}
+              >
+                {risk.is_mitigated ? (
+                  <>
+                    <CheckCircle2 className="h-3 w-3" /> Mitigated
+                  </>
+                ) : (
+                  <>
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Open
+                  </>
+                )}
               </Badge>
               {!risk.is_ai_generated && (
                 <Badge variant="outline" className="text-[10px]">Manual</Badge>

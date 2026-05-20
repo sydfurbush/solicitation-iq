@@ -56,8 +56,21 @@ export function RisksList({ risks, onToggleMitigated, onEdit, onDelete }: RisksL
     return map;
   }, [filtered]);
 
+  const openCount = risks.filter((r) => !r.is_mitigated).length;
+  const mitigatedCount = risks.length - openCount;
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap rounded-md border bg-muted/30 px-3 py-2">
+        <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 gap-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Open {openCount}
+        </Badge>
+        <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+          ✓ Mitigated {mitigatedCount}
+        </Badge>
+        <Badge variant="secondary">Total {risks.length}</Badge>
+      </div>
+
       <div className="flex items-center gap-2 flex-wrap">
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
           <SelectTrigger className="w-[160px] h-9"><SelectValue /></SelectTrigger>

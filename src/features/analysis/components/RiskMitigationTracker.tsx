@@ -21,6 +21,8 @@ import { toast } from "@/hooks/use-toast";
 import {
   SEVERITY_BADGE,
   SEVERITY_LABEL,
+  STATUS_PILL_OPEN,
+  STATUS_STRIPE_OPEN,
   type RiskSeverity,
 } from "@/features/risks/utils/riskHelpers";
 import {
@@ -133,11 +135,14 @@ function UnmitigatedRow({
   };
 
   return (
-    <div className="rounded-md border p-3 space-y-2">
+    <div className={cn("rounded-md border p-3 space-y-2", STATUS_STRIPE_OPEN)}>
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge className={cn("border", SEVERITY_BADGE[sev])}>{SEVERITY_LABEL[sev]}</Badge>
+            <Badge variant="outline" className={cn("text-[10px] gap-1", STATUS_PILL_OPEN)}>
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Open
+            </Badge>
             {aiSuggested && (
               <Badge variant="outline" className="text-[10px] gap-1">
                 <Sparkles className="h-3 w-3" /> AI suggested
