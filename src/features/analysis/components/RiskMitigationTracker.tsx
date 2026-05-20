@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { CheckCircle2, Sparkles, Loader2, MessageCircleQuestion, ChevronDown } from "lucide-react";
+import { CheckCircle2, Sparkles, Loader2, MessageCircleQuestion, ChevronDown, Check } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
