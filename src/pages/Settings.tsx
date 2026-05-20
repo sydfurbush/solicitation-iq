@@ -41,6 +41,7 @@ export default function Settings() {
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           {isAdmin && <TabsTrigger value="ai-models">AI Models</TabsTrigger>}
           {isAdmin && <TabsTrigger value="presets">Service Presets</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="format-profiles">Format Profiles</TabsTrigger>}
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="help">Help</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
