@@ -19,14 +19,19 @@ const SEVERITY_WEIGHT: Record<string, number> = {
 };
 
 export function CompetitivePositionSummary({ risks, opportunities }: Props) {
-  const { winProbability, strengths, weaknesses, positioning } = useMemo(() => {
-    const oppScore = opportunities.reduce((s, o) => s + (o.impact_score ?? 0), 0);
-    const riskScore = risks
+  const { winProbability, hasData, strengths, weaknesses, positioning } = useMemo(() => {
+    const hasData = opportunities.length > 0 || risks.length > 0;
+
+    const oppLift = opportunities.length
+      ? opportunities.reduce((s, o) => s + (o.impact_score ?? 0), 0) / opportunities.length
+      : 0;
+
+    const rawRiskDrag = risks
       .filter((r) => !r.is_mitigated)
       .reduce((s, r) => s + (SEVERITY_WEIGHT[r.severity ?? "medium"] ?? 5), 0);
+    const riskDrag = Math.min(60, rawRiskDrag);
 
-    const raw = oppScore - riskScore * 1.2;
-    const normalized = Math.max(0, Math.min(100, Math.round(50 + raw / 6)));
+    const normalized = Math.max(0, Math.min(100, Math.round(oppLift - riskDrag)));
 
     const strengths = [...opportunities]
       .sort((a, b) => (b.impact_score ?? 0) - (a.impact_score ?? 0))
@@ -44,15 +49,15 @@ export function CompetitivePositionSummary({ risks, opportunities }: Props) {
       .map((r) => r.title);
 
     let positioning = "Maintain a balanced posture and address open risks before submission.";
-    if (normalized >= 70) {
+    if (normalized >= 65) {
       positioning = "Position aggressively — emphasize differentiators and innovation themes.";
-    } else if (normalized >= 50) {
+    } else if (normalized >= 45) {
       positioning = "Lean into top opportunities while neutralizing high-severity risks.";
-    } else if (normalized < 35) {
+    } else if (normalized < 30) {
       positioning = "Reassess pursuit — high-severity risks materially threaten win probability.";
     }
 
-    return { winProbability: normalized, strengths, weaknesses, positioning };
+    return { winProbability: normalized, hasData, strengths, weaknesses, positioning };
   }, [risks, opportunities]);
 
   return (
@@ -66,11 +71,13 @@ export function CompetitivePositionSummary({ risks, opportunities }: Props) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Win probability indicator</p>
-            <span className="text-2xl font-bold">{winProbability}%</span>
+            <span className="text-2xl font-bold">{hasData ? `${winProbability}%` : "—"}</span>
           </div>
-          <Progress value={winProbability} className="h-2" />
+          <Progress value={hasData ? winProbability : 0} className="h-2" />
           <p className="text-xs text-muted-foreground">
-            Heuristic based on opportunity impact vs. unmitigated risk severity.
+            {hasData
+              ? "Estimate combines average opportunity impact with unmitigated risk severity. Not a forecast."
+              : "Identify risks & opportunities to see a position estimate."}
           </p>
         </div>
 
@@ -97,12 +104,14 @@ export function CompetitivePositionSummary({ risks, opportunities }: Props) {
           </div>
         </div>
 
-        <div className="rounded-md border bg-muted/30 p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
-            Recommended positioning
-          </p>
-          <p className="text-sm">{positioning}</p>
-        </div>
+        {hasData && (
+          <div className="rounded-md border bg-muted/30 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+              Recommended positioning
+            </p>
+            <p className="text-sm">{positioning}</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
