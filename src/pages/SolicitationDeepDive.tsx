@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Sparkles, Loader2, AlertTriangle } from "lucide-react";
+import { Sparkles, Loader2, AlertTriangle, Send, RotateCcw, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { useUser } from "@/features/auth/hooks/useUser";
+import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
