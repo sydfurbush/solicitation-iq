@@ -105,7 +105,7 @@ function UnmitigatedRow({
   risk: RiskRow;
   solicitationId: string;
   onSaveStrategy: (s: string) => void;
-  onMarkMitigated: () => void;
+  onMarkMitigated: (s: string) => void | Promise<void>;
 }) {
   const saved = risk.mitigation_strategy ?? "";
   const [strategy, setStrategy] = useState(saved);
