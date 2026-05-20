@@ -21,6 +21,8 @@ import { toast } from "@/hooks/use-toast";
 import {
   SEVERITY_BADGE,
   SEVERITY_LABEL,
+  STATUS_PILL_OPEN,
+  STATUS_STRIPE_OPEN,
   type RiskSeverity,
 } from "@/features/risks/utils/riskHelpers";
 import {
