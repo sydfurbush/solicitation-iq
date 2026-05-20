@@ -2,7 +2,7 @@ export const EXECUTIVE_SUMMARY_PROMPT = `Generate a professional executive summa
 
 1. Executive Overview — 1 paragraph: what is this opportunity, why it matters, our overall assessment.
 2. Opportunity Snapshot — bullets: agency, solicitation #, contract type, value range, key dates, incumbent status.
-3. Strategic Assessment — top 3 opportunities, top 3 risks, competitive positioning summary (3 short paragraphs).
+3. Strategic Assessment — top 3 opportunities, top 3 risks (append "(Mitigated)" to any risk title where is_mitigated is true), competitive positioning summary (3 short paragraphs).
 4. Recommendation — go/no-go with rationale, key success factors, immediate next steps as a numbered list.
 
 Crisp, executive language. Use markdown formatting (bullets, bold). Cite supporting source material inline as [Doc Name §Section p.X] when referencing specific requirements.`;
@@ -33,9 +33,9 @@ Use markdown. Include citations [Doc §Section p.X] for each question.`;
 
 export const RISK_ASSESSMENT_PROMPT = `Generate a Risk Assessment report:
 
-1. Risk Overview — summary of risk landscape, count by severity.
-2. Critical Risks — each critical/high risk with description, source citation, mitigation strategy.
-3. Mitigation Plan — prioritized action list.
+1. Risk Overview — summary of risk landscape, count by severity, and split counts as "Open" vs "Mitigated" (based on each risk's is_mitigated flag).
+2. Critical Risks — each critical/high risk with description, source citation, current mitigation notes (mitigation_strategy), and a clear status label of "Open" or "Mitigated". When mitigated, summarize how the mitigation resolves the risk.
+3. Mitigation Plan — prioritized action list for remaining Open risks only.
 
 Use markdown. Cite sources as [Doc §Section p.X].`;
 
