@@ -98,7 +98,7 @@ export function RisksList({ risks, onToggleMitigated, onEdit, onDelete }: RisksL
         const items = grouped.get(sev) ?? [];
         if (items.length === 0) return null;
         return (
-          <Collapsible key={sev} defaultOpen={sev === "critical" || sev === "high"}>
+          <Collapsible key={sev} defaultOpen>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between h-auto py-2 px-2">
                 <div className="flex items-center gap-2">
