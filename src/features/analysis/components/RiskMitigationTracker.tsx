@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { CheckCircle2, Sparkles, Loader2, MessageCircleQuestion, ChevronDown, Check } from "lucide-react";
+import { CheckCircle2, Sparkles, Loader2, MessageCircleQuestion, ChevronDown, Check, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -45,9 +45,25 @@ export function RiskMitigationTracker({ solicitationId, risks }: Props) {
   const updateRisk = useUpdateRisk(solicitationId);
   const markMitigated = useMarkRiskMitigated(solicitationId);
   const total = risks.length;
-  const mitigated = risks.filter((r) => r.is_mitigated).length;
   const open = risks.filter((r) => !r.is_mitigated);
+  const mitigatedList = risks.filter((r) => r.is_mitigated);
+  const mitigated = mitigatedList.length;
   const pct = total ? Math.round((mitigated / total) * 100) : 0;
+
+  const handleReopen = async (r: RiskRow) => {
+    const ok = window.confirm("Reopen this risk? It will move back to Open.");
+    if (!ok) return;
+    try {
+      await markMitigated.mutateAsync({ id: r.id, isMitigated: false });
+      toast({ title: "Risk reopened", description: r.title });
+    } catch (e) {
+      toast({
+        title: "Could not reopen risk",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <Card>
@@ -63,38 +79,104 @@ export function RiskMitigationTracker({ solicitationId, risks }: Props) {
         </div>
         <Progress value={pct} className="h-2" />
 
-        {open.length === 0 ? (
+        {total === 0 ? (
           <p className="text-sm text-center text-muted-foreground py-6">
-            All risks have been mitigated.
+            No risks yet.
           </p>
         ) : (
-          <div className="space-y-3">
-            {open.map((r) => (
-              <UnmitigatedRow
-                key={r.id}
-                risk={r}
-                solicitationId={solicitationId}
-                onSaveStrategy={(strategy) =>
-                  updateRisk.mutate({ id: r.id, updates: { mitigation_strategy: strategy } })
-                }
-                onMarkMitigated={async (strategy) => {
-                  const trimmed = strategy.trim();
-                  if (trimmed && trimmed !== (r.mitigation_strategy ?? "")) {
-                    await updateRisk.mutateAsync({
-                      id: r.id,
-                      updates: { mitigation_strategy: trimmed },
-                    });
-                  }
-                  await markMitigated.mutateAsync({ id: r.id, isMitigated: true });
-                }}
-              />
-            ))}
+          <div className="space-y-4">
+            {open.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Open ({open.length})
+                </p>
+                {open.map((r) => (
+                  <UnmitigatedRow
+                    key={r.id}
+                    risk={r}
+                    solicitationId={solicitationId}
+                    onSaveStrategy={(strategy) =>
+                      updateRisk.mutate({ id: r.id, updates: { mitigation_strategy: strategy } })
+                    }
+                    onMarkMitigated={async (strategy) => {
+                      const trimmed = strategy.trim();
+                      if (trimmed && trimmed !== (r.mitigation_strategy ?? "")) {
+                        await updateRisk.mutateAsync({
+                          id: r.id,
+                          updates: { mitigation_strategy: trimmed },
+                        });
+                      }
+                      await markMitigated.mutateAsync({ id: r.id, isMitigated: true });
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {mitigatedList.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Mitigated ({mitigatedList.length})
+                </p>
+                {mitigatedList.map((r) => (
+                  <MitigatedRow
+                    key={r.id}
+                    risk={r}
+                    onReopen={() => handleReopen(r)}
+                    isReopening={markMitigated.isPending}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
     </Card>
   );
 }
+
+function MitigatedRow({
+  risk,
+  onReopen,
+  isReopening,
+}: {
+  risk: RiskRow;
+  onReopen: () => void;
+  isReopening: boolean;
+}) {
+  const sev = (risk.severity ?? "medium") as RiskSeverity;
+  const notes = risk.mitigation_strategy ?? "";
+  return (
+    <div className="rounded-md border p-3 space-y-2 bg-emerald-500/5 border-emerald-500/30">
+      <div className="flex items-start justify-between gap-2">
+        <div className="space-y-1 min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge className={cn("border", SEVERITY_BADGE[sev])}>{SEVERITY_LABEL[sev]}</Badge>
+            <Badge
+              variant="outline"
+              className="text-[10px] gap-1 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+            >
+              <CheckCircle2 className="h-3 w-3" /> Mitigated
+            </Badge>
+          </div>
+          <p className="font-medium text-sm">{risk.title}</p>
+          {notes && (
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-3">{notes}</p>
+          )}
+        </div>
+        <Button size="sm" variant="outline" onClick={onReopen} disabled={isReopening}>
+          {isReopening ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <RotateCcw className="h-4 w-4 mr-2" />
+          )}
+          Reopen
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 
 function UnmitigatedRow({
   risk,
