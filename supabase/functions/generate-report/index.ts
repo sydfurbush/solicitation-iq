@@ -41,7 +41,7 @@ const PROMPTS: Record<ReportType, string> = {
 
 1. heading="Executive Overview" — 1 to 2 'paragraph' blocks. Narrative overview, our overall assessment.
 2. heading="Opportunity Snapshot" — exactly ONE 'kv' block. Rows in this order: ["Agency", ...], ["Solicitation #", ...], ["Contract Type", ...], ["Set-Aside", ...], ["Incumbent", ...], ["Release Date", ...], ["Q&A / Proposal Due", ...], ["Award Date", ...]. Use "—" if unknown.
-3. heading="Strategic Assessment" — exactly TWO 'category' blocks. First: tone="opportunity", title="TOP OPPORTUNITIES", 3 rows of [shortTitle, oneSentenceDescription]. Second: tone="risk", title="TOP RISKS", 3 rows.
+3. heading="Strategic Assessment" — exactly TWO 'category' blocks. First: tone="opportunity", title="TOP OPPORTUNITIES", 3 rows of [shortTitle, oneSentenceDescription]. Second: tone="risk", title="TOP RISKS", 3 rows — when a risk has is_mitigated=true, append " (Mitigated)" to its shortTitle.
 4. heading="Competitive Positioning" — one 'paragraph' block + one 'bullets' block (3-5 items).
 5. heading="Recommendation" — exactly ONE 'recommendation' block. verdict is one of "GO" | "NO-GO" | "CONDITIONAL GO". rationale is 2-3 sentences. NO other blocks in this section. NEVER include Key Success Factors or Next Steps text inside this block.
 6. heading="Key Success Factors" — exactly ONE 'bullets' block, 3-5 items. Each item is a single sentence (no numbering prefixes — the renderer handles formatting).
