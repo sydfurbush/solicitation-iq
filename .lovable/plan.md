@@ -1,58 +1,48 @@
-# Client participation in Capability Gaps
+# Fix: "Delete solicitation" shows success but row stays
 
-## Goal
+## What's happening
 
-Bring gaps into the client workflow the same way risks now work: the analyst owns gap identification and triage, then "Sends to client" specific gaps so the client can confirm, deny, or add context (e.g., supply past performance, certifications, or teaming info) from the portal. Gaps surfaced to the client also appear in client-facing reports.
+You clicked Delete on a solicitation and got a "Deleted" toast, but the card remained in the list. After investigation, the underlying database row was never updated.
 
-Mirrors the existing risk handoff pattern (`sent_to_client` + `guard_client_risk_update` trigger + `ClientRiskTracker`).
+The specific solicitation you tried to delete ("Technical Advisory Support Services: Transition of Food for Peace to USDA", id `137d51e3...`) belongs to a **different organization** ("LLM Placement" under another org), not your Emergence CG org. Your account can see that row in the list because the visibility rule treats any owner/admin as a member of every solicitation, but the write rule (correctly) only allows updates inside your own org. The update therefore matched 0 rows and Supabase returned a 204 success with no error — so the UI happily showed "Deleted".
 
-## Analyst vs. Client (after this change)
+Two distinct problems to fix:
 
-- **Analyst owns**: extracting/regenerating gaps, severity, recommendation (build/buy/team/no-bid), final disposition.
-- **Client owns** (per-gap, only when sent): a `client_response` note ("we have this", "use Acme as sub", past-performance pointer) and a `client_confirmed` flag. Cannot change title/description/severity/recommendation.
-- Resolution remains the analyst's call.
+1. **UX bug** — the mutation does not verify that a row was actually updated, so a no-op (RLS-filtered) write looks like a success.
+2. **Cross-org leak** — your org's user list view contains rows owned by other organizations because `is_solicitation_member` only checks role, not org. This is also why archive/restore would behave the same way for those rows.
 
-## Changes
+## Plan
 
-### 1. Database (one migration)
+### 1. Make destructive mutations honest about no-ops
 
-Extend `capability_gaps`:
-- `sent_to_client boolean NOT NULL DEFAULT false`
-- `sent_to_client_at timestamptz`
-- `sent_to_client_by uuid REFERENCES users(id) ON DELETE SET NULL`
-- `client_response text`
-- `client_responded_at timestamptz`
-- `client_confirmed boolean` (nullable: null = no response, true = "we have this capability", false = "gap is real")
+Update `useDeleteSolicitation`, `useRestoreSolicitation`, and `useArchiveSolicitation` (and the parallel client/solicitation mutations if they share the pattern) so each one:
 
-RLS:
-- Add SELECT policy: client users see only their client's gaps where `sent_to_client = true`.
-- Add UPDATE policy: client users can update only their client's gaps where `sent_to_client = true`.
-- Add `guard_client_gap_update()` trigger restricting client edits to `client_response`, `client_confirmed`, `client_responded_at` (mirrors `guard_client_risk_update`).
+- adds `.select("id")` to the update
+- throws a clear error ("You don't have permission to modify this solicitation" or "Solicitation not found") when 0 rows come back
 
-### 2. Analyst UI (`GapsList` in `SolicitationDeepDive.tsx`)
+The dialog in `src/pages/Solicitations.tsx` already catches errors and shows a destructive toast, so this surfaces immediately.
 
-Per gap card, add:
-- "Send to client" button (or "Re-send / Sent ✓" badge with timestamp once sent).
-- When a client response exists, show it inline: confirmation pill + response text + responded date.
+### 2. Scope solicitation visibility to the current org
 
-No change to generation, severity, or resolution controls.
+Change `is_solicitation_member(_user_id, _sol_id)` so the org-admin / org-staff branch only matches when the solicitation's client belongs to the user's org. New shape:
 
-### 3. Client portal
+```text
+is_org_admin(_user_id) AND solicitation belongs to a client in current_user_org()
+OR EXISTS solicitation_assignments row for (_sol_id, _user_id)
+```
 
-Add a `ClientGapTracker.tsx` under `src/features/portal/components/` modeled on `ClientRiskTracker`.
-Mount as a new "Gaps" tab in `PortalSolicitationDetail.tsx` (next to the existing "Risks" tab).
-For each sent gap, render: title, description, severity, recommendation, plus inputs:
-- "We have this capability" / "This is a real gap" / "Not sure" radio (writes `client_confirmed`).
-- Free-text response box (writes `client_response`, sets `client_responded_at`).
-- Save button. No ability to edit analyst fields.
+This stops cross-org rows from appearing in the staff list and from being readable by SELECT policies that reuse this helper (annotations, documents, executive_reports, delta_actions, capability_gaps, etc.). Client-portal policies are not affected — they use `current_client_id()` paths.
 
-### 4. Reports
+After the helper changes, the existing `staff manage solicitations` write policy continues to work; the SELECT policy `view accessible solicitations` will simply stop returning foreign-org rows.
 
-In `src/features/reports/templates/prompts.ts` and `supabase/functions/generate-report/index.ts`, extend the existing gaps section to include `client_confirmed` and `client_response` when present, so the client-facing report reflects the client's input.
+### 3. Verify
+
+- Re-list solicitations as the affected user; the LLM Placement row should disappear.
+- Delete one of your own org's solicitations; it should disappear and the toast should say "Deleted".
+- Attempt the delete in a way that hits a foreign-org row (e.g. via direct id) — the toast should now be a destructive "You don't have permission…" message instead of a fake success.
 
 ## Out of scope
 
-- New AI generation for gaps (analyst still triggers `analyze-gaps`).
-- Changing severity/recommendation taxonomy.
-- Auto-resolving gaps based on client confirmation (analyst still flips `is_resolved`).
-- Notifications/email (handled by existing client-notification infra if it picks up `sent_to_client` automatically; otherwise out of scope here).
+- Hard delete vs soft delete (still soft delete via `deleted_at`).
+- Reviewing every other shared helper for org scoping beyond `is_solicitation_member`.
+- Notifying other orgs that previously-visible rows are no longer visible.
