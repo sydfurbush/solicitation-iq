@@ -2428,6 +2428,9 @@ export type Database = {
           is_ai_generated: boolean | null
           is_mitigated: boolean | null
           mitigation_strategy: string | null
+          sent_to_client: boolean
+          sent_to_client_at: string | null
+          sent_to_client_by: string | null
           severity: Database["public"]["Enums"]["risk_severity"] | null
           solicitation_id: string
           source_citation: string | null
@@ -2444,6 +2447,9 @@ export type Database = {
           is_ai_generated?: boolean | null
           is_mitigated?: boolean | null
           mitigation_strategy?: string | null
+          sent_to_client?: boolean
+          sent_to_client_at?: string | null
+          sent_to_client_by?: string | null
           severity?: Database["public"]["Enums"]["risk_severity"] | null
           solicitation_id: string
           source_citation?: string | null
@@ -2460,6 +2466,9 @@ export type Database = {
           is_ai_generated?: boolean | null
           is_mitigated?: boolean | null
           mitigation_strategy?: string | null
+          sent_to_client?: boolean
+          sent_to_client_at?: string | null
+          sent_to_client_by?: string | null
           severity?: Database["public"]["Enums"]["risk_severity"] | null
           solicitation_id?: string
           source_citation?: string | null
@@ -2472,6 +2481,13 @@ export type Database = {
           {
             foreignKeyName: "risks_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "risks_sent_to_client_by_fkey"
+            columns: ["sent_to_client_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
