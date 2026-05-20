@@ -77,7 +77,16 @@ export function RiskMitigationTracker({ solicitationId, risks }: Props) {
                 onSaveStrategy={(strategy) =>
                   updateRisk.mutate({ id: r.id, updates: { mitigation_strategy: strategy } })
                 }
-                onMarkMitigated={() => markMitigated.mutate({ id: r.id, isMitigated: true })}
+                onMarkMitigated={async (strategy) => {
+                  const trimmed = strategy.trim();
+                  if (trimmed && trimmed !== (r.mitigation_strategy ?? "")) {
+                    await updateRisk.mutateAsync({
+                      id: r.id,
+                      updates: { mitigation_strategy: trimmed },
+                    });
+                  }
+                  await markMitigated.mutateAsync({ id: r.id, isMitigated: true });
+                }}
               />
             ))}
           </div>
