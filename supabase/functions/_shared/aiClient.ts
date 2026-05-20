@@ -27,6 +27,7 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "generate-preset": { provider: "lovable", model: "openai/gpt-5", maxTokens: 8000 },
   "draft-clarification-request": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 4000 },
   "reconcile-solicitation-overview": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 4000 },
+  "suggest-risk-mitigation": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 2000 },
 };
 
 export interface OpenAIToolSchema {

@@ -1,15 +1,42 @@
+import { useState } from "react";
 import { format } from "date-fns";
-import { CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Pencil,
+  Trash2,
+  Sparkles,
+  Loader2,
+  MessageCircleQuestion,
+  ChevronDown,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 import {
   SEVERITY_BADGE,
   SEVERITY_LABEL,
   type RiskSeverity,
 } from "@/features/risks/utils/riskHelpers";
-import type { RiskRow } from "@/features/risks/hooks/useRisks";
+import { useUpdateRisk, type RiskRow } from "@/features/risks/hooks/useRisks";
+import {
+  useSuggestRiskMitigation,
+  type SuggestedSource,
+} from "@/features/risks/hooks/useSuggestRiskMitigation";
+import { ConvertRiskToQuestionDialog } from "@/features/risks/components/ConvertRiskToQuestionDialog";
 
 interface RiskCardProps {
   risk: RiskRow;
@@ -20,6 +47,45 @@ interface RiskCardProps {
 
 export function RiskCard({ risk, onToggleMitigated, onEdit, onDelete }: RiskCardProps) {
   const sev = (risk.severity ?? "medium") as RiskSeverity;
+  const saved = risk.mitigation_strategy ?? "";
+  const [strategy, setStrategy] = useState(saved);
+  const [aiSuggested, setAiSuggested] = useState(false);
+  const [sources, setSources] = useState<SuggestedSource[]>([]);
+  const [convertOpen, setConvertOpen] = useState(false);
+  const suggest = useSuggestRiskMitigation();
+  const updateRisk = useUpdateRisk(risk.solicitation_id);
+  const hasSaved = saved.trim().length > 0;
+  const hasUnsaved = strategy !== saved;
+
+  const handleSuggest = async () => {
+    if (strategy.trim().length > 0) {
+      const confirmed = window.confirm("Replace current mitigation notes with an AI suggestion?");
+      if (!confirmed) return;
+    }
+    try {
+      const result = await suggest.mutateAsync(risk.id);
+      setStrategy(result.mitigation_strategy);
+      setAiSuggested(true);
+      setSources(result.used_sources ?? []);
+      toast({
+        title: "Mitigation drafted",
+        description: result.knowledge_count
+          ? `Used ${result.knowledge_count} client knowledge source${result.knowledge_count === 1 ? "" : "s"}. Review and save.`
+          : "No client knowledge matched — review carefully before saving.",
+      });
+    } catch (e) {
+      toast({
+        title: "Suggestion failed",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSave = () => {
+    updateRisk.mutate({ id: risk.id, updates: { mitigation_strategy: strategy } });
+  };
+
   return (
     <Card>
       <CardContent className="p-5 space-y-3">
@@ -31,6 +97,11 @@ export function RiskCard({ risk, onToggleMitigated, onEdit, onDelete }: RiskCard
               </Badge>
               {!risk.is_ai_generated && (
                 <Badge variant="outline" className="text-[10px]">Manual</Badge>
+              )}
+              {aiSuggested && (
+                <Badge variant="outline" className="text-[10px] gap-1">
+                  <Sparkles className="h-3 w-3" /> AI suggested
+                </Badge>
               )}
             </div>
             <h3 className="font-semibold leading-snug">{risk.title}</h3>
@@ -63,8 +134,8 @@ export function RiskCard({ risk, onToggleMitigated, onEdit, onDelete }: RiskCard
           </blockquote>
         )}
 
-        <div className="rounded-md border bg-muted/30 p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground mb-1">
+        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Mitigation
           </p>
           {risk.is_mitigated ? (
@@ -91,19 +162,85 @@ export function RiskCard({ risk, onToggleMitigated, onEdit, onDelete }: RiskCard
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-sm">
-                {risk.mitigation_strategy ?? (
-                  <span className="text-muted-foreground italic">No strategy yet.</span>
-                )}
-              </p>
-              {onToggleMitigated && (
-                <Button size="sm" onClick={() => onToggleMitigated(risk.id, true)}>
-                  <CheckCircle2 className="h-4 w-4 mr-2" /> Mark mitigated
-                </Button>
+              <Textarea
+                rows={3}
+                value={strategy}
+                onChange={(e) => {
+                  setStrategy(e.target.value);
+                  if (aiSuggested) setAiSuggested(false);
+                }}
+                placeholder="Mitigation notes…"
+              />
+
+              {sources.length > 0 && (
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                      <ChevronDown className="h-3 w-3 mr-1" />
+                      Sources used ({sources.length})
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-1 pl-2 pt-1">
+                    {sources.map((s, i) => (
+                      <div key={i} className="text-xs">
+                        <span className="font-medium">[{s.tag}] {s.document_title}</span>
+                        {s.snippet && (
+                          <p className="text-muted-foreground line-clamp-2">{s.snippet}</p>
+                        )}
+                      </div>
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
               )}
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={handleSuggest} disabled={suggest.isPending}>
+                  {suggest.isPending
+                    ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    : <Sparkles className="h-4 w-4 mr-2" />}
+                  {strategy.trim() ? "Suggest again" : "Suggest mitigation"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setConvertOpen(true)}>
+                  <MessageCircleQuestion className="h-4 w-4 mr-2" /> Ask the agency
+                </Button>
+                <Button size="sm" variant="outline" onClick={handleSave} disabled={!hasUnsaved}>
+                  Save notes
+                </Button>
+                {onToggleMitigated && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button
+                            size="sm"
+                            onClick={() => onToggleMitigated(risk.id, true)}
+                            disabled={!hasSaved || hasUnsaved}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-2" /> Mark mitigated
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {(!hasSaved || hasUnsaved) && (
+                        <TooltipContent>
+                          {!hasSaved
+                            ? "Add and save mitigation notes before marking mitigated."
+                            : "Save your changes first."}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
             </div>
           )}
         </div>
+
+        <ConvertRiskToQuestionDialog
+          open={convertOpen}
+          onOpenChange={setConvertOpen}
+          risk={risk}
+          solicitationId={risk.solicitation_id}
+        />
       </CardContent>
     </Card>
   );
