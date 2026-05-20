@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { CheckCircle2, Sparkles, Loader2, MessageCircleQuestion, ChevronDown } from "lucide-react";
+import { CheckCircle2, Sparkles, Loader2, MessageCircleQuestion, ChevronDown, Check } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -77,7 +77,16 @@ export function RiskMitigationTracker({ solicitationId, risks }: Props) {
                 onSaveStrategy={(strategy) =>
                   updateRisk.mutate({ id: r.id, updates: { mitigation_strategy: strategy } })
                 }
-                onMarkMitigated={() => markMitigated.mutate({ id: r.id, isMitigated: true })}
+                onMarkMitigated={async (strategy) => {
+                  const trimmed = strategy.trim();
+                  if (trimmed && trimmed !== (r.mitigation_strategy ?? "")) {
+                    await updateRisk.mutateAsync({
+                      id: r.id,
+                      updates: { mitigation_strategy: trimmed },
+                    });
+                  }
+                  await markMitigated.mutateAsync({ id: r.id, isMitigated: true });
+                }}
               />
             ))}
           </div>
@@ -96,7 +105,7 @@ function UnmitigatedRow({
   risk: RiskRow;
   solicitationId: string;
   onSaveStrategy: (s: string) => void;
-  onMarkMitigated: () => void;
+  onMarkMitigated: (s: string) => void | Promise<void>;
 }) {
   const saved = risk.mitigation_strategy ?? "";
   const [strategy, setStrategy] = useState(saved);
@@ -106,7 +115,6 @@ function UnmitigatedRow({
   const suggest = useSuggestRiskMitigation();
   const sev = (risk.severity ?? "medium") as RiskSeverity;
 
-  const hasSaved = saved.trim().length > 0;
   const hasUnsaved = strategy !== saved;
 
   const handleSuggest = async () => {
@@ -183,23 +191,25 @@ function UnmitigatedRow({
         </Collapsible>
       )}
 
-      {hasUnsaved && hasSaved && (
-        <p className="text-xs text-muted-foreground italic">
-          Save notes first, then mark mitigated.
-        </p>
-      )}
-
       <div className="flex justify-end gap-2 flex-wrap">
         <Button
           size="sm"
-          variant="outline"
+          variant={aiSuggested ? "secondary" : "outline"}
           onClick={handleSuggest}
-          disabled={suggest.isPending}
+          disabled={suggest.isPending || aiSuggested}
         >
-          {suggest.isPending
-            ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            : <Sparkles className="h-4 w-4 mr-2" />}
-          {strategy.trim() ? "Suggest again" : "Suggest mitigation"}
+          {suggest.isPending ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : aiSuggested ? (
+            <Check className="h-4 w-4 mr-2" />
+          ) : (
+            <Sparkles className="h-4 w-4 mr-2" />
+          )}
+          {aiSuggested
+            ? "Suggestion applied"
+            : strategy.trim()
+              ? "Suggest again"
+              : "Suggest mitigation"}
         </Button>
         <Button
           size="sm"
@@ -222,18 +232,16 @@ function UnmitigatedRow({
               <span>
                 <Button
                   size="sm"
-                  onClick={onMarkMitigated}
-                  disabled={!hasSaved || hasUnsaved}
+                  onClick={() => onMarkMitigated(strategy)}
+                  disabled={strategy.trim().length === 0}
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" /> Mark mitigated
                 </Button>
               </span>
             </TooltipTrigger>
-            {(!hasSaved || hasUnsaved) && (
+            {strategy.trim().length === 0 && (
               <TooltipContent>
-                {!hasSaved
-                  ? "Add and save mitigation notes before marking mitigated."
-                  : "Save your changes first."}
+                Add mitigation notes before marking mitigated.
               </TooltipContent>
             )}
           </Tooltip>
