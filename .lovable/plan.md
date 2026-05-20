@@ -1,47 +1,36 @@
-# Why your risks disappeared
+# Fix "Mark mitigated" and "Suggest again" UX
 
-When you clicked "Identify risks & opportunities" with existing items present, the function ran in **regenerate** mode. That path:
+## What's wrong
 
-1. **Deleted** all AI-generated risks and opportunities for this solicitation up front.
-2. Called the AI (currently overridden to `anthropic/claude-haiku-4-5` with `max_tokens=8192`).
-3. The model hit the token ceiling mid-response (`stop_reason=max_tokens` in the logs), so the structured tool output came back truncated/empty.
-4. The function happily inserted **0 rows** and returned `success: true`.
+In `RiskMitigationTracker.tsx > UnmitigatedRow`:
 
-Net result: old AI risks gone, no new ones written. Database now shows 0 risks for this solicitation. Manual risks would have survived, but you had none.
+1. **"Mark mitigated" does nothing.** The button is `disabled={!hasSaved || hasUnsaved}`. After clicking "Suggest mitigation", the textarea is populated but `saved` (DB value) is still empty, so `hasUnsaved = true` and the button is disabled. Clicking the disabled button is silent — the tooltip only appears on hover, so it feels like "nothing happens".
+
+2. **"Suggest again" gives no clear used-state.** After a suggestion completes, the only signal is a small "AI suggested" badge near the severity chip. The button itself looks identical to before, so users can't tell it already ran and may click again by mistake.
 
 ## Fix
 
-Three changes, smallest blast radius first:
+### 1. Make "Mark mitigated" always actionable when there is text
 
-### 1. Stop deleting before we know the AI succeeded (`identify-risks-opportunities/index.ts`)
+- Drop the `hasUnsaved` half of the disabled rule. Keep it disabled only when the textarea is empty (`strategy.trim().length === 0`).
+- On click, if there are unsaved edits, save the strategy first, then mark mitigated (single user click = save + mitigate).
+- Update the tooltip to only show when the textarea is empty: "Add mitigation notes before marking mitigated."
+- Remove the now-stale "Save notes first, then mark mitigated." helper line.
 
-Reorder regenerate so we only wipe the old AI rows **after** we have a non-empty parsed result. If the AI call fails or returns zero items, existing data stays intact.
+### 2. Make "Suggest again" visibly used
 
-```text
-old flow:  delete AI rows -> call AI -> insert (maybe 0)
-new flow:  call AI -> validate non-empty -> delete AI rows -> insert
-```
+- After a successful suggestion, while the textarea still matches the AI output (i.e. `aiSuggested === true` and user hasn't edited), change the button to a clear "used" state:
+  - Label: "Suggestion applied" with a `Check` icon
+  - Style: `variant="secondary"` (filled, distinct from the other outline buttons)
+  - `disabled={true}` so a second click is impossible without intent
+- As soon as the user edits the textarea (already flips `aiSuggested` to false) or clicks "Save notes", the button returns to "Suggest again" and is clickable.
+- Keep the existing confirm dialog for re-suggesting over edited content.
 
-Also treat an empty `risks` + empty `opportunities` response as an error (throw), so the UI shows a toast instead of silently nuking the list.
+## Files
 
-### 2. Surface truncated AI responses (`_shared/aiClient.ts`)
-
-In the Anthropic branch, when `stop_reason === "max_tokens"` throw an `AiHttpError` instead of returning the partial tool input. Same idea for the Lovable branch when `finish_reason === "length"`. This prevents future "silent zero-row" regenerations across every function that uses this client.
-
-### 3. Raise the token budget for this function
-
-The current DB override (`claude-haiku-4-5`, 8192 tokens) is too tight for 5-12 risks + 5-12 opportunities with quotes and citations. Options:
-
-- **A (recommended):** keep Haiku, bump `max_tokens` to 16000 via the AI Models settings tab.
-- **B:** switch the override back to `google/gemini-2.5-pro` at 12000 tokens (the code default) — slower but roomier and matches the original tuning.
-
-I will not change `ai_model_settings` from code; that's a user-owned setting. I'll flag it in the toast/error message instead.
-
-## After the fix
-
-You'll need to click "Identify risks & opportunities" once more to repopulate the list. With the new safeguards, if the AI runs out of room again you'll get an error toast and your existing risks will remain.
+- `src/features/analysis/components/RiskMitigationTracker.tsx` — only file touched.
 
 ## Out of scope
 
-- Restoring the previously-deleted AI risks (they weren't snapshotted).
-- Changing the opportunities pipeline beyond the shared safeguards above.
+- Edge function / token-limit work (already addressed).
+- Other risk list views.
