@@ -1,16 +1,61 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompileProposal, useProposalPackages, downloadPackage } from "../hooks/useProposalDrafts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Download, Loader2, Package, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useFormatProfiles } from "@/features/formatProfiles/hooks/useFormatProfiles";
 
 interface Props { solicitationId: string }
 
+const NONE = "__org_default__";
+
+function useSolicitationFormatProfile(solicitationId: string) {
+  return useQuery({
+    queryKey: ["sol-format-profile", solicitationId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("solicitations")
+        .select("format_profile_id")
+        .eq("id", solicitationId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.format_profile_id ?? null;
+    },
+  });
+}
+
+function useSetSolicitationFormatProfile(solicitationId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string | null) => {
+      const { error } = await supabase
+        .from("solicitations")
+        .update({ format_profile_id: id })
+        .eq("id", solicitationId);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["sol-format-profile", solicitationId] }),
+  });
+}
+
 export function CompilePanel({ solicitationId }: Props) {
   const { data: packages = [] } = useProposalPackages(solicitationId);
+  const { data: profiles = [] } = useFormatProfiles();
+  const { data: selectedProfileId } = useSolicitationFormatProfile(solicitationId);
+  const setProfile = useSetSolicitationFormatProfile(solicitationId);
   const compile = useCompileProposal(solicitationId);
+
+  const defaultFederal = profiles.find((p) => p.is_default && p.vertical === "federal");
+  const effectiveProfile = selectedProfileId
+    ? profiles.find((p) => p.id === selectedProfileId)
+    : defaultFederal;
 
   const onCompile = async () => {
     try {
@@ -21,9 +66,17 @@ export function CompilePanel({ solicitationId }: Props) {
     }
   };
 
+  const onProfileChange = (value: string) => {
+    const id = value === NONE ? null : value;
+    setProfile.mutate(id, {
+      onSuccess: () => toast.success(id ? "Format profile updated" : "Reset to org default"),
+      onError: (e: Error) => toast.error(e.message),
+    });
+  };
+
   return (
     <div className="space-y-4">
-      <Card className="p-4">
+      <Card className="p-4 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <div className="text-sm font-semibold">Proposal Compiler</div>
@@ -36,7 +89,36 @@ export function CompilePanel({ solicitationId }: Props) {
             Compile Proposal
           </Button>
         </div>
+
+        <div className="grid sm:grid-cols-[1fr_auto] gap-3 items-end border-t pt-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Format profile</Label>
+            <Select value={selectedProfileId ?? NONE} onValueChange={onProfileChange} disabled={setProfile.isPending}>
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Org default" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>
+                  Org default{defaultFederal ? ` — ${defaultFederal.name}` : ""}
+                </SelectItem>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name} <span className="text-muted-foreground">· {p.vertical}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {effectiveProfile && (
+            <div className="text-xs text-muted-foreground sm:text-right">
+              <div>{effectiveProfile.font} · {effectiveProfile.size_pt}pt · {effectiveProfile.margins_in}" margins</div>
+              <div>Line spacing {effectiveProfile.line_spacing}x</div>
+            </div>
+          )}
+        </div>
       </Card>
+
+
 
       <Card className="p-4">
         <div className="text-sm font-semibold mb-3">Compiled packages</div>
