@@ -90,6 +90,7 @@ export default function PortalSolicitationDetail() {
           {hasFullAccess && <TabsTrigger value="analysis">Analysis</TabsTrigger>}
           {hasFullAccess && <TabsTrigger value="questions">Questions</TabsTrigger>}
           {hasFullAccess && <TabsTrigger value="risks">Risks</TabsTrigger>}
+          {hasFullAccess && <TabsTrigger value="gaps">Gaps</TabsTrigger>}
           {hasFullAccess && <TabsTrigger value="annotations">Annotations</TabsTrigger>}
         </TabsList>
 
