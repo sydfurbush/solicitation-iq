@@ -54,6 +54,7 @@ export default function Settings() {
         <TabsContent value="notifications" className="mt-6"><NotificationsTab /></TabsContent>
         {isAdmin && <TabsContent value="ai-models" className="mt-6"><AIModelsTab /></TabsContent>}
         {isAdmin && <TabsContent value="presets" className="mt-6"><PresetsTab /></TabsContent>}
+        {isAdmin && <TabsContent value="format-profiles" className="mt-6"><FormatProfilesTab /></TabsContent>}
         <TabsContent value="integrations" className="mt-6"><IntegrationsTab /></TabsContent>
         <TabsContent value="help" className="mt-6"><HelpTab /></TabsContent>
         <TabsContent value="billing" className="mt-6"><PlaceholderTab title="Billing" body="Subscription and billing details will appear here." /></TabsContent>
