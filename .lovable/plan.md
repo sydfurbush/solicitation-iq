@@ -1,36 +1,33 @@
-# Fix "Mark mitigated" and "Suggest again" UX
+# Recalibrate the Competitive Position win indicator
 
-## What's wrong
+## Why
 
-In `RiskMitigationTracker.tsx > UnmitigatedRow`:
+The current formula sums every opportunity's `impact_score` (0–100 scale) and divides by 6, so a handful of opportunities pegs the score to 100% — especially right now, when the unmitigated-risk side is empty. It shows "100% win probability" even with no real basis.
 
-1. **"Mark mitigated" does nothing.** The button is `disabled={!hasSaved || hasUnsaved}`. After clicking "Suggest mitigation", the textarea is populated but `saved` (DB value) is still empty, so `hasUnsaved = true` and the button is disabled. Clicking the disabled button is silent — the tooltip only appears on hover, so it feels like "nothing happens".
+## New formula
 
-2. **"Suggest again" gives no clear used-state.** After a suggestion completes, the only signal is a small "AI suggested" badge near the severity chip. The button itself looks identical to before, so users can't tell it already ran and may click again by mistake.
+In `src/features/analysis/components/CompetitivePositionSummary.tsx`:
 
-## Fix
+1. **Guard against missing data.** If there are no opportunities AND no risks at all (mitigated or not), don't show a number — render "—" with the helper text "Identify risks & opportunities to see a position estimate." This prevents a misleading 100% when the AI hasn't run successfully yet.
 
-### 1. Make "Mark mitigated" always actionable when there is text
+2. **Use averages, not sums.**
+   - `oppLift` = average `impact_score` of opportunities on a 0–100 scale (0 if none). Treat this as the upside baseline.
+   - `riskDrag` = sum of severity weights of unmitigated risks, capped at 60 so a long tail of low/medium risks can't fully zero the score. Severity weights unchanged: critical 25, high 15, medium 8, low 3, informational 1.
+   - `score = clamp(0, 100, round(oppLift − riskDrag))`.
 
-- Drop the `hasUnsaved` half of the disabled rule. Keep it disabled only when the textarea is empty (`strategy.trim().length === 0`).
-- On click, if there are unsaved edits, save the strategy first, then mark mitigated (single user click = save + mitigate).
-- Update the tooltip to only show when the textarea is empty: "Add mitigation notes before marking mitigated."
-- Remove the now-stale "Save notes first, then mark mitigated." helper line.
+3. **Update the helper line** under the bar to: "Estimate combines average opportunity impact with unmitigated risk severity. Not a forecast."
 
-### 2. Make "Suggest again" visibly used
-
-- After a successful suggestion, while the textarea still matches the AI output (i.e. `aiSuggested === true` and user hasn't edited), change the button to a clear "used" state:
-  - Label: "Suggestion applied" with a `Check` icon
-  - Style: `variant="secondary"` (filled, distinct from the other outline buttons)
-  - `disabled={true}` so a second click is impossible without intent
-- As soon as the user edits the textarea (already flips `aiSuggested` to false) or clicks "Save notes", the button returns to "Suggest again" and is clickable.
-- Keep the existing confirm dialog for re-suggesting over edited content.
+4. **Adjust the positioning copy thresholds** to match the new distribution (most real solicitations will land 30–70):
+   - `>= 65` aggressive
+   - `>= 45` lean in
+   - `< 30` reassess pursuit
+   - otherwise balanced posture
 
 ## Files
 
-- `src/features/analysis/components/RiskMitigationTracker.tsx` — only file touched.
+- `src/features/analysis/components/CompetitivePositionSummary.tsx` — only file changed.
 
 ## Out of scope
 
-- Edge function / token-limit work (already addressed).
-- Other risk list views.
+- Persisting the score, changing the underlying risk/opportunity data model, or exposing the formula in settings.
+- The earlier edge-function token-limit work.
