@@ -223,11 +223,17 @@ export function useDeleteSolicitation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("solicitations")
         .update({ deleted_at: new Date().toISOString() })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "You don't have permission to delete this solicitation, or it no longer exists."
+        );
+      }
       return id;
     },
     onSuccess: () => {
@@ -240,11 +246,17 @@ export function useRestoreSolicitation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("solicitations")
         .update({ deleted_at: null })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "You don't have permission to restore this solicitation, or it no longer exists."
+        );
+      }
       return id;
     },
     onSuccess: () => {
