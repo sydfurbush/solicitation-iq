@@ -2,7 +2,7 @@ export const EXECUTIVE_SUMMARY_PROMPT = `Generate a professional executive summa
 
 1. Executive Overview — 1 paragraph: what is this opportunity, why it matters, our overall assessment.
 2. Opportunity Snapshot — bullets: agency, solicitation #, contract type, value range, key dates, incumbent status.
-3. Strategic Assessment — top 3 opportunities, top 3 risks, competitive positioning summary (3 short paragraphs).
+3. Strategic Assessment — top 3 opportunities, top 3 risks (append "(Mitigated)" to any risk title where is_mitigated is true), competitive positioning summary (3 short paragraphs).
 4. Recommendation — go/no-go with rationale, key success factors, immediate next steps as a numbered list.
 
 Crisp, executive language. Use markdown formatting (bullets, bold). Cite supporting source material inline as [Doc Name §Section p.X] when referencing specific requirements.`;
