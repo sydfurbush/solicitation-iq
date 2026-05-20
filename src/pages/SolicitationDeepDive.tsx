@@ -239,6 +239,7 @@ function GapsList({
 }) {
   const { data: gaps = [], isLoading } = useCapabilityGaps(solicitationId);
   const update = useUpdateGap(solicitationId);
+  const { user } = useUser();
   const critical = gaps.filter((g) => g.severity === "critical" && !g.is_resolved);
   const lastGapsAt = gaps.reduce<string | null>((acc, g) => {
     const t = g.updated_at ?? g.created_at ?? null;
@@ -251,6 +252,34 @@ function GapsList({
       toast({ title: "Gaps analyzed", description: `${r.inserted} gaps identified` });
     } catch (e) {
       toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
+
+  const sendToClient = async (id: string) => {
+    try {
+      await update.mutateAsync({
+        id,
+        patch: {
+          sent_to_client: true,
+          sent_to_client_at: new Date().toISOString(),
+          sent_to_client_by: user?.id ?? null,
+        } as any,
+      });
+      toast({ title: "Sent to client", description: "Client can confirm or respond from their portal." });
+    } catch (e) {
+      toast({ title: "Could not send", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    }
+  };
+
+  const recall = async (id: string) => {
+    try {
+      await update.mutateAsync({
+        id,
+        patch: { sent_to_client: false, sent_to_client_at: null, sent_to_client_by: null } as any,
+      });
+      toast({ title: "Recalled from client" });
+    } catch (e) {
+      toast({ title: "Could not recall", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
   };
 
@@ -297,29 +326,77 @@ function GapsList({
           {isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> :
             gaps.length === 0 ? <p className="text-sm text-muted-foreground">No gaps identified yet. {hasRequirements ? "Click \"Generate gaps\" to compare requirements against client capabilities." : "Extract the RTM to enable gap analysis."}</p> :
             <ul className="space-y-3">
-              {gaps.map((g) => (
-                <li key={g.id} className="border rounded-md p-3">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <Badge className={SEV_COLOR[g.severity] ?? ""} variant="outline">{g.severity}</Badge>
-                    <Badge variant="secondary" className="capitalize">{g.gap_type.replace("_", " ")}</Badge>
-                    {g.recommendation && <Badge variant="outline" className="capitalize">{g.recommendation.replace("_", " ")}</Badge>}
-                    <span className="font-medium text-sm">{g.title}</span>
-                  </div>
-                  {g.description && <p className="text-xs text-muted-foreground">{g.description}</p>}
-                  {g.client_note && <p className="text-xs text-muted-foreground mt-1 italic">{g.client_note}</p>}
-                  <div className="mt-2">
-                    <label className="text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        defaultChecked={g.is_resolved}
-                        onChange={(e) => update.mutate({ id: g.id, patch: { is_resolved: e.target.checked } })}
-                        className="mr-1"
-                      />
-                      Resolved
-                    </label>
-                  </div>
-                </li>
-              ))}
+              {gaps.map((g) => {
+                const sent = (g as any).sent_to_client === true;
+                const sentAt = (g as any).sent_to_client_at as string | null;
+                const respondedAt = (g as any).client_responded_at as string | null;
+                const clientResponse = (g as any).client_response as string | null;
+                const clientConfirmed = (g as any).client_confirmed as boolean | null;
+                return (
+                  <li key={g.id} className="border rounded-md p-3">
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <Badge className={SEV_COLOR[g.severity] ?? ""} variant="outline">{g.severity}</Badge>
+                      <Badge variant="secondary" className="capitalize">{g.gap_type.replace("_", " ")}</Badge>
+                      {g.recommendation && <Badge variant="outline" className="capitalize">{g.recommendation.replace("_", " ")}</Badge>}
+                      {sent && (
+                        <Badge variant="outline" className="text-[10px] gap-1 border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300">
+                          <Send className="h-3 w-3" /> Sent to client{sentAt ? ` ${formatDistanceToNow(new Date(sentAt), { addSuffix: true })}` : ""}
+                        </Badge>
+                      )}
+                      <span className="font-medium text-sm">{g.title}</span>
+                    </div>
+                    {g.description && <p className="text-xs text-muted-foreground">{g.description}</p>}
+                    {g.client_note && <p className="text-xs text-muted-foreground mt-1 italic">{g.client_note}</p>}
+
+                    {sent && (clientResponse || clientConfirmed !== null) && (
+                      <div className="mt-2 rounded border bg-muted/40 p-2 space-y-1">
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          {clientConfirmed === true && (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+                              <CheckCircle2 className="h-3 w-3" /> Client: we have this capability
+                            </span>
+                          )}
+                          {clientConfirmed === false && (
+                            <span className="inline-flex items-center gap-1 text-destructive">
+                              <XCircle className="h-3 w-3" /> Client: real gap
+                            </span>
+                          )}
+                          {clientConfirmed === null && (
+                            <span className="inline-flex items-center gap-1 text-muted-foreground">
+                              <HelpCircle className="h-3 w-3" /> Client: not sure
+                            </span>
+                          )}
+                          {respondedAt && (
+                            <span className="text-muted-foreground">· {formatDistanceToNow(new Date(respondedAt), { addSuffix: true })}</span>
+                          )}
+                        </div>
+                        {clientResponse && <p className="text-xs whitespace-pre-wrap">{clientResponse}</p>}
+                      </div>
+                    )}
+
+                    <div className="mt-2 flex items-center gap-3 flex-wrap">
+                      <label className="text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          defaultChecked={g.is_resolved}
+                          onChange={(e) => update.mutate({ id: g.id, patch: { is_resolved: e.target.checked } })}
+                          className="mr-1"
+                        />
+                        Resolved
+                      </label>
+                      {sent ? (
+                        <Button size="sm" variant="ghost" onClick={() => recall(g.id)} disabled={update.isPending}>
+                          <RotateCcw className="h-3 w-3 mr-1" /> Recall
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => sendToClient(g.id)} disabled={update.isPending}>
+                          <Send className="h-3 w-3 mr-1" /> Send to client
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           }
         </CardContent>
