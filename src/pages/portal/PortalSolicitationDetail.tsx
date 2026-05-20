@@ -13,6 +13,7 @@ import { ClientReportViewer } from "@/features/portal/components/ClientReportVie
 import { ClientQuestionTriage } from "@/features/portal/components/ClientQuestionTriage";
 import { ClientClarificationPackage } from "@/features/portal/components/ClientClarificationPackage";
 import { ClientRiskTracker } from "@/features/portal/components/ClientRiskTracker";
+import { ClientGapTracker } from "@/features/portal/components/ClientGapTracker";
 import { usePhaseApprovals, APPROVAL_LABEL, type PhaseApproval } from "@/features/phases/hooks/usePhaseApprovals";
 import { PhaseApprovalStrip } from "@/features/phases/components/PhaseApprovalStrip";
 import { ApprovalActionBanner } from "@/features/phases/components/ApprovalActionBanner";
