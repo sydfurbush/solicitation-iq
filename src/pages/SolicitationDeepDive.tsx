@@ -20,6 +20,7 @@ import { ExportHistoryButton } from "@/features/exports/components/ExportHistory
 import type { ExportDocument, ExportSection } from "@/features/exports/lib/exporters";
 import { PhaseHelpPanel } from "@/features/solicitations/components/PhaseHelpPanel";
 import { ClientLensBadge } from "@/features/clients/components/ClientLensBadge";
+import { TeamingTab } from "@/features/teaming/components/TeamingTab";
 
 const SEV_COLOR: Record<string, string> = {
   critical: "bg-destructive/15 text-destructive border-destructive/30",
@@ -128,6 +129,7 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
             <TabsTrigger value="rtm">Requirements (RTM)</TabsTrigger>
             <TabsTrigger value="sections">Section analysis</TabsTrigger>
             <TabsTrigger value="gaps">Gaps</TabsTrigger>
+            <TabsTrigger value="teaming">Teaming</TabsTrigger>
           </TabsList>
           <PhaseHelpPanel phase="phase_2_deep_dive" />
         </div>
@@ -142,6 +144,9 @@ export default function DeepDiveTab({ solicitationId, clientId, currentPhase, so
             hasRequirements={hasRequirements}
             externalAnalyze={analyzeGaps}
           />
+        </TabsContent>
+        <TabsContent value="teaming" className="mt-4">
+          <TeamingTab solicitationId={solicitationId} />
         </TabsContent>
       </Tabs>
       {currentPhase === "phase_2_deep_dive" && (
