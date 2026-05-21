@@ -20,7 +20,7 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "extract-requirements": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 8000 },
   "analyze-sections": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
   "analyze-gaps": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 12000 },
-  "generate-outline": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
+  "generate-outline": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
   "generate-win-themes": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 6000 },
   "draft-section": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8000 },
   "polish-section": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 6000 },
