@@ -42,12 +42,12 @@ export function useCreateFinalFromPreSol() {
 
       // 3. Auto-link as prior solicitation so comparison flows work
       await supabase.from("prior_solicitations").insert({
-        solicitation_id: newId,
+        solicitation_id: newId as string,
         prior_solicitation_id: input.sourceSolicitationId,
         external_reference: "Pre-Solicitation baseline",
       });
 
-      return newId;
+      return newId as string;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["solicitations"] });
