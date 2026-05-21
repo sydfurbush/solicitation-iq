@@ -27,28 +27,27 @@ export function useCreateFinalFromPreSol() {
         await snapshotSolicitation(input.sourceSolicitationId, input.snapshotLabel ?? null);
       }
 
-      // 2. Clone via RPC
-      const rpc = supabase.rpc as unknown as (
-        fn: string,
-        args: Record<string, unknown>
-      ) => Promise<{ data: string | null; error: { message: string } | null }>;
-      const { data: newId, error } = await rpc("clone_solicitation_for_stage", {
-        p_source_id: input.sourceSolicitationId,
-        p_new_stage: input.newStage,
-        p_stage_label: input.stageLabel ?? null,
-        p_new_title: input.newTitle ?? null,
-      });
+      // 2. Clone via RPC — call as a method so `this` stays bound to the supabase client
+      const { data: newId, error } = await supabase.rpc(
+        "clone_solicitation_for_stage" as never,
+        {
+          p_source_id: input.sourceSolicitationId,
+          p_new_stage: input.newStage,
+          p_stage_label: input.stageLabel ?? null,
+          p_new_title: input.newTitle ?? null,
+        } as never,
+      );
       if (error) throw new Error(error.message);
       if (!newId) throw new Error("Clone failed");
 
       // 3. Auto-link as prior solicitation so comparison flows work
       await supabase.from("prior_solicitations").insert({
-        solicitation_id: newId,
+        solicitation_id: newId as string,
         prior_solicitation_id: input.sourceSolicitationId,
         external_reference: "Pre-Solicitation baseline",
       });
 
-      return newId;
+      return newId as string;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["solicitations"] });
