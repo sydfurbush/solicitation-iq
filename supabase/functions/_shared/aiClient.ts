@@ -17,7 +17,7 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "generate-report": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
   "compare-solicitations": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "extract-entities": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
-  "extract-requirements": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 24000 },
+  "extract-requirements": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 16000 },
   "analyze-sections": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
   "analyze-gaps": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 12000 },
   "generate-outline": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
