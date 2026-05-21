@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { getTeamingPromptBlock } from "../_shared/teaming.ts";
 import { buildClientLens } from "../_shared/clientLens.ts";
 
 const corsHeaders = {
@@ -202,6 +203,7 @@ ${includedSummaries.join("\n\n")}${omittedTitles.length ? `\n\nOther earlier sec
       `[K${i + 1}] ${c.title ?? "Excerpt"}: ${c.snippet ?? ""}`
     ).join("\n") || "(no knowledge excerpts)";
 
+    const teamingBlock = await getTeamingPromptBlock(solicitationId);
     const userPrompt = `Solicitation: ${sol?.title ?? "Unknown"}
 Section: ${node.section_number ? node.section_number + " " : ""}${node.title}
 Volume: ${node.volume ?? "—"}
@@ -222,7 +224,7 @@ ${themeText}
 KNOWN GAPS (address with mitigation)
 ${gapText}
 
-CLIENT KNOWLEDGE EXCERPTS (cite as [K#])
+${teamingBlock ? teamingBlock + "\n\n" : ""}CLIENT KNOWLEDGE EXCERPTS (cite as [K#])
 ${knowledgeText}
 
 ${lens.promptBlock}

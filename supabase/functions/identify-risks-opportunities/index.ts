@@ -6,6 +6,7 @@ const corsHeaders = {
 };
 
 import { aiErrorResponse, callAiTool } from "../_shared/aiClient.ts";
+import { getTeamingPromptBlock } from "../_shared/teaming.ts";
 import { buildClientLens } from "../_shared/clientLens.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -178,7 +179,8 @@ Deno.serve(async (req) => {
     const summaryText = sol?.ai_summary ? `\n\nEXISTING ANALYSIS SUMMARY:\n${sol.ai_summary}` : "";
     const incumbentText = sol?.has_incumbent ? `\n\nINCUMBENT: ${sol.incumbent_name ?? "(unknown)"}` : "";
 
-    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}${incumbentText}\n\n${docBlocks}`;
+    const teamingBlock = await getTeamingPromptBlock(solicitationId);
+    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}${incumbentText}\n\n${teamingBlock ? teamingBlock + "\n\n" : ""}${docBlocks}`;
 
     console.log(`[identify-risks-opportunities] sol=${solicitationId} docs=${documents.length} regenerate=${!!regenerate}`);
 

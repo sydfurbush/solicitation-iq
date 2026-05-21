@@ -2915,6 +2915,119 @@ export type Database = {
           },
         ]
       }
+      solicitation_teaming_attachments: {
+        Row: {
+          byte_size: number | null
+          created_at: string
+          file_name: string
+          file_path: string
+          id: string
+          mime_type: string | null
+          partner_id: string
+          solicitation_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          byte_size?: number | null
+          created_at?: string
+          file_name: string
+          file_path: string
+          id?: string
+          mime_type?: string | null
+          partner_id: string
+          solicitation_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          byte_size?: number | null
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          id?: string
+          mime_type?: string | null
+          partner_id?: string
+          solicitation_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitation_teaming_attachments_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "solicitation_teaming_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      solicitation_teaming_partners: {
+        Row: {
+          agreement_status: Database["public"]["Enums"]["teaming_agreement_status"]
+          clearance_level: string | null
+          cleared_staff_count: number | null
+          created_at: string
+          created_by: string | null
+          id: string
+          linked_client_id: string | null
+          naics_codes: string[]
+          name: string
+          notes: string | null
+          poc_email: string | null
+          poc_name: string | null
+          poc_phone: string | null
+          role: Database["public"]["Enums"]["teaming_role"]
+          scope_summary: string | null
+          set_asides: string[]
+          solicitation_id: string
+          sort_order: number
+          updated_at: string
+          workshare_pct: number | null
+        }
+        Insert: {
+          agreement_status?: Database["public"]["Enums"]["teaming_agreement_status"]
+          clearance_level?: string | null
+          cleared_staff_count?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          linked_client_id?: string | null
+          naics_codes?: string[]
+          name: string
+          notes?: string | null
+          poc_email?: string | null
+          poc_name?: string | null
+          poc_phone?: string | null
+          role?: Database["public"]["Enums"]["teaming_role"]
+          scope_summary?: string | null
+          set_asides?: string[]
+          solicitation_id: string
+          sort_order?: number
+          updated_at?: string
+          workshare_pct?: number | null
+        }
+        Update: {
+          agreement_status?: Database["public"]["Enums"]["teaming_agreement_status"]
+          clearance_level?: string | null
+          cleared_staff_count?: number | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          linked_client_id?: string | null
+          naics_codes?: string[]
+          name?: string
+          notes?: string | null
+          poc_email?: string | null
+          poc_name?: string | null
+          poc_phone?: string | null
+          role?: Database["public"]["Enums"]["teaming_role"]
+          scope_summary?: string | null
+          set_asides?: string[]
+          solicitation_id?: string
+          sort_order?: number
+          updated_at?: string
+          workshare_pct?: number | null
+        }
+        Relationships: []
+      }
       solicitations: {
         Row: {
           agency_type: string | null
@@ -3540,6 +3653,8 @@ export type Database = {
         | "phase_4_active"
         | "complete"
         | "archived"
+      teaming_agreement_status: "none" | "nda" | "ta" | "loi" | "subcontract"
+      teaming_role: "prime" | "sub" | "teaming" | "mentor_protege"
       win_theme_status: "draft" | "approved" | "rejected"
       writing_status:
         | "not_started"
@@ -3779,6 +3894,8 @@ export const Constants = {
         "complete",
         "archived",
       ],
+      teaming_agreement_status: ["none", "nda", "ta", "loi", "subcontract"],
+      teaming_role: ["prime", "sub", "teaming", "mentor_protege"],
       win_theme_status: ["draft", "approved", "rejected"],
       writing_status: [
         "not_started",
