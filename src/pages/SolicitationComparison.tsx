@@ -103,7 +103,10 @@ export default function SolicitationComparison({ solicitationId }: { solicitatio
               onSelectRun={setSelectedRunId}
             />
             {viewingHistorical && (
-              <Badge variant="secondary">Viewing archived run #{selectedRun!.run_number}</Badge>
+              <Badge variant="secondary">
+                Viewing archived run #{selectedRun!.run_number}
+                {selectedRun!.label ? ` · ${selectedRun!.label}` : ""}
+              </Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground">
