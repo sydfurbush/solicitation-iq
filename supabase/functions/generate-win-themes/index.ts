@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { getTeamingPromptBlock } from "../_shared/teaming.ts";
 import { buildClientLens } from "../_shared/clientLens.ts";
 
 const corsHeaders = {
@@ -106,7 +107,8 @@ Deno.serve(async (req) => {
       `${r.req_number}: ${r.shall_text.slice(0, 200)}`
     ).join("\n");
 
-    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\nCLIENT: ${client?.name ?? "?"}\nIndustry: ${client?.industry ?? "?"}\nCapabilities:\n${capText}\n\n${incumbentText}\n\nEVALUATION FACTORS:\n${evalText}\n\nKEY REQUIREMENTS (sample):\n${reqText}\n\nGenerate win themes.`;
+    const teamingBlock = await getTeamingPromptBlock(solicitationId);
+    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\nCLIENT: ${client?.name ?? "?"}\nIndustry: ${client?.industry ?? "?"}\nCapabilities:\n${capText}\n\n${teamingBlock ? teamingBlock + "\n\n" : ""}${incumbentText}\n\nEVALUATION FACTORS:\n${evalText}\n\nKEY REQUIREMENTS (sample):\n${reqText}\n\nGenerate win themes.`;
 
     const lens = await buildClientLens(sol?.client_id ?? null, { topic: "win_themes", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: (sol?.lens_overrides as Record<string, unknown> | null) ?? null });
     const systemPrompt = lens.promptBlock

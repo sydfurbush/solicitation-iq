@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { getTeamingPromptBlock } from "../_shared/teaming.ts";
 import { buildClientLens } from "../_shared/clientLens.ts";
 
 const corsHeaders = {
@@ -130,7 +131,8 @@ Deno.serve(async (req) => {
       `${s.section_code}${s.section_title ? ` — ${s.section_title}` : ""}${s.scoring_weight ? ` (weight=${s.scoring_weight})` : ""}\n${s.summary}`
     ).join("\n\n");
 
-    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\nSECTION L/M EXCERPTS:\n${lmText || "(none found)"}\n\nSECTION ANALYSES:\n${sectionsText || "(none)"}\n\nREQUIREMENTS:\n${reqText || "(none)"}\n\nBuild the proposal outline.`;
+    const teamingBlock = await getTeamingPromptBlock(solicitationId);
+    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${teamingBlock ? teamingBlock + "\n\n" : ""}SECTION L/M EXCERPTS:\n${lmText || "(none found)"}\n\nSECTION ANALYSES:\n${sectionsText || "(none)"}\n\nREQUIREMENTS:\n${reqText || "(none)"}\n\nBuild the proposal outline.`;
 
     console.log(`[generate-outline] sol=${solicitationId} reqs=${requirements?.length ?? 0}`);
 
