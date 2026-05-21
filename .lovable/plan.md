@@ -1,44 +1,54 @@
-# Fix "Cannot read properties of undefined (reading 'rest')" when creating Final Solicitation
+# Preserve Comparison History on Re-Run
 
 ## Problem
+Re-running the comparison overwrites `prior_solicitations.comparison_summary` and `changes_identified` in place, destroying the previous run. The user just lost their earlier report this way.
 
-Clicking **Create & open** in the "Create next-stage solicitation" dialog snapshots the Pre-Solicitation successfully, then fails with a red toast: *"Cannot read properties of undefined (reading 'rest')"*. The new Final solicitation is never created.
+## Goal
+1. Recover what we can of the lost run (best-effort — likely not possible without a backup; data was overwritten in place).
+2. Going forward, every run is archived so old reports remain accessible.
 
-## Root cause
+## Recovery of the lost run
+The overwritten columns have no audit trail today, so the previous JSON is gone unless we have a Postgres point-in-time backup. We will check Lovable Cloud for a restore point; if none exists, the prior data cannot be recovered. We'll be upfront about that with the user before doing anything else.
 
-`src/features/solicitations/hooks/useFinalFromPreSol.ts` detaches `supabase.rpc` from the client before calling it:
+## Going forward — versioned comparison runs
 
-```ts
-const rpc = supabase.rpc as unknown as (fn, args) => Promise<...>;
-const { data: newId, error } = await rpc("clone_solicitation_for_stage", {...});
+### New table: `comparison_runs`
+Append-only history, one row per run.
+
+```text
+comparison_runs
+├── id                       uuid pk
+├── prior_solicitation_id    uuid  -> prior_solicitations.id (the link)
+├── solicitation_id          uuid  (current sol — for RLS via is_solicitation_member)
+├── run_number               int   (1,2,3… per prior_solicitation_id)
+├── summary                  text
+├── changes_identified       jsonb
+├── label                    text  (optional user note, e.g. "after Amendment 3")
+├── created_by               uuid
+└── created_at               timestamptz default now()
 ```
+RLS mirrors `prior_solicitations` (members of the solicitation can read; staff can write). Edge function uses service role so writes are unrestricted.
 
-`supabase.rpc` is a method that relies on its `this` binding to reach the internal PostgREST client (`this.rest`). Calling it as a standalone function (`rpc(...)`) leaves `this` undefined, so the very first line inside the method throws on `this.rest`. The RPC request never reaches the network — confirmed by the absence of any `/rest/v1/rpc/clone_solicitation_for_stage` request in the network log (only the preceding snapshot `INSERT` succeeds).
+### Edge function change (`compare-solicitations`)
+Instead of `UPDATE prior_solicitations`, **INSERT** a new `comparison_runs` row with the next `run_number`, then update `prior_solicitations` to point at the latest run (keeps existing UI working unchanged):
+- `comparison_summary` = latest summary
+- `changes_identified` = latest changes
+- `comparison_completed_at` = now
 
-## Fix
+This way `prior_solicitations` always reflects the most recent run (no UI break), and full history lives in `comparison_runs`.
 
-Call `supabase.rpc(...)` directly so `this` stays bound. Drop the manual cast and rely on the generated types. If the typed `Database` doesn't yet include `clone_solicitation_for_stage`, narrow with a single local cast on the args object rather than reassigning the method.
+### UI additions (Comparison tab)
+- **History dropdown** next to the "Re-run comparison" button listing prior runs by date + label. Selecting one renders that run's `summary`/`changes_identified` read-only in the existing comparison panels.
+- **Label this run** small input shown after a run completes, writes to `comparison_runs.label`.
+- Confirm dialog on **Re-run** that explicitly says "Your current report will be archived and a new one generated."
 
-Change in `src/features/solicitations/hooks/useFinalFromPreSol.ts`:
+### Files touched
+- `supabase/migrations/<new>.sql` — create `comparison_runs` + RLS + backfill one row from existing `prior_solicitations` so today's data becomes run #1.
+- `supabase/functions/compare-solicitations/index.ts` — insert into `comparison_runs`, then update `prior_solicitations`.
+- `src/features/comparison/hooks/useComparisonRuns.ts` — new hook listing runs + fetching a specific run.
+- `src/features/comparison/components/ComparisonHistoryPicker.tsx` — dropdown.
+- `src/pages/SolicitationComparison.tsx` — wire picker; when a historical run is selected, pass its `changes`/`summary` to the existing child components instead of the latest.
+- `src/features/comparison/hooks/useRunComparison.ts` — add confirm-before-rerun affordance (UI side), no API change.
 
-```ts
-const { data: newId, error } = await supabase.rpc(
-  "clone_solicitation_for_stage" as never,
-  {
-    p_source_id: input.sourceSolicitationId,
-    p_new_stage: input.newStage,
-    p_stage_label: input.stageLabel ?? null,
-    p_new_title: input.newTitle ?? null,
-  } as never,
-);
-if (error) throw new Error(error.message);
-if (!newId) throw new Error("Clone failed");
-```
-
-No other files need to change. RLS / RPC / snapshot logic are all correct — the only bug is the detached method call.
-
-## Verify
-
-1. Open a Pre-Solicitation, click **Add Final Solicitation**, keep snapshot checked, click **Create & open**.
-2. Expect: success toast, navigation to the new Final solicitation, and a `POST /rest/v1/rpc/clone_solicitation_for_stage` request returning 200 in the network log.
-3. The original Pre-Sol now shows a snapshot in its history and a child Final solicitation linked via `parent_solicitation_id`.
+## Open question for the user
+Do you want me to also try to recover the lost run via a Cloud point-in-time restore (only possible if a backup snapshot exists from before the re-run), or only set up the history going forward?
