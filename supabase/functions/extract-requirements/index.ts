@@ -146,7 +146,10 @@ Deno.serve(async (req) => {
       shall_text: (r.shall_text as string) ?? "",
       source_section: (r.source_section as string) ?? null,
       source_document_id: r.source_document ? docByName.get(r.source_document as string) ?? null : null,
-      page_number: r.source_page ? Number(r.source_page) : null,
+      page_number: (() => {
+        const n = r.source_page != null ? parseInt(String(r.source_page), 10) : NaN;
+        return Number.isFinite(n) ? n : null;
+      })(),
       source_quote: (r.source_quote as string) ?? null,
       source_citation: r.source_section
         ? `${r.source_section}${r.source_page ? `, p.${r.source_page}` : ""}`
