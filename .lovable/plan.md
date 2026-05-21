@@ -1,61 +1,44 @@
-# Buyer format profiles — full rollout
+# Fix "Cannot read properties of undefined (reading 'rest')" when creating Final Solicitation
 
-Bring the empty `buyer_format_profiles` table to life in three sequenced steps so Phase 5 (compile & export) has real buyer-specific formatting rules instead of the generic table defaults.
+## Problem
 
-## Step 1 — Seed a default federal profile per org
+Clicking **Create & open** in the "Create next-stage solicitation" dialog snapshots the Pre-Solicitation successfully, then fails with a red toast: *"Cannot read properties of undefined (reading 'rest')"*. The new Final solicitation is never created.
 
-Insert one row per existing organization so every org starts with a usable baseline.
+## Root cause
 
-Per-row values:
-- `name`: "Federal default"
-- `vertical`: `federal`
-- `is_default`: `true`
-- `font`: Times New Roman, `size_pt`: 12, `margins_in`: 1.0, `line_spacing`: 1.0
-- `page_number_format`: `{volume} - {page} of {pages}`
-- `file_name_pattern`: `{firm}_{solnumber}_{volume}`
-- `volume_page_limits`: `{}` (none enforced by default)
-- `header_html` / `footer_html`: null
-- `notes`: "Auto-seeded baseline. Edit in Settings → Format profiles."
+`src/features/solicitations/hooks/useFinalFromPreSol.ts` detaches `supabase.rpc` from the client before calling it:
 
-Also enforce going forward: when a new organization is created, auto-seed the same row (database trigger on `organizations` insert).
+```ts
+const rpc = supabase.rpc as unknown as (fn, args) => Promise<...>;
+const { data: newId, error } = await rpc("clone_solicitation_for_stage", {...});
+```
 
-## Step 2 — Settings UI to manage profiles
+`supabase.rpc` is a method that relies on its `this` binding to reach the internal PostgREST client (`this.rest`). Calling it as a standalone function (`rpc(...)`) leaves `this` undefined, so the very first line inside the method throws on `this.rest`. The RPC request never reaches the network — confirmed by the absence of any `/rest/v1/rpc/clone_solicitation_for_stage` request in the network log (only the preceding snapshot `INSERT` succeeds).
 
-New tab **Settings → Format profiles** (admins/owners only; staff read-only).
+## Fix
 
-List view:
-- Table of org profiles with columns: Name, Vertical, Default, Font / size, Margins, Updated.
-- Row actions: Edit, Duplicate, Set as default, Delete (blocked if it's the only profile or currently in use by a solicitation).
-- "New profile" button.
+Call `supabase.rpc(...)` directly so `this` stays bound. Drop the manual cast and rely on the generated types. If the typed `Database` doesn't yet include `clone_solicitation_for_stage`, narrow with a single local cast on the args object rather than reassigning the method.
 
-Editor (drawer or dialog):
-- Fields mirror the table columns: name, vertical (federal/utility/commercial), font, size_pt, margins_in, line_spacing, page_number_format, file_name_pattern, header_html, footer_html, volume_page_limits (key/value editor: volume name → max pages), notes.
-- "Mark as default for this vertical" toggle — clears the flag on any sibling in the same vertical inside the same org.
-- Live preview chip showing a rendered page-number sample and resolved file name using placeholder firm/sol values.
+Change in `src/features/solicitations/hooks/useFinalFromPreSol.ts`:
 
-Behavior:
-- All writes scoped to `current_user_org()` (existing RLS already enforces this).
-- Cannot delete a profile that is referenced by `solicitations.format_profile_id`; show a friendly error listing the affected solicitations.
+```ts
+const { data: newId, error } = await supabase.rpc(
+  "clone_solicitation_for_stage" as never,
+  {
+    p_source_id: input.sourceSolicitationId,
+    p_new_stage: input.newStage,
+    p_stage_label: input.stageLabel ?? null,
+    p_new_title: input.newTitle ?? null,
+  } as never,
+);
+if (error) throw new Error(error.message);
+if (!newId) throw new Error("Clone failed");
+```
 
-## Step 3 — Per-solicitation profile picker
+No other files need to change. RLS / RPC / snapshot logic are all correct — the only bug is the detached method call.
 
-On the Phase 5 tab in `SolicitationDeepDive` (and the compile/export entry point):
-- Add a "Format profile" selector that lists the org's profiles, defaulting to the org's `is_default = true` federal row when unset.
-- Persist to `solicitations.format_profile_id`.
-- Surface the resolved font/size/margins inline so the analyst sees what will be applied.
-- `compile-proposal` already reads `buyer_format_profiles`; update it to honor `solicitations.format_profile_id` first, then fall back to the org default, then to the schema defaults.
+## Verify
 
-## Verification
-
-- Step 1: `select count(*) from buyer_format_profiles where is_default` equals number of orgs; creating a brand-new org auto-creates its row.
-- Step 2: New profile shows in list, edit persists, deleting an in-use profile is blocked, only one default per vertical per org.
-- Step 3: Selecting a profile on a solicitation updates the row; compile output uses that profile's font/margins/page numbering; clearing the selection falls back to the org default.
-
-## Technical notes
-
-- Step 1 mixes a data insert (seed existing orgs — use the insert tool) and a schema change (new trigger on `organizations` — migration tool). Two separate calls.
-- Trigger: `after insert on public.organizations` → `insert into public.buyer_format_profiles (organization_id, name, is_default) values (new.id, 'Federal default', true);` (other columns get table defaults).
-- Add a partial unique index to keep one default per (organization_id, vertical): `create unique index bfp_one_default_per_vertical on buyer_format_profiles(organization_id, vertical) where is_default;`.
-- New files (Step 2): `src/features/settings/components/FormatProfilesTab.tsx`, `src/features/formatProfiles/hooks/useFormatProfiles.ts`, plus a small editor component. Wire the tab into `src/pages/Settings.tsx`.
-- Step 3 touches `src/pages/SolicitationDeepDive.tsx` (Phase 5 section), a new `useSolicitationFormatProfile` hook, and `supabase/functions/compile-proposal/index.ts` for the lookup order.
-- No new RLS policies required — existing `staff manage format profiles` / `view org format profiles` policies cover all reads/writes.
+1. Open a Pre-Solicitation, click **Add Final Solicitation**, keep snapshot checked, click **Create & open**.
+2. Expect: success toast, navigation to the new Final solicitation, and a `POST /rest/v1/rpc/clone_solicitation_for_stage` request returning 200 in the network log.
+3. The original Pre-Sol now shows a snapshot in its history and a child Final solicitation linked via `parent_solicitation_id`.
