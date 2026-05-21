@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { GitCompare, RefreshCw } from "lucide-react";
-import { usePriorSolicitation, useComparisonResults } from "@/features/comparison/hooks/usePriorSolicitation";
+import { usePriorSolicitation, useComparisonResults, type ComparisonChanges } from "@/features/comparison/hooks/usePriorSolicitation";
 import { useRunComparison } from "@/features/comparison/hooks/useRunComparison";
+import { useComparisonRuns } from "@/features/comparison/hooks/useComparisonRuns";
+import { ComparisonHistoryPicker } from "@/features/comparison/components/ComparisonHistoryPicker";
 import { LinkPriorSolicitationDialog } from "@/features/comparison/components/LinkPriorSolicitationDialog";
 import { ComparisonOverview } from "@/features/comparison/components/ComparisonOverview";
 import { RequirementsComparison } from "@/features/comparison/components/RequirementsComparison";
@@ -19,8 +23,10 @@ import { toast } from "@/hooks/use-toast";
 
 export default function SolicitationComparison({ solicitationId }: { solicitationId: string }) {
   const { data: prior, isLoading } = usePriorSolicitation(solicitationId);
-  const { changes, summary } = useComparisonResults(solicitationId);
+  const { changes: latestChanges, summary: latestSummary } = useComparisonResults(solicitationId);
   const compare = useRunComparison(solicitationId);
+  const { data: runs = [] } = useComparisonRuns(prior?.id);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
 
   if (isLoading) {
     return <Skeleton className="h-64 w-full" />;
@@ -79,9 +85,33 @@ export default function SolicitationComparison({ solicitationId }: { solicitatio
     );
   }
 
+  const selectedRun = selectedRunId ? runs.find((r) => r.id === selectedRunId) ?? null : null;
+  const viewingHistorical = !!selectedRun;
+  const changes: ComparisonChanges | null = selectedRun ? selectedRun.changes_identified : latestChanges;
+  const summary = selectedRun ? selectedRun.summary : latestSummary;
+
   return (
     <div className="space-y-6">
       <RevisionComparisonPanel solicitationId={solicitationId} />
+
+      {runs.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <ComparisonHistoryPicker
+              priorSolicitationRecordId={prior.id}
+              selectedRunId={selectedRunId}
+              onSelectRun={setSelectedRunId}
+            />
+            {viewingHistorical && (
+              <Badge variant="secondary">Viewing archived run #{selectedRun!.run_number}</Badge>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Every comparison is archived. Re-running will not erase prior reports.
+          </p>
+        </div>
+      )}
+
       <ComparisonOverview solicitationId={solicitationId} priorRecord={prior} changes={changes} />
 
       <Tabs defaultValue="requirements">
