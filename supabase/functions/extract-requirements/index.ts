@@ -91,8 +91,8 @@ Deno.serve(async (req) => {
     // Pre-filter to sections that actually contain binding verbs to keep the AI
     // payload small enough to finish within the 150s edge function idle timeout.
     const BINDING_RE = /\b(shall|must|will|is required to|are required to|is responsible for|are responsible for)\b/i;
-    const MAX_TOTAL_CHARS = 90_000; // smaller prompt = faster completion within 150s idle timeout
-    const PER_SECTION_CHARS = 900;
+    const MAX_TOTAL_CHARS = 45_000; // aggressive trim to stay under 150s idle timeout
+    const PER_SECTION_CHARS = 600;
 
     let usedChars = 0;
     const docBlocks = documents.map((d) => {
