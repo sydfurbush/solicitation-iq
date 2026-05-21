@@ -155,11 +155,25 @@ Deno.serve(async (req) => {
       .in("document_id", docIds)
       .order("sort_order", { ascending: true });
 
+    // Cap prompt size to avoid 150s edge timeout. Distribute section budget across documents.
+    const MAX_SECTIONS_PER_DOC = 12;
+    const MAX_CHARS_PER_SECTION = 1200;
+    const MAX_TOTAL_CHARS = 120_000;
+    let used = 0;
     const docBlocks = documents.map((d) => {
-      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 30);
-      const txt = ds.map((s) => `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 3000)}`).join("\n\n");
-      return `=== DOCUMENT: ${d.file_name} ===\n${txt}`;
+      const ds = (sections ?? []).filter((s) => s.document_id === d.id).slice(0, MAX_SECTIONS_PER_DOC);
+      const parts: string[] = [];
+      for (const s of ds) {
+        if (used >= MAX_TOTAL_CHARS) break;
+        const remaining = MAX_TOTAL_CHARS - used;
+        const slice = s.content.slice(0, Math.min(MAX_CHARS_PER_SECTION, remaining));
+        const block = `[${s.section_number ?? "?"} ${s.section_title ?? ""} | p.${s.page_start ?? "?"}]\n${slice}`;
+        parts.push(block);
+        used += block.length;
+      }
+      return `=== DOCUMENT: ${d.file_name} ===\n${parts.join("\n\n")}`;
     }).join("\n\n");
+    console.log(`[identify-risks-opportunities] prompt chars used=${used}`);
 
     const summaryText = sol?.ai_summary ? `\n\nEXISTING ANALYSIS SUMMARY:\n${sol.ai_summary}` : "";
     const incumbentText = sol?.has_incumbent ? `\n\nINCUMBENT: ${sol.incumbent_name ?? "(unknown)"}` : "";
