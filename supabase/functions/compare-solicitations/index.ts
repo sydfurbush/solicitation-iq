@@ -202,6 +202,27 @@ Deno.serve(async (req) => {
       recommendations: parsed.recommendations ?? [],
     };
 
+    // Archive every run as a new comparison_runs row
+    const { data: lastRun } = await supabase
+      .from("comparison_runs")
+      .select("run_number")
+      .eq("prior_solicitation_id", linkRecordId)
+      .order("run_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextRunNumber = ((lastRun?.run_number as number | undefined) ?? 0) + 1;
+
+    const { error: insertErr } = await supabase
+      .from("comparison_runs")
+      .insert({
+        prior_solicitation_id: linkRecordId,
+        solicitation_id: currentSolicitationId,
+        run_number: nextRunNumber,
+        summary,
+        changes_identified: changes,
+      });
+    if (insertErr) throw insertErr;
+
     const { error: updateErr } = await supabase
       .from("prior_solicitations")
       .update({

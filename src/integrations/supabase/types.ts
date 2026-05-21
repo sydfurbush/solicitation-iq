@@ -921,6 +921,50 @@ export type Database = {
           },
         ]
       }
+      comparison_runs: {
+        Row: {
+          changes_identified: Json | null
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          prior_solicitation_id: string
+          run_number: number
+          solicitation_id: string
+          summary: string | null
+        }
+        Insert: {
+          changes_identified?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          prior_solicitation_id: string
+          run_number: number
+          solicitation_id: string
+          summary?: string | null
+        }
+        Update: {
+          changes_identified?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          prior_solicitation_id?: string
+          run_number?: number
+          solicitation_id?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comparison_runs_prior_solicitation_id_fkey"
+            columns: ["prior_solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "prior_solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delta_actions: {
         Row: {
           assigned_to: string | null
