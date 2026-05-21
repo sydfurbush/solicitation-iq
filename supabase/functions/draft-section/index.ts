@@ -203,7 +203,7 @@ ${includedSummaries.join("\n\n")}${omittedTitles.length ? `\n\nOther earlier sec
       `[K${i + 1}] ${c.title ?? "Excerpt"}: ${c.snippet ?? ""}`
     ).join("\n") || "(no knowledge excerpts)";
 
-    const teamingBlock = await getTeamingPromptBlock(sol?.id ?? "");
+    const teamingBlock = await getTeamingPromptBlock(solicitationId);
     const userPrompt = `Solicitation: ${sol?.title ?? "Unknown"}
 Section: ${node.section_number ? node.section_number + " " : ""}${node.title}
 Volume: ${node.volume ?? "—"}
