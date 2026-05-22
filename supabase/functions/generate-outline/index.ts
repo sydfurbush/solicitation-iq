@@ -146,6 +146,29 @@ Deno.serve(async (req) => {
 
     const nodes = parsed.nodes ?? [];
 
+    // Deterministic decimal renumbering based on depth (overrides any Roman numerals from AI)
+    const counters = [0, 0, 0, 0];
+    const inferDepth = (sn: string | undefined): number => {
+      if (!sn) return 0;
+      const cleaned = sn.replace(/[^0-9.]/g, "");
+      const parts = cleaned.split(".").filter(Boolean);
+      return Math.max(0, Math.min(3, parts.length - 1));
+    };
+    for (const n of nodes) {
+      let d = typeof n.depth === "number" ? n.depth : inferDepth(n.section_number as string | undefined);
+      d = Math.max(0, Math.min(3, d));
+      counters[d] += 1;
+      for (let i = d + 1; i < counters.length; i++) counters[i] = 0;
+      let sn: string;
+      if (d === 0) sn = `${counters[0]}.0`;
+      else if (d === 1) sn = `${counters[0]}.${counters[1]}`;
+      else if (d === 2) sn = `${counters[0]}.${counters[1]}.${counters[2]}`;
+      else sn = `${counters[0]}.${counters[1]}.${counters[2]}.${counters[3]}`;
+      n.section_number = sn;
+      n.depth = d;
+    }
+
+
     // Deactivate prior outlines
     await supabase
       .from("proposal_outlines")
