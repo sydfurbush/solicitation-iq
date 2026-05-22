@@ -249,12 +249,33 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
       override: ((solicitation as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null,
     });
 
-    const analysis = await callAiTool({
-      functionName: "analyze-solicitation",
-      system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
-      user: userPrompt,
-      tool: ANALYSIS_SCHEMA,
-    }) as Record<string, any>;
+    const systemPrompt = lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT;
+    let modelUsed = "default";
+    let analysis: Record<string, any>;
+    try {
+      analysis = await callAiTool({
+        functionName: "analyze-solicitation",
+        system: systemPrompt,
+        user: userPrompt,
+        tool: ANALYSIS_SCHEMA,
+      }) as Record<string, any>;
+    } catch (e) {
+      // Fallback: if the primary model returned an empty response (502 from aiClient),
+      // retry once with Gemini Flash, which is more tolerant of large prompts.
+      const msg = e instanceof Error ? e.message : String(e);
+      const isEmpty = /empty response/i.test(msg);
+      if (!isEmpty) throw e;
+      console.warn(`[analyze-solicitation] primary model returned empty, falling back to gemini-2.5-flash. err=${msg}`);
+      await updateJob(jobId, { progress_step: "calling_model_fallback" });
+      analysis = await callAiTool({
+        functionName: "analyze-solicitation",
+        system: systemPrompt,
+        user: userPrompt,
+        tool: ANALYSIS_SCHEMA,
+        modelOverride: { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 16000 },
+      }) as Record<string, any>;
+      modelUsed = "google/gemini-2.5-flash (fallback)";
+    }
 
     await updateJob(jobId, { progress_step: "persisting" });
 
