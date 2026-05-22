@@ -1,65 +1,43 @@
-## Goal
+# Fix: Analysis fails with "AI did not return structured tool call"
 
-Run the full Gemini Pro analysis on the entire solicitation payload without hitting the 150s edge-function idle timeout — and revert the prompt trimming + Flash fallback I just added.
+## Root cause
 
-## Approach: background job pattern
+From edge logs for the failed job:
+```
+promptChars=148322
+[aiClient] lovable model=google/gemini-2.5-pro finish=null
+  prompt_tokens=0 completion_tokens=0 tool_arg_chars=0
+ERROR job failed: AI did not return structured tool call
+```
 
-Instead of the client `await`-ing the AI call inside `analyze-solicitation`, the function will enqueue a job and return immediately (`202 Accepted`). A worker invocation does the heavy AI call in the background using `EdgeRuntime.waitUntil`, and the UI polls a job row for status.
+The Lovable AI gateway returned **HTTP 200 with an empty choices array** (zero tokens, no tool call, no finish_reason). This happens with Gemini 2.5 Pro on very large prompts — the model effectively no-ops. Our client currently treats this as fatal with no retry, so the job is marked `failed` and the UI shows "AI did not return structured tool call".
 
-### 1. Database
+The 148k-char prompt is huge because the earlier per-doc character budget was reverted when we restored "pro-quality" analysis. 13 docs × 40 sections × 4000 chars = up to ~2M chars in theory; this run sent 148k, which Pro tolerates poorly.
 
-New migration creating:
+## Fix (three layers, smallest viable change)
 
-- `analysis_jobs` table
-  - `id uuid pk`
-  - `solicitation_id uuid` (FK)
-  - `analysis_type text` ('full' | 'incremental')
-  - `status text` ('queued' | 'running' | 'completed' | 'failed')
-  - `progress_step text` (e.g. 'loading docs', 'calling model', 'persisting')
-  - `error_message text`
-  - `started_at`, `completed_at`, `created_at`, `updated_at timestamptz`
-  - `requested_by uuid`
-- RLS: org staff and solicitation members can read/insert jobs for solicitations they belong to (reuse `is_solicitation_member`).
-- Add `analysis_jobs` to `supabase_realtime` publication so the UI gets push updates instead of polling.
+### 1. `supabase/functions/_shared/aiClient.ts` — handle empty Lovable responses
+- Detect the "200 but empty" case (`!toolCall && completion_tokens === 0`) and treat it as a **transient** error: retry up to 3× with backoff, same as 503/504.
+- If still empty after retries, throw a clearer `AiHttpError(502, "AI gateway returned empty response (model may be overloaded). Try again or switch model.")` so the UI shows actionable text instead of the cryptic tool-call message.
 
-### 2. Edge function refactor (`supabase/functions/analyze-solicitation/index.ts`)
+### 2. `supabase/functions/analyze-solicitation/index.ts` — cap prompt size, keep Pro
+Re-introduce a **soft** character budget (much larger than the old aggressive 80k cap so quality is preserved):
+- `TOTAL_CHAR_BUDGET = 180_000` across all docs (well under Pro's comfort zone, still ~10× a typical RFP).
+- Per-doc budget = `max(8_000, floor(TOTAL / docCount))`.
+- Per-section slice = `min(4000, remainingBudget)` — same 4000 ceiling we have today, just stops adding sections once the doc budget is spent instead of always taking 40.
+- Keep 40-section cap and Gemini Pro model (no override).
+- Log the final `promptChars` so we can see budget in action.
 
-- HTTP handler becomes a thin shell:
-  1. Auth + validate `solicitationId`.
-  2. Insert a row in `analysis_jobs` with `status='queued'`.
-  3. `EdgeRuntime.waitUntil(runAnalysis(jobId))` to perform the work in the background.
-  4. Return `202 { jobId }` immediately.
-- `runAnalysis(jobId)` contains today's logic (load docs, build prompt, call `callAiTool`, persist results), updating `analysis_jobs.status` / `progress_step` as it goes and writing `error_message` on failure.
-- **Revert the workaround:**
-  - Remove the per-doc 80k-char budget and the 1500-char per-section cap → restore the original 40 sections × 4000-char excerpts.
-  - Remove the `modelOverride` for Flash → use the configured Gemini Pro (`google/gemini-2.5-pro`, `max_tokens=16384`) via MODEL_CONFIG / DB override.
-- Background workers in Supabase Edge Functions can run well past 150s, so Pro on the full payload will complete without the 504.
+### 3. `analyze-solicitation/index.ts` — automatic fallback on persistent empty response
+If `callAiTool` throws the new 502 "empty response" error, retry **once** with `modelOverride: { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 16000 }` and tag the result in metadata as `model_used: "gemini-2.5-flash (fallback)"`. Flash handles large prompts more reliably and the user gets a result instead of a failure.
 
-### 3. Frontend rewiring (`src/features/analysis/hooks/useAnalysis.ts` + analysis page)
+## What this does NOT change
+- No DB schema changes.
+- No frontend changes — UI already polls `analysis_jobs` and shows error/result.
+- Background job pattern stays.
+- Default model stays Gemini 2.5 Pro for normal-sized solicitations.
 
-- `useRunAnalysis` now:
-  - Calls the function → receives `{ jobId }`.
-  - Stores `jobId` in React Query cache; does NOT await analysis completion.
-- New `useAnalysisJob(jobId)` hook:
-  - Subscribes to realtime updates on `analysis_jobs` for that id (fallback: 3s polling).
-  - Returns `{ status, progressStep, errorMessage }`.
-  - On `completed`, invalidates `solicitation-insights` and `solicitation` queries so the new analysis renders.
-- Update the analysis page UI to show progress states ("Queued → Loading docs → Running Gemini Pro → Saving") and an error banner on failure.
+## Files
 
-### 4. Cleanup
-
-- Drop `useAnalysisStatus`'s reliance on `solicitations.status` polling for the run lifecycle (keep it only for the persistent "phase_1_complete" indicator).
-- Add a tiny "Cancel run" affordance is **out of scope** for this plan.
-
-## Technical notes
-
-- `EdgeRuntime.waitUntil` is the same primitive already used elsewhere in the project (e.g. `process-document` previously), so no new infra.
-- Job rows give us a durable audit trail and let the user navigate away / refresh without losing track of an in-flight analysis.
-- This is the same pattern recommended for any other AI function that risks the 150s ceiling (handy to reuse later for `generate-outline`, `generate-report`, etc., though those are not in scope here).
-
-## Files touched
-
-- New: `supabase/migrations/<timestamp>_analysis_jobs.sql`
-- Edit: `supabase/functions/analyze-solicitation/index.ts`
-- Edit: `src/features/analysis/hooks/useAnalysis.ts`
-- Edit: analysis page component that consumes `useRunAnalysis` (the page showing the "Analyze" button + results) to render job progress.
+- edit `supabase/functions/_shared/aiClient.ts` — retry empty Lovable responses, clearer error.
+- edit `supabase/functions/analyze-solicitation/index.ts` — soft prompt budget + Flash fallback on empty.

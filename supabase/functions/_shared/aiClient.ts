@@ -223,7 +223,14 @@ async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Recor
   const toolCall = choice0?.message?.tool_calls?.[0];
   const argLen = toolCall?.function?.arguments?.length ?? 0;
   console.log(`[aiClient] lovable model=${choice.model} finish=${finish} prompt_tokens=${usage?.prompt_tokens} completion_tokens=${usage?.completion_tokens} max_tokens=${choice.maxTokens} tool_arg_chars=${argLen}`);
-  if (!toolCall) throw new Error("AI did not return structured tool call");
+  if (!toolCall) {
+    // Gateway sometimes returns HTTP 200 with empty choices (model no-op on huge/complex prompts).
+    // Treat as transient and surface a clearer error for upstream retry/fallback.
+    throw new AiHttpError(
+      502,
+      `AI gateway returned empty response (model=${choice.model}, completion_tokens=${usage?.completion_tokens ?? 0}). The model may be overloaded or the prompt too large.`,
+    );
+  }
   if (finish === "length" || finish === "max_tokens") {
     throw new AiHttpError(
       502,
