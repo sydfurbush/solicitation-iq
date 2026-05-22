@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
 
     const docPayload = documents.map((d) => ({
       name: d.file_name,
-      sections: (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 40),
+      sections: (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 25),
       entities: (entities ?? []).filter((e) => e.document_id === d.id),
     }));
 
