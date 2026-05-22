@@ -39,6 +39,7 @@ export default function SolicitationAnalysis({ solicitationId }: Props) {
     localStorage.setItem(JOB_KEY_PREFIX + solicitationId, jobId);
   }, [jobId, solicitationId]);
 
+  // Transition on terminal job status
   useEffect(() => {
     if (!job) return;
     if (job.status === "completed") {
@@ -52,6 +53,15 @@ export default function SolicitationAnalysis({ solicitationId }: Props) {
       setJobId(null);
     }
   }, [job?.status, job?.error_message, solicitationId]);
+
+  // Safety net: if a stored jobId no longer resolves to an active job but insights exist, drop it
+  useEffect(() => {
+    if (!jobId) return;
+    if (hasAnalysis && job && job.status !== "queued" && job.status !== "running") {
+      localStorage.removeItem(JOB_KEY_PREFIX + solicitationId);
+      setJobId(null);
+    }
+  }, [jobId, hasAnalysis, job?.status, solicitationId]);
 
   const handleRun = async () => {
     setError(null);
