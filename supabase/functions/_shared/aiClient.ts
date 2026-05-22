@@ -177,65 +177,86 @@ async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Recor
     tool_choice: { type: "function", function: { name: args.tool.name } },
   });
 
-  // Retry on transient upstream issues (503/504) and connection resets.
-  const MAX_ATTEMPTS = 3;
-  let res: Response | null = null;
-  let lastErr: unknown = null;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  // Outer loop: retry the whole call when the gateway returns 200 but an empty
+  // choices/tool-call payload (Gemini sometimes no-ops on large prompts).
+  const EMPTY_RETRIES = 2; // total attempts = EMPTY_RETRIES + 1
+  let lastEmptyErr: AiHttpError | null = null;
+  for (let emptyAttempt = 0; emptyAttempt <= EMPTY_RETRIES; emptyAttempt++) {
+    // Retry on transient upstream issues (503/504) and connection resets.
+    const MAX_ATTEMPTS = 3;
+    let res: Response | null = null;
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
+          body,
+        });
+        if (res.ok) break;
+        if (res.status === 429) throw new AiHttpError(429, "Rate limit exceeded. Try again later.");
+        if (res.status === 402) throw new AiHttpError(402, "AI credits exhausted. Add credits in Lovable settings.");
+        if ((res.status === 503 || res.status === 504 || res.status === 502) && attempt < MAX_ATTEMPTS) {
+          const wait = attempt * 2500;
+          console.warn(`[aiClient] lovable ${res.status}, retrying in ${wait}ms (attempt ${attempt}/${MAX_ATTEMPTS - 1})`);
+          await new Promise((r) => setTimeout(r, wait));
+          continue;
+        }
+        const text = await res.text();
+        console.error("[aiClient] lovable error", res.status, text);
+        throw new AiHttpError(res.status, `AI request failed: ${text}`);
+      } catch (e) {
+        if (e instanceof AiHttpError) throw e;
+        lastErr = e;
+        if (attempt < MAX_ATTEMPTS) {
+          const wait = attempt * 2500;
+          console.warn(`[aiClient] lovable fetch error, retrying in ${wait}ms:`, e);
+          await new Promise((r) => setTimeout(r, wait));
+          continue;
+        }
+        throw e;
+      }
+    }
+    if (!res || !res.ok) {
+      throw lastErr ?? new AiHttpError(503, "AI request failed after retries");
+    }
+
+    const json = await res.json();
+    const choice0 = json.choices?.[0];
+    const finish = choice0?.finish_reason;
+    const usage = json.usage;
+    const toolCall = choice0?.message?.tool_calls?.[0];
+    const argLen = toolCall?.function?.arguments?.length ?? 0;
+    console.log(`[aiClient] lovable model=${choice.model} finish=${finish} prompt_tokens=${usage?.prompt_tokens} completion_tokens=${usage?.completion_tokens} max_tokens=${choice.maxTokens} tool_arg_chars=${argLen} emptyAttempt=${emptyAttempt}`);
+
+    if (!toolCall) {
+      lastEmptyErr = new AiHttpError(
+        502,
+        `AI gateway returned empty response (model=${choice.model}, completion_tokens=${usage?.completion_tokens ?? 0}). The model may be overloaded or the prompt too large.`,
+      );
+      if (emptyAttempt < EMPTY_RETRIES) {
+        const wait = 2000 * (emptyAttempt + 1);
+        console.warn(`[aiClient] lovable returned empty, retrying in ${wait}ms (attempt ${emptyAttempt + 1}/${EMPTY_RETRIES})`);
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+      throw lastEmptyErr;
+    }
+
+    if (finish === "length" || finish === "max_tokens") {
+      throw new AiHttpError(
+        502,
+        `AI response truncated by token limit (model=${choice.model}, max_tokens=${choice.maxTokens ?? 4096}). Raise max_tokens for this function in AI Models settings, or switch to a roomier model.`,
+      );
+    }
     try {
-      res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_KEY}`, "Content-Type": "application/json" },
-        body,
-      });
-      if (res.ok) break;
-      if (res.status === 429) throw new AiHttpError(429, "Rate limit exceeded. Try again later.");
-      if (res.status === 402) throw new AiHttpError(402, "AI credits exhausted. Add credits in Lovable settings.");
-      if ((res.status === 503 || res.status === 504 || res.status === 502) && attempt < MAX_ATTEMPTS) {
-        const wait = attempt * 2500;
-        console.warn(`[aiClient] lovable ${res.status}, retrying in ${wait}ms (attempt ${attempt}/${MAX_ATTEMPTS - 1})`);
-        await new Promise((r) => setTimeout(r, wait));
-        continue;
-      }
-      const text = await res.text();
-      console.error("[aiClient] lovable error", res.status, text);
-      throw new AiHttpError(res.status, `AI request failed: ${text}`);
+      return JSON.parse(toolCall.function.arguments);
     } catch (e) {
-      if (e instanceof AiHttpError) throw e;
-      lastErr = e;
-      if (attempt < MAX_ATTEMPTS) {
-        const wait = attempt * 2500;
-        console.warn(`[aiClient] lovable fetch error, retrying in ${wait}ms:`, e);
-        await new Promise((r) => setTimeout(r, wait));
-        continue;
-      }
+      console.error(`[aiClient] failed to parse tool args (likely truncated). finish=${finish} chars=${argLen}`);
       throw e;
     }
   }
-  if (!res || !res.ok) {
-    throw lastErr ?? new AiHttpError(503, "AI request failed after retries");
-  }
-
-  const json = await res.json();
-  const choice0 = json.choices?.[0];
-  const finish = choice0?.finish_reason;
-  const usage = json.usage;
-  const toolCall = choice0?.message?.tool_calls?.[0];
-  const argLen = toolCall?.function?.arguments?.length ?? 0;
-  console.log(`[aiClient] lovable model=${choice.model} finish=${finish} prompt_tokens=${usage?.prompt_tokens} completion_tokens=${usage?.completion_tokens} max_tokens=${choice.maxTokens} tool_arg_chars=${argLen}`);
-  if (!toolCall) throw new Error("AI did not return structured tool call");
-  if (finish === "length" || finish === "max_tokens") {
-    throw new AiHttpError(
-      502,
-      `AI response truncated by token limit (model=${choice.model}, max_tokens=${choice.maxTokens ?? 4096}). Raise max_tokens for this function in AI Models settings, or switch to a roomier model.`,
-    );
-  }
-  try {
-    return JSON.parse(toolCall.function.arguments);
-  } catch (e) {
-    console.error(`[aiClient] failed to parse tool args (likely truncated). finish=${finish} chars=${argLen}`);
-    throw e;
-  }
+  throw lastEmptyErr ?? new AiHttpError(502, "AI gateway returned empty response");
 }
 
 export function aiErrorResponse(err: unknown, corsHeaders: Record<string, string>): Response {
