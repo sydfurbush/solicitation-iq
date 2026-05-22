@@ -1,39 +1,25 @@
-## Diagnosis
+## Fix outline numbering (Roman → decimal)
 
-The analysis job for the current solicitation is not stuck in the backend:
+The outline generator currently lets the AI pick `section_number` values, and it's producing Roman numerals (`I`, `I.1`, `II.2.1`) even though the prompt asks for decimal style. Fix it in two complementary ways so the displayed and exported outline always uses `1.0`, `1.1`, `1.2.1`, etc.
 
-- Latest job `76285236-f2a9-4035-8276-e4f8a89e4ed1` is `completed`
-- It completed at `15:29:50 UTC`
-- Results were saved: summary present, 10 requirements, 3 evaluation factors, confidence `0.85`
-- The solicitation status is now `phase_1_complete`
+### Changes to `supabase/functions/generate-outline/index.ts`
 
-The visible problem is the frontend remains on the progress screen at `persisting` instead of reliably transitioning to the completed dashboard.
+1. **Tighten the prompt** — explicitly forbid Roman numerals and letter prefixes, and require decimal numbering rooted at each top-level volume (`1.0`, `1.1`, `1.1.2`, then `2.0`, `2.1`, …).
 
-## Plan
+2. **Deterministic post-processing (authoritative)** — after the AI returns, walk `nodes` in order and re-derive `section_number` from `depth`:
+   - Maintain a counter stack `[v, s, ss, sss]`.
+   - `depth 0` → increment volume counter, emit `"{v}.0"`, reset deeper counters.
+   - `depth 1` → increment section counter, emit `"{v}.{s}"`.
+   - `depth 2` → `"{v}.{s}.{ss}"`.
+   - `depth 3` → `"{v}.{s}.{ss}.{sss}"`.
+   - If the AI ever omits `depth`, infer it from the dot-count of its proposed `section_number` (after stripping Roman numerals), defaulting to the current stack depth.
 
-1. **Make job completion state robust**
-   - Update the analysis job hook so polling/realtime completion always invalidates and refetches the solicitation insights.
-   - Avoid relying only on the local `job` state timing, which can miss the final transition.
+   This guarantees consistent numbering regardless of what the model returns, and is applied before the rows are inserted into `proposal_outlines` / `outline_nodes`.
 
-2. **Clear stale local progress state**
-   - Update the analysis page so if insights already exist and the saved job is completed or missing, it clears the stored `analysis-job:<solicitationId>` key.
-   - This prevents users from being trapped in an old progress UI after refresh/navigation.
+3. No schema or UI changes — `ReportTypeSelector`, `SolicitationOutline.tsx`, and the export builders already just render whatever `section_number` is stored.
 
-3. **Show completed results immediately**
-   - When the backend says the job is completed, remove the active job id and render `AnalysisDashboard` after invalidating/refetching insights.
-   - If the current job row cannot be found but analysis results exist, treat it as finished instead of continuing to show progress.
+### Scope
 
-4. **Optional small UI polish**
-   - Adjust the progress component so the final stage does not sit indefinitely at “~0s remaining”; it can show “Finishing up” while the backend persists results.
-
-## Files to change
-
-- `src/features/analysis/hooks/useAnalysis.ts`
-- `src/pages/SolicitationAnalysis.tsx`
-- `src/features/analysis/components/AnalysisProgress.tsx` only if needed for the “Finishing up” label
-
-## Validation
-
-- Confirm the current completed job no longer leaves the UI stuck.
-- Confirm existing saved analysis renders for solicitation `c98a2376-4947-46c0-b9ec-bcb7123f392e`.
-- Confirm a new queued job still shows progress while active and transitions when completed.
+- Only touches `supabase/functions/generate-outline/index.ts`.
+- Existing outlines keep their stored numbers; clicking **Regenerate** rewrites them in decimal format.
+- No DB migration required.
