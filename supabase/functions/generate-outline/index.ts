@@ -79,9 +79,22 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, ai_summary, client_id, lens_overrides")
+      .select("title, ai_summary, client_id, lens_overrides, format_profile_id")
       .eq("id", solicitationId)
       .maybeSingle();
+
+    let volumePageLimits: Record<string, number | null> = {};
+    if (sol?.format_profile_id) {
+      const { data: fp } = await supabase
+        .from("buyer_format_profiles")
+        .select("volume_page_limits")
+        .eq("id", sol.format_profile_id)
+        .maybeSingle();
+      if (fp?.volume_page_limits && typeof fp.volume_page_limits === "object") {
+        volumePageLimits = fp.volume_page_limits as Record<string, number | null>;
+      }
+    }
+
 
     const { data: requirements } = await supabase
       .from("requirement_items")
