@@ -316,6 +316,7 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
           opportunity_signals: toArr(analysis.opportunity_signals),
           validation_warnings: validationWarnings,
           job_id: jobId,
+          model_used: modelUsed,
         },
       },
     };
