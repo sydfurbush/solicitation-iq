@@ -201,7 +201,9 @@ const SECTION_SPLIT_THRESHOLD = 8_000;
 const SUB_CHUNK_SIZE = 6_000;
 const SUB_CHUNK_OVERLAP = 500;
 
-const CHUNKS_PER_CALL = 2;
+// Each chunk makes one AI call that can take 60-90s (with retries on empty
+// Gemini responses). Processing >1 per invocation risks the 150s edge timeout.
+const CHUNKS_PER_CALL = 1;
 
 function expandSections(sections: Section[]): Section[] {
   const out: Section[] = [];
