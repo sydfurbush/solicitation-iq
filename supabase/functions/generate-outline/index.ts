@@ -146,17 +146,22 @@ Deno.serve(async (req) => {
 
     const nodes = parsed.nodes ?? [];
 
-    // Deterministic decimal renumbering based on depth (overrides any Roman numerals from AI)
+    // Deterministic decimal renumbering — ALWAYS overrides whatever the AI returned
+    // (Roman numerals like "I.1", letter prefixes like "L.5", or anything else)
     const counters = [0, 0, 0, 0];
-    const inferDepth = (sn: string | undefined): number => {
-      if (!sn) return 0;
-      const cleaned = sn.replace(/[^0-9.]/g, "");
-      const parts = cleaned.split(".").filter(Boolean);
-      return Math.max(0, Math.min(3, parts.length - 1));
+    // Depth = number of dots in the AI's section_number (e.g. "I"=0, "I.1"=1, "II.2.3"=2).
+    // This is more reliable than trusting n.depth, which the model often omits or fudges.
+    const inferDepth = (sn: string | undefined, fallback: unknown): number => {
+      if (typeof sn === "string" && sn.trim()) {
+        return Math.max(0, Math.min(3, (sn.match(/\./g) ?? []).length));
+      }
+      if (typeof fallback === "number") return Math.max(0, Math.min(3, fallback));
+      return 0;
     };
     for (const n of nodes) {
-      let d = typeof n.depth === "number" ? n.depth : inferDepth(n.section_number as string | undefined);
-      d = Math.max(0, Math.min(3, d));
+      let d = inferDepth(n.section_number as string | undefined, n.depth);
+      // A child can never appear before any parent has been emitted.
+      if (d > 0 && counters[0] === 0) d = 0;
       counters[d] += 1;
       for (let i = d + 1; i < counters.length; i++) counters[i] = 0;
       let sn: string;
@@ -167,6 +172,7 @@ Deno.serve(async (req) => {
       n.section_number = sn;
       n.depth = d;
     }
+    console.log(`[generate-outline] renumbered first 5:`, nodes.slice(0, 5).map((n) => n.section_number));
 
 
     // Deactivate prior outlines
