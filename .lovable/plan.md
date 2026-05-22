@@ -1,49 +1,65 @@
-# Fix: Documents stuck at "processing"
+## Goal
 
-## What's actually happening
+Run the full Gemini Pro analysis on the entire solicitation payload without hitting the 150s edge-function idle timeout — and revert the prompt trimming + Flash fallback I just added.
 
-The badge says "11 of 13 analyzed · 2 processing", but in the database those 2 documents (`Technical Exhibit F IIC Information.pptx` and `TAP PWS - Updated 8 MAY 26.pdf`) are at `status = 'parsed'`, not `analyzed`. They finished text extraction successfully — they just never advanced to the final `analyzed` state.
+## Approach: background job pattern
 
-The pipeline is two hops:
+Instead of the client `await`-ing the AI call inside `analyze-solicitation`, the function will enqueue a job and return immediately (`202 Accepted`). A worker invocation does the heavy AI call in the background using `EdgeRuntime.waitUntil`, and the UI polls a job row for status.
 
-```text
-process-document  →  status='parsed'  →  (fires extract-entities via EdgeRuntime.waitUntil)  →  status='analyzed'
-```
+### 1. Database
 
-Two problems with hop #2:
+New migration creating:
 
-1. **The trigger is fire-and-forget inside `waitUntil`.** Edge function logs show **zero invocations** of `extract-entities` for either document. When `process-document` returns immediately after queueing the fetch, the runtime can tear the worker down before the outbound POST is actually sent. There is no DB-level guarantee or retry.
-2. **No watchdog.** Once a doc lands in `parsed`, nothing ever re-checks it. The UI's `useDocumentsReadiness` only counts `status='analyzed'` as ready, so any doc that misses the handoff stays "processing" forever.
+- `analysis_jobs` table
+  - `id uuid pk`
+  - `solicitation_id uuid` (FK)
+  - `analysis_type text` ('full' | 'incremental')
+  - `status text` ('queued' | 'running' | 'completed' | 'failed')
+  - `progress_step text` (e.g. 'loading docs', 'calling model', 'persisting')
+  - `error_message text`
+  - `started_at`, `completed_at`, `created_at`, `updated_at timestamptz`
+  - `requested_by uuid`
+- RLS: org staff and solicitation members can read/insert jobs for solicitations they belong to (reuse `is_solicitation_member`).
+- Add `analysis_jobs` to `supabase_realtime` publication so the UI gets push updates instead of polling.
 
-The earlier work on `extract-requirements`/`generate-outline` raised timeouts and `max_tokens`, but didn't touch this trigger path.
+### 2. Edge function refactor (`supabase/functions/analyze-solicitation/index.ts`)
 
-## Plan
+- HTTP handler becomes a thin shell:
+  1. Auth + validate `solicitationId`.
+  2. Insert a row in `analysis_jobs` with `status='queued'`.
+  3. `EdgeRuntime.waitUntil(runAnalysis(jobId))` to perform the work in the background.
+  4. Return `202 { jobId }` immediately.
+- `runAnalysis(jobId)` contains today's logic (load docs, build prompt, call `callAiTool`, persist results), updating `analysis_jobs.status` / `progress_step` as it goes and writing `error_message` on failure.
+- **Revert the workaround:**
+  - Remove the per-doc 80k-char budget and the 1500-char per-section cap → restore the original 40 sections × 4000-char excerpts.
+  - Remove the `modelOverride` for Flash → use the configured Gemini Pro (`google/gemini-2.5-pro`, `max_tokens=16384`) via MODEL_CONFIG / DB override.
+- Background workers in Supabase Edge Functions can run well past 150s, so Pro on the full payload will complete without the 504.
 
-### 1. Recover the 2 stuck documents (one-time)
-Manually re-invoke `extract-entities` for the two `parsed` documents from the client (existing `useExtractEntities` hook already does this) — or just have the user click a new "Retry analysis" action we'll add in step 3. No migration needed.
+### 3. Frontend rewiring (`src/features/analysis/hooks/useAnalysis.ts` + analysis page)
 
-### 2. Make the parsed→analyzed handoff reliable
-In `supabase/functions/process-document/index.ts`:
-- Replace the `EdgeRuntime.waitUntil(fetch(...))` fire-and-forget with an **awaited** invoke of `extract-entities` (it's already retry-safe and idempotent on entities). Adds a few seconds to `process-document` but guarantees the status transition before we return.
-- If `extract-entities` errors, leave the doc at `parsed` with `processing_error` set so the watchdog/UI can surface it (don't flip to `failed` just because entity extraction hiccupped — text is already parsed and usable).
+- `useRunAnalysis` now:
+  - Calls the function → receives `{ jobId }`.
+  - Stores `jobId` in React Query cache; does NOT await analysis completion.
+- New `useAnalysisJob(jobId)` hook:
+  - Subscribes to realtime updates on `analysis_jobs` for that id (fallback: 3s polling).
+  - Returns `{ status, progressStep, errorMessage }`.
+  - On `completed`, invalidates `solicitation-insights` and `solicitation` queries so the new analysis renders.
+- Update the analysis page UI to show progress states ("Queued → Loading docs → Running Gemini Pro → Saving") and an error banner on failure.
 
-### 3. UI watchdog + manual retry
-In `src/features/documents/`:
-- **`useDocumentsReadiness.ts`**: detect docs that have been `parsed` (not `analyzed`) for > 2 minutes and surface them as `stalled` in the returned shape.
-- **`DocumentReadinessBadge.tsx`**: when `stalled > 0`, render an amber state ("11 of 13 analyzed · 2 stalled — Retry") with a button that calls `useExtractEntities` for each stalled doc.
-- **`ProcessingStatus.tsx`** / row-level menu: add a "Retry analysis" action for any row stuck on `parsed`, also wired to `useExtractEntities`.
+### 4. Cleanup
 
-### 4. Server-side safety net (optional, small)
-At the top of `extract-entities`, if `doc.status === 'analyzed'` already, return `{ok:true, skipped:true}` — makes the retry button safe to mash. (The function already replaces entities idempotently, so this is just a fast-path.)
+- Drop `useAnalysisStatus`'s reliance on `solicitations.status` polling for the run lifecycle (keep it only for the persistent "phase_1_complete" indicator).
+- Add a tiny "Cancel run" affordance is **out of scope** for this plan.
 
-## Out of scope
-- No new tables, no job queue, no cron. The await + UI watchdog is enough for this pipeline's volume.
-- No changes to `extract-requirements`, `generate-outline`, or AI model settings.
-- No change to readiness math beyond adding the `stalled` bucket.
+## Technical notes
+
+- `EdgeRuntime.waitUntil` is the same primitive already used elsewhere in the project (e.g. `process-document` previously), so no new infra.
+- Job rows give us a durable audit trail and let the user navigate away / refresh without losing track of an in-flight analysis.
+- This is the same pattern recommended for any other AI function that risks the 150s ceiling (handy to reuse later for `generate-outline`, `generate-report`, etc., though those are not in scope here).
 
 ## Files touched
-- `supabase/functions/process-document/index.ts` — await extract-entities, soften error handling
-- `supabase/functions/extract-entities/index.ts` — early-return if already analyzed
-- `src/features/documents/hooks/useDocumentsReadiness.ts` — add `stalled` count
-- `src/features/documents/components/DocumentReadinessBadge.tsx` — stalled state + retry
-- `src/features/documents/components/ProcessingStatus.tsx` (or `DocumentList` row menu) — per-row "Retry analysis"
+
+- New: `supabase/migrations/<timestamp>_analysis_jobs.sql`
+- Edit: `supabase/functions/analyze-solicitation/index.ts`
+- Edit: `src/features/analysis/hooks/useAnalysis.ts`
+- Edit: analysis page component that consumes `useRunAnalysis` (the page showing the "Analyze" button + results) to render job progress.

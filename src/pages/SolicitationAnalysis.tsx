@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle, FileWarning, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { AnalysisDashboard } from "@/features/analysis/components/AnalysisDashboard";
 import { AnalysisProgress } from "@/features/analysis/components/AnalysisProgress";
 import {
+  useAnalysisJob,
   useRunAnalysis,
   useSolicitationInsights,
 } from "@/features/analysis/hooks/useAnalysis";
@@ -16,22 +17,51 @@ interface Props {
   solicitationId: string;
 }
 
+const JOB_KEY_PREFIX = "analysis-job:";
+
 export default function SolicitationAnalysis({ solicitationId }: Props) {
   const { data: insights, isLoading } = useSolicitationInsights(solicitationId);
   const runAnalysis = useRunAnalysis(solicitationId);
   const [error, setError] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(JOB_KEY_PREFIX + solicitationId);
+  });
+
+  const job = useAnalysisJob(jobId, solicitationId);
+  const isJobActive = !!job && (job.status === "queued" || job.status === "running");
 
   const hasAnalysis = !!insights?.ai_summary || (insights?.key_requirements?.length ?? 0) > 0;
+
+  // Persist active job id so navigating away and back keeps progress visible
+  useEffect(() => {
+    if (!jobId) return;
+    localStorage.setItem(JOB_KEY_PREFIX + solicitationId, jobId);
+  }, [jobId, solicitationId]);
+
+  useEffect(() => {
+    if (!job) return;
+    if (job.status === "completed") {
+      toast({ title: "Analysis complete", description: "Strategic intelligence generated." });
+      localStorage.removeItem(JOB_KEY_PREFIX + solicitationId);
+      setJobId(null);
+    } else if (job.status === "failed") {
+      setError(job.error_message ?? "Analysis failed");
+      toast({ title: "Analysis failed", description: job.error_message ?? "Unknown error", variant: "destructive" });
+      localStorage.removeItem(JOB_KEY_PREFIX + solicitationId);
+      setJobId(null);
+    }
+  }, [job?.status, job?.error_message, solicitationId]);
 
   const handleRun = async () => {
     setError(null);
     try {
-      await runAnalysis.mutateAsync("full");
-      toast({ title: "Analysis complete", description: "Strategic intelligence generated." });
+      const { jobId: newJobId } = await runAnalysis.mutateAsync("full");
+      setJobId(newJobId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
-      toast({ title: "Analysis failed", description: msg, variant: "destructive" });
+      toast({ title: "Failed to queue analysis", description: msg, variant: "destructive" });
     }
   };
 
@@ -47,8 +77,20 @@ export default function SolicitationAnalysis({ solicitationId }: Props) {
     );
   }
 
-  if (runAnalysis.isPending) {
-    return <AnalysisProgress />;
+  if (runAnalysis.isPending || isJobActive) {
+    const stepLabel = job?.progress_step
+      ? job.progress_step.replace(/_/g, " ")
+      : job?.status === "queued"
+        ? "Queued — starting worker"
+        : "Starting analysis";
+    return (
+      <div className="space-y-3">
+        <AnalysisProgress estimatedSeconds={180} />
+        <p className="text-xs text-muted-foreground text-center">
+          Status: <span className="font-medium capitalize">{job?.status ?? "queued"}</span> · {stepLabel}
+        </p>
+      </div>
+    );
   }
 
   if (error) {

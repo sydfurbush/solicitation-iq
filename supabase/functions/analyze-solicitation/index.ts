@@ -135,25 +135,17 @@ function buildUserPrompt(
   knownFacts: string,
   documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>,
 ) {
-  // Budget the prompt to keep AI latency under the 150s edge timeout.
-  // Total raw section text is capped at ~80k chars across all docs.
-  const TOTAL_CHAR_BUDGET = 80_000;
-  const perDocBudget = Math.max(4_000, Math.floor(TOTAL_CHAR_BUDGET / Math.max(1, documents.length)));
   const docBlocks = documents.map((d) => {
-    let remaining = perDocBudget;
-    const sectionParts: string[] = [];
-    for (const s of d.sections) {
-      if (remaining <= 0) break;
-      const slice = s.content.slice(0, Math.min(1500, remaining));
-      remaining -= slice.length;
-      sectionParts.push(
-        `[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}]\n${slice}`,
-      );
-    }
+    const sectionText = d.sections
+      .map(
+        (s) =>
+          `[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 4000)}`
+      )
+      .join("\n\n");
     const entityText = d.entities.length
-      ? `\nKey extracted entities:\n${d.entities.slice(0, 40).map((e) => `- ${e.entity_type}: ${e.entity_value}`).join("\n")}`
+      ? `\nKey extracted entities:\n${d.entities.slice(0, 60).map((e) => `- ${e.entity_type}: ${e.entity_value}`).join("\n")}`
       : "";
-    return `=== DOCUMENT: ${d.name} ===\n${sectionParts.join("\n\n")}${entityText}`;
+    return `=== DOCUMENT: ${d.name} ===\n${sectionText}${entityText}`;
   });
   return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\n${docBlocks.join("\n\n")}`;
 }
@@ -175,7 +167,6 @@ function validateSummary(summary: string, sol: Record<string, any> | null) {
   if (expected) {
     for (const [label, rx] of Object.entries(SET_ASIDE_TERMS)) {
       if (label === expected) continue;
-      // Skip if expected is a parent term — e.g. expected WOSB shouldn't flag EDWOSB
       if (rx.test(summary)) {
         warnings.push({ field: "set_aside", expected, found: label });
       }
@@ -184,21 +175,21 @@ function validateSummary(summary: string, sol: Record<string, any> | null) {
   return warnings;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+const admin = () => createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+async function updateJob(jobId: string, patch: Record<string, unknown>) {
   try {
-    const { solicitationId, analysisType = "full" } = await req.json();
-    if (!solicitationId) {
-      return new Response(JSON.stringify({ error: "solicitationId required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    await admin().from("analysis_jobs").update(patch).eq("id", jobId);
+  } catch (e) {
+    console.warn("[analyze-solicitation] job update failed", jobId, e);
+  }
+}
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+async function runAnalysis(jobId: string, solicitationId: string, analysisType: string) {
+  const supabase = admin();
+  try {
+    await updateJob(jobId, { status: "running", progress_step: "loading_documents", started_at: new Date().toISOString() });
 
-    // Fetch solicitation row + client name (known facts)
     const { data: solicitation } = await supabase
       .from("solicitations")
       .select(
@@ -207,32 +198,25 @@ Deno.serve(async (req) => {
       .eq("id", solicitationId)
       .maybeSingle();
 
-    // Fetch documents (parsed/analyzed only)
     const { data: documents, error: docErr } = await supabase
       .from("documents")
       .select("id, file_name, status")
       .eq("solicitation_id", solicitationId)
       .is("deleted_at", null)
       .in("status", ["parsed", "analyzed"]);
-
     if (docErr) throw docErr;
     if (!documents || documents.length === 0) {
-      return new Response(JSON.stringify({ error: "No processed documents available. Upload and process documents first." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      throw new Error("No processed documents available. Upload and process documents first.");
     }
 
     const docIds = documents.map((d) => d.id);
 
-    // Sections
     const { data: sections } = await supabase
       .from("document_sections")
       .select("document_id, section_number, section_title, content, page_start, sort_order")
       .in("document_id", docIds)
       .order("sort_order", { ascending: true });
 
-    // Entities
     const { data: entities } = await supabase
       .from("extracted_entities")
       .select("document_id, entity_type, entity_value")
@@ -240,25 +224,32 @@ Deno.serve(async (req) => {
 
     const docPayload = documents.map((d) => ({
       name: d.file_name,
-      sections: (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 25),
+      sections: (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 40),
       entities: (entities ?? []).filter((e) => e.document_id === d.id),
     }));
 
     const knownFacts = buildKnownFactsBlock(solicitation as Record<string, any> | null);
     const userPrompt = buildUserPrompt(knownFacts, docPayload);
 
-    console.log(`[analyze-solicitation] sol=${solicitationId} type=${analysisType} docs=${documents.length} promptChars=${userPrompt.length} knownFacts=${knownFacts ? "yes" : "no"}`);
+    console.log(`[analyze-solicitation] job=${jobId} sol=${solicitationId} type=${analysisType} docs=${documents.length} promptChars=${userPrompt.length}`);
 
-    const lens = await buildClientLens((solicitation as { client_id?: string | null } | null)?.client_id ?? null, { topic: "analysis", query: `${(solicitation as any)?.title ?? ""} ${(solicitation as any)?.issuing_agency ?? ""} ${(((solicitation as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: ((solicitation as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
+    await updateJob(jobId, { progress_step: "calling_model" });
+
+    const lens = await buildClientLens((solicitation as { client_id?: string | null } | null)?.client_id ?? null, {
+      topic: "analysis",
+      query: `${(solicitation as any)?.title ?? ""} ${(solicitation as any)?.issuing_agency ?? ""} ${(((solicitation as any)?.ai_summary ?? "") + "").slice(0, 600)}`,
+      override: ((solicitation as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null,
+    });
+
     const analysis = await callAiTool({
       functionName: "analyze-solicitation",
       system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
       user: userPrompt,
       tool: ANALYSIS_SCHEMA,
-      modelOverride: { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 12000 },
     }) as Record<string, any>;
 
-    // Validate summary against known facts
+    await updateJob(jobId, { progress_step: "persisting" });
+
     const validationWarnings = validateSummary(
       String(analysis.executive_summary ?? ""),
       solicitation as Record<string, any> | null,
@@ -267,20 +258,11 @@ Deno.serve(async (req) => {
     if (validationWarnings.length && solicitation?.set_aside) {
       finalSummary = `This solicitation is a ${solicitation.set_aside} set-aside. ${finalSummary}`;
     }
-    if (validationWarnings.length) {
-      console.warn(`[analyze-solicitation] validation warnings`, validationWarnings);
-    }
 
-    // Persist
     const toArr = (v: unknown): unknown[] => {
       if (Array.isArray(v)) return v;
       if (typeof v === "string") {
-        try {
-          const p = JSON.parse(v);
-          return Array.isArray(p) ? p : [];
-        } catch {
-          return [];
-        }
+        try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; }
       }
       return [];
     };
@@ -304,10 +286,10 @@ Deno.serve(async (req) => {
           risk_signals: toArr(analysis.risk_signals),
           opportunity_signals: toArr(analysis.opportunity_signals),
           validation_warnings: validationWarnings,
+          job_id: jobId,
         },
       },
     };
-
     if (incumbent.detected) {
       updatePayload.has_incumbent = true;
       if (incumbent.name) updatePayload.incumbent_name = incumbent.name;
@@ -320,11 +302,66 @@ Deno.serve(async (req) => {
       .eq("id", solicitationId);
     if (updErr) throw updErr;
 
-    return new Response(JSON.stringify({ success: true, analysis }), {
+    await updateJob(jobId, {
+      status: "completed",
+      progress_step: null,
+      completed_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[analyze-solicitation] job failed", jobId, msg);
+    await updateJob(jobId, {
+      status: "failed",
+      error_message: msg,
+      completed_at: new Date().toISOString(),
+    });
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  try {
+    const { solicitationId, analysisType = "full" } = await req.json();
+    if (!solicitationId) {
+      return new Response(JSON.stringify({ error: "solicitationId required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Identify requester (best-effort)
+    let requestedBy: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { data } = await supabaseAuth.auth.getUser(authHeader.replace("Bearer ", ""));
+        requestedBy = data.user?.id ?? null;
+      } catch { /* ignore */ }
+    }
+
+    const { data: job, error: insErr } = await admin()
+      .from("analysis_jobs")
+      .insert({
+        solicitation_id: solicitationId,
+        analysis_type: analysisType,
+        status: "queued",
+        requested_by: requestedBy,
+      })
+      .select("id")
+      .single();
+    if (insErr) throw insErr;
+
+    // @ts-ignore EdgeRuntime is available in Supabase Edge runtime
+    EdgeRuntime.waitUntil(runAnalysis(job.id, solicitationId, analysisType));
+
+    return new Response(JSON.stringify({ jobId: job.id, status: "queued" }), {
+      status: 202,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("[analyze-solicitation] error", e);
+    console.error("[analyze-solicitation] enqueue error", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
