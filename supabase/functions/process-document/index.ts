@@ -220,17 +220,40 @@ Deno.serve(async (req) => {
       })
       .eq("id", documentId);
 
-    // Trigger entity extraction (fire and forget)
-    EdgeRuntime.waitUntil(
-      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/extract-entities`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+    // Trigger entity extraction synchronously so the parsed→analyzed handoff is reliable.
+    // EdgeRuntime.waitUntil() does not survive worker teardown in all cases and was leaving
+    // docs stuck on `parsed`. If extraction fails, leave the doc at `parsed` with an error
+    // message so the UI can surface a retry — the text is already usable.
+    try {
+      const res = await fetch(
+        `${Deno.env.get("SUPABASE_URL")}/functions/v1/extract-entities`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ documentId }),
         },
-        body: JSON.stringify({ documentId }),
-      }).catch((e) => console.error("extract-entities trigger failed:", e))
-    );
+      );
+      if (!res.ok) {
+        const body = await res.text();
+        console.error("extract-entities returned non-2xx:", res.status, body);
+        await supabase
+          .from("documents")
+          .update({
+            processing_error: `Entity extraction failed (${res.status}): ${body.slice(0, 500)}`,
+          })
+          .eq("id", documentId);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("extract-entities trigger failed:", msg);
+      await supabase
+        .from("documents")
+        .update({ processing_error: `Entity extraction trigger failed: ${msg.slice(0, 500)}` })
+        .eq("id", documentId);
+    }
 
     return new Response(
       JSON.stringify({ ok: true, sections: sections.length, pages, chars: text.length }),

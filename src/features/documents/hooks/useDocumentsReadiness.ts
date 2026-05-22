@@ -8,10 +8,17 @@ export type DocumentsReadiness = {
   analyzed: number;
   failed: number;
   processing: number;
+  stalled: number;
+  stalledDocs: DocumentRow[];
   allReady: boolean;
   hasFailures: boolean;
+  hasStalled: boolean;
   documents: DocumentRow[];
 };
+
+// A doc is "stalled" if it has been at status=parsed for more than this long
+// without advancing to analyzed (the extract-entities handoff failed).
+const STALL_THRESHOLD_MS = 2 * 60 * 1000;
 
 /**
  * Watches a solicitation's documents in realtime and computes readiness.
@@ -53,10 +60,31 @@ export function useDocumentsReadiness(
     const total = documents.length;
     const analyzed = documents.filter((d) => d.status === "analyzed").length;
     const failed = documents.filter((d) => d.status === "failed").length;
-    const processing = total - analyzed - failed;
+    const now = Date.now();
+    const stalledDocs = documents.filter((d) => {
+      if (d.status !== "parsed") return false;
+      const completed = d.processing_completed_at
+        ? new Date(d.processing_completed_at).getTime()
+        : null;
+      return completed != null && now - completed > STALL_THRESHOLD_MS;
+    });
+    const stalled = stalledDocs.length;
+    const processing = total - analyzed - failed - stalled;
     const hasFailures = failed > 0;
+    const hasStalled = stalled > 0;
     const allReady = total > 0 && analyzed === total;
-    return { total, analyzed, failed, processing, allReady, hasFailures, documents };
+    return {
+      total,
+      analyzed,
+      failed,
+      processing,
+      stalled,
+      stalledDocs,
+      allReady,
+      hasFailures,
+      hasStalled,
+      documents,
+    };
   }, [documents]);
 
   // Transition detector — fires once when allReady flips false → true with no failures.

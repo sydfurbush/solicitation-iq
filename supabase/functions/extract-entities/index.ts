@@ -155,6 +155,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    // Fast-path: already analyzed. Makes the retry button safe to mash.
+    if (doc.status === "analyzed") {
+      return new Response(JSON.stringify({ ok: true, skipped: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     if (!doc.extracted_text) {
       return new Response(JSON.stringify({ error: "Document has no extracted text" }), {
         status: 400,
