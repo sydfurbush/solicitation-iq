@@ -511,8 +511,10 @@ export default function SolicitationDetail() {
               solicitationId={s.id}
               currentPhase={currentPhase}
               solicitationTitle={s.title}
+              solicitationNumber={s.solicitation_number}
               clientName={clientName}
             />
+
           </PhaseShell>
         )}
 
