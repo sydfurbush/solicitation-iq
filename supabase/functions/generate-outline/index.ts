@@ -26,7 +26,7 @@ Produce a hierarchical outline:
 For each node:
 - title: clear descriptive title
 - volume: volume name (top-level only or repeated)
-- section_number: e.g. "1.0", "1.1", "1.1.2"
+- section_number: DECIMAL ONLY — e.g. "1.0", "1.1", "1.1.2", "2.0", "2.1". NEVER use Roman numerals (I, II, III) or letter prefixes (A, B, L, M). Top-level volumes are "1.0", "2.0", "3.0".
 - page_allocation: integer page budget if Section L provides one or you can allocate
 - source_l_reference: short citation back to Section L (e.g. "L.5.2(a)")
 - source_section_refs: comma-separated [ref:N] ids from the SECTION L/M EXCERPTS block above that you used to construct this node (so reviewers can verify)
