@@ -145,7 +145,11 @@ Deno.serve(async (req) => {
     ).join("\n\n");
 
     const teamingBlock = await getTeamingPromptBlock(solicitationId);
-    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${teamingBlock ? teamingBlock + "\n\n" : ""}SECTION L/M EXCERPTS:\n${lmText || "(none found)"}\n\nSECTION ANALYSES:\n${sectionsText || "(none)"}\n\nREQUIREMENTS:\n${reqText || "(none)"}\n\nBuild the proposal outline.`;
+    const limitsBlock = Object.keys(volumePageLimits).length
+      ? `VOLUME PAGE LIMITS (the per-section page_allocation values for each volume MUST sum to its limit):\n${Object.entries(volumePageLimits).map(([v, n]) => `- ${v}: ${n ?? "no limit"}`).join("\n")}\n\n`
+      : "";
+    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${teamingBlock ? teamingBlock + "\n\n" : ""}${limitsBlock}SECTION L/M EXCERPTS:\n${lmText || "(none found)"}\n\nSECTION ANALYSES:\n${sectionsText || "(none)"}\n\nREQUIREMENTS:\n${reqText || "(none)"}\n\nBuild the proposal outline.`;
+
 
     console.log(`[generate-outline] sol=${solicitationId} reqs=${requirements?.length ?? 0}`);
 
