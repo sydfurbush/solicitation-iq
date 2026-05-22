@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import pdfParse from "npm:pdf-parse@1.1.1";
 import mammoth from "npm:mammoth@1.6.0";
 import * as XLSX from "npm:xlsx@0.18.5";
+import JSZip from "npm:jszip@3.10.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,6 +66,40 @@ async function extractText(
   }
   if (lower.endsWith(".csv") || lower.endsWith(".txt") || mime?.startsWith("text/")) {
     return { text: new TextDecoder().decode(fileBytes), pages: null };
+  }
+  if (
+    lower.endsWith(".pptx") ||
+    mime ===
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  ) {
+    const zip = await JSZip.loadAsync(fileBytes);
+    const slideFiles = Object.keys(zip.files)
+      .filter((p) => /^ppt\/slides\/slide\d+\.xml$/i.test(p))
+      .sort((a, b) => {
+        const ai = parseInt(a.match(/slide(\d+)\.xml/i)?.[1] ?? "0", 10);
+        const bi = parseInt(b.match(/slide(\d+)\.xml/i)?.[1] ?? "0", 10);
+        return ai - bi;
+      });
+    const parts: string[] = [];
+    for (let i = 0; i < slideFiles.length; i++) {
+      const xml = await zip.files[slideFiles[i]].async("string");
+      // Pull text from <a:t> runs, strip remaining tags, decode basic entities.
+      const runs = Array.from(xml.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g)).map(
+        (m) => m[1],
+      );
+      const slideText = runs
+        .join(" ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/\s+/g, " ")
+        .trim();
+      parts.push(`=== Slide ${i + 1} ===\n${slideText}`);
+    }
+    return { text: parts.join("\n\n"), pages: slideFiles.length };
   }
   // Unsupported types — return empty text but not an error
   return { text: "", pages: null };
@@ -220,17 +255,40 @@ Deno.serve(async (req) => {
       })
       .eq("id", documentId);
 
-    // Trigger entity extraction (fire and forget)
-    EdgeRuntime.waitUntil(
-      fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/extract-entities`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+    // Trigger entity extraction synchronously so the parsed→analyzed handoff is reliable.
+    // EdgeRuntime.waitUntil() does not survive worker teardown in all cases and was leaving
+    // docs stuck on `parsed`. If extraction fails, leave the doc at `parsed` with an error
+    // message so the UI can surface a retry — the text is already usable.
+    try {
+      const res = await fetch(
+        `${Deno.env.get("SUPABASE_URL")}/functions/v1/extract-entities`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ documentId }),
         },
-        body: JSON.stringify({ documentId }),
-      }).catch((e) => console.error("extract-entities trigger failed:", e))
-    );
+      );
+      if (!res.ok) {
+        const body = await res.text();
+        console.error("extract-entities returned non-2xx:", res.status, body);
+        await supabase
+          .from("documents")
+          .update({
+            processing_error: `Entity extraction failed (${res.status}): ${body.slice(0, 500)}`,
+          })
+          .eq("id", documentId);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("extract-entities trigger failed:", msg);
+      await supabase
+        .from("documents")
+        .update({ processing_error: `Entity extraction trigger failed: ${msg.slice(0, 500)}` })
+        .eq("id", documentId);
+    }
 
     return new Response(
       JSON.stringify({ ok: true, sections: sections.length, pages, chars: text.length }),

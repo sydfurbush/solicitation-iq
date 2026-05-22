@@ -155,11 +155,26 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!doc.extracted_text) {
-      return new Response(JSON.stringify({ error: "Document has no extracted text" }), {
-        status: 400,
+    // Fast-path: already analyzed. Makes the retry button safe to mash.
+    if (doc.status === "analyzed") {
+      return new Response(JSON.stringify({ ok: true, skipped: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (!doc.extracted_text) {
+      // Nothing to extract — mark as analyzed so the UI stops showing it as stalled.
+      await supabase
+        .from("documents")
+        .update({
+          status: "analyzed",
+          processing_completed_at: new Date().toISOString(),
+          processing_error: "No extractable text found in document",
+        })
+        .eq("id", documentId);
+      return new Response(
+        JSON.stringify({ ok: true, entities: 0, skipped: "no_text" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const entities = await callAI(doc.extracted_text);
