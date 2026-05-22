@@ -79,9 +79,22 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, ai_summary, client_id, lens_overrides")
+      .select("title, ai_summary, client_id, lens_overrides, format_profile_id")
       .eq("id", solicitationId)
       .maybeSingle();
+
+    let volumePageLimits: Record<string, number | null> = {};
+    if (sol?.format_profile_id) {
+      const { data: fp } = await supabase
+        .from("buyer_format_profiles")
+        .select("volume_page_limits")
+        .eq("id", sol.format_profile_id)
+        .maybeSingle();
+      if (fp?.volume_page_limits && typeof fp.volume_page_limits === "object") {
+        volumePageLimits = fp.volume_page_limits as Record<string, number | null>;
+      }
+    }
+
 
     const { data: requirements } = await supabase
       .from("requirement_items")
@@ -132,7 +145,11 @@ Deno.serve(async (req) => {
     ).join("\n\n");
 
     const teamingBlock = await getTeamingPromptBlock(solicitationId);
-    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${teamingBlock ? teamingBlock + "\n\n" : ""}SECTION L/M EXCERPTS:\n${lmText || "(none found)"}\n\nSECTION ANALYSES:\n${sectionsText || "(none)"}\n\nREQUIREMENTS:\n${reqText || "(none)"}\n\nBuild the proposal outline.`;
+    const limitsBlock = Object.keys(volumePageLimits).length
+      ? `VOLUME PAGE LIMITS (the per-section page_allocation values for each volume MUST sum to its limit):\n${Object.entries(volumePageLimits).map(([v, n]) => `- ${v}: ${n ?? "no limit"}`).join("\n")}\n\n`
+      : "";
+    const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}\n\n${teamingBlock ? teamingBlock + "\n\n" : ""}${limitsBlock}SECTION L/M EXCERPTS:\n${lmText || "(none found)"}\n\nSECTION ANALYSES:\n${sectionsText || "(none)"}\n\nREQUIREMENTS:\n${reqText || "(none)"}\n\nBuild the proposal outline.`;
+
 
     console.log(`[generate-outline] sol=${solicitationId} reqs=${requirements?.length ?? 0}`);
 
@@ -173,6 +190,36 @@ Deno.serve(async (req) => {
       n.depth = d;
     }
     console.log(`[generate-outline] renumbered first 5:`, nodes.slice(0, 5).map((n) => n.section_number));
+
+    // Scale per-section page_allocation values to match volume page limits, if a profile is set
+    if (Object.keys(volumePageLimits).length) {
+      const byVolume = new Map<string, Array<Record<string, unknown>>>();
+      for (const n of nodes) {
+        if ((n.depth as number) === 0) continue; // skip volume rows themselves
+        const v = (n.volume as string) ?? "";
+        if (!byVolume.has(v)) byVolume.set(v, []);
+        byVolume.get(v)!.push(n);
+      }
+      for (const [vol, group] of byVolume.entries()) {
+        const limit = volumePageLimits[vol];
+        if (typeof limit !== "number" || limit <= 0) continue;
+        const total = group.reduce((s, n) => s + (Number(n.page_allocation) || 0), 0);
+        if (total <= 0) {
+          const even = Math.max(1, Math.floor(limit / group.length));
+          for (const n of group) n.page_allocation = even;
+        } else if (Math.abs(total - limit) > 1) {
+          const scale = limit / total;
+          for (const n of group) {
+            const v = Math.max(1, Math.round((Number(n.page_allocation) || 0) * scale));
+            n.page_allocation = v;
+          }
+        }
+        const newTotal = group.reduce((s, n) => s + (Number(n.page_allocation) || 0), 0);
+        console.log(`[generate-outline] volume "${vol}" limit=${limit} scaled total=${newTotal}`);
+      }
+    }
+
+
 
 
     // Deactivate prior outlines

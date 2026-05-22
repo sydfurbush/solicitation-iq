@@ -1,32 +1,77 @@
-## Force decimal numbering on the outline
+# Auto-Derive Format Profile from Solicitation
 
-The previous regeneration (v2, 79 nodes) was created after the prompt/post-process edit but the stored `section_number` values are still `I`, `I.1`, `II.2.3`, etc. So two things need to happen: rewrite the existing rows in place, and make the edge function's renumbering bulletproof so the next regenerate can't store Roman numerals again.
+Section L of nearly every federal RFP dictates document format (font, size, margins, line spacing, page limits per volume, file naming, pagination). Today these are configured manually in `buyer_format_profiles`. We'll add an AI extractor that drafts a profile from the solicitation, surface those rules on the Phase 3 outline as visible guidance, and let the existing Phase 5 compile step enforce them.
 
-### 1. Rewrite the active outline in place (no regenerate needed)
+## Three connected pieces
 
-Run a one-shot SQL migration against the active outline for solicitation `c98a2376-4947-46c0-b9ec-bcb7123f392e` (and any other outline whose `section_number` still contains non-decimal characters). For each affected outline:
+### 1. Derive (new)
+A new edge function reads Section L from the solicitation's processed documents and proposes a complete format profile with per-field citations. User reviews, edits, and saves — creating a new `buyer_format_profiles` row and setting `solicitations.format_profile_id`.
 
-- Walk `outline_nodes` ordered by `sort_order`.
-- Infer depth from the current `section_number` by counting dot-separated segments after stripping Roman numerals and letters (e.g. `I` → depth 0, `I.1` → depth 1, `II.2.3` → depth 2, `II.2.3.1` → depth 3).
-- Maintain a `[v, s, ss, sss]` counter stack and emit `"{v}.0"`, `"{v}.{s}"`, `"{v}.{s}.{ss}"`, `"{v}.{s}.{ss}.{sss}"`.
-- `UPDATE outline_nodes SET section_number = ...` for each row.
+### 2. Reference on the outline (new)
+The active profile becomes visible context on the Phase 3 outline so writers see the rules they're working against:
+- A "Format Profile" panel at the top of the outline (font, size, margins, line spacing, page-number format, file-name pattern, per-volume page limits)
+- Each volume header shows its page budget (e.g. *Volume I — Technical · 50 pages*) from `volume_page_limits`
+- A per-section pill comparing the AI's `page_allocation` against the volume budget, flagging overruns
+- Each derived field links to the L-clause snippet it came from
+- The outline generator receives `volume_page_limits` so per-section `page_allocation` values **sum to the limit per volume** (today they're an independent AI guess)
 
-Implemented as a DO-block migration so it's idempotent and only touches rows where `section_number ~ '[^0-9.]'`.
+### 3. Apply at compile (already works)
+`compile-proposal` already reads `buyer_format_profiles` and applies font, size, margins, line spacing, page-number footer, file-name pattern, and enforces `volume_page_limits` in pre-flight. Once a derived profile is saved, **compile picks it up automatically** — no additional wiring.
 
-### 2. Harden `supabase/functions/generate-outline/index.ts`
+## Flow
 
-The current post-process trusts the AI's `depth` field. If the AI returns inconsistent depths (or omits them for some nodes), the counters drift. Change to:
+```text
+[Solicitation docs]
+        │
+        ▼
+extract-format-profile (new edge function)
+  • Loads Section L chunks (same source as generate-outline)
+  • Calls Lovable AI (google/gemini-2.5-flash) with strict JSON schema
+  • Returns { profile, citations, confidence, unresolved[] }
+        │
+        ▼
+[Review modal] → save → buyer_format_profiles row
+                       solicitations.format_profile_id = new id
+        │
+        ├──► [Phase 3 outline] reads profile, renders panel + volume budgets
+        │        • generate-outline now receives volume_page_limits and
+        │          allocates pages within them
+        │
+        └──► [Phase 5 compile] applies typography + enforces page limits
+```
 
-- **Always** infer depth from the AI's proposed `section_number` first (stripping Roman/letter chars), and only fall back to `n.depth` when the section_number is missing/empty.
-- Clamp depth to `[0, 3]` and never let a child appear before its parent (if `d > 0` and `counters[0] === 0`, force `d = 0`).
-- After computing the new `section_number`, also overwrite `n.section_number` before the row mapping so the insert can't accidentally use the AI's original string.
-- Add a `console.log` of the first 5 renumbered nodes so we can confirm in edge function logs that the rewrite ran.
+## User experience
 
-### 3. No UI or schema changes
+1. Phase 3 outline header gains a **"Derive format from solicitation"** button (also surfaced on the Format Profiles tab).
+2. Clicking runs the extractor and opens a review modal: each field side-by-side with the L-clause snippet, low-confidence fields flagged, unresolved fields fall back to org default / `DEFAULT_PROFILE`.
+3. User edits as needed → Save creates a profile named *"Auto — {solicitation number}"* and links it to the solicitation.
+4. Outline immediately shows the Format Profile panel and per-volume page budgets. Re-running outline generation will respect those budgets.
+5. At Phase 5, the existing compile button produces a DOCX in the derived format with pre-flight page-limit checks.
 
-`SolicitationOutline.tsx` already renders whatever is in `section_number` — no front-end work needed. No new columns.
+## Technical changes
 
-### Files
+**New edge function** — `supabase/functions/extract-format-profile/index.ts`
+- Input: `{ solicitationId }`
+- Loads Section L from `document_sections` (filtered by Section-L tags), same path `generate-outline` uses
+- Strict JSON schema matching `buyer_format_profiles` columns + `citations` object keyed by field name
+- Read-only: returns the proposal; the UI controls the save
 
-- New migration (rewrite existing rows).
-- `supabase/functions/generate-outline/index.ts` (tighter renumber + log).
+**Outline generator update** — `supabase/functions/generate-outline/index.ts`
+- Look up `format_profile_id` for the solicitation; pass `volume_page_limits` into the prompt
+- Add a post-process step: if a volume's section `page_allocation` values exceed its limit, scale proportionally; if under, leave headroom
+- Log per-volume totals vs limits
+
+**Frontend**
+- `src/features/formatProfiles/hooks/useDeriveFormatProfile.ts` — calls the new function, returns proposal + citations
+- `src/features/formatProfiles/components/DeriveFormatDialog.tsx` — review/edit modal with citation tooltips
+- `src/features/outline/components/FormatProfilePanel.tsx` — read-only summary panel at top of outline
+- Update `SolicitationOutline.tsx` to render the panel and per-volume page-budget headers + per-section overrun pills
+- Add the Derive button to `FormatProfilesTab.tsx` and the outline header
+
+**No schema changes** — `buyer_format_profiles` already has every field needed; `solicitations.format_profile_id` already exists.
+
+## Out of scope
+
+- Auto-running extraction on document upload (kept user-initiated so they review before it drives compilation).
+- Learning format rules from past proposals — Section L only for now.
+- Auto-detecting format-related amendments after extraction (handled by re-running the extractor).
