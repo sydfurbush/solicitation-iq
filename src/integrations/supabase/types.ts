@@ -92,6 +92,48 @@ export type Database = {
         }
         Relationships: []
       }
+      analysis_jobs: {
+        Row: {
+          analysis_type: string
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          progress_step: string | null
+          requested_by: string | null
+          solicitation_id: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          analysis_type?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          progress_step?: string | null
+          requested_by?: string | null
+          solicitation_id: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          analysis_type?: string
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          progress_step?: string | null
+          requested_by?: string | null
+          solicitation_id?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       annotations: {
         Row: {
           annotation_type: Database["public"]["Enums"]["annotation_type"]
