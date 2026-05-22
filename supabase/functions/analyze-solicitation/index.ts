@@ -135,17 +135,25 @@ function buildUserPrompt(
   knownFacts: string,
   documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>,
 ) {
+  // Budget the prompt to keep AI latency under the 150s edge timeout.
+  // Total raw section text is capped at ~80k chars across all docs.
+  const TOTAL_CHAR_BUDGET = 80_000;
+  const perDocBudget = Math.max(4_000, Math.floor(TOTAL_CHAR_BUDGET / Math.max(1, documents.length)));
   const docBlocks = documents.map((d) => {
-    const sectionText = d.sections
-      .map(
-        (s) =>
-          `[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}]\n${s.content.slice(0, 4000)}`
-      )
-      .join("\n\n");
+    let remaining = perDocBudget;
+    const sectionParts: string[] = [];
+    for (const s of d.sections) {
+      if (remaining <= 0) break;
+      const slice = s.content.slice(0, Math.min(1500, remaining));
+      remaining -= slice.length;
+      sectionParts.push(
+        `[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}]\n${slice}`,
+      );
+    }
     const entityText = d.entities.length
-      ? `\nKey extracted entities:\n${d.entities.slice(0, 60).map((e) => `- ${e.entity_type}: ${e.entity_value}`).join("\n")}`
+      ? `\nKey extracted entities:\n${d.entities.slice(0, 40).map((e) => `- ${e.entity_type}: ${e.entity_value}`).join("\n")}`
       : "";
-    return `=== DOCUMENT: ${d.name} ===\n${sectionText}${entityText}`;
+    return `=== DOCUMENT: ${d.name} ===\n${sectionParts.join("\n\n")}${entityText}`;
   });
   return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\n${docBlocks.join("\n\n")}`;
 }
@@ -232,7 +240,7 @@ Deno.serve(async (req) => {
 
     const docPayload = documents.map((d) => ({
       name: d.file_name,
-      sections: (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 40),
+      sections: (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 25),
       entities: (entities ?? []).filter((e) => e.document_id === d.id),
     }));
 
@@ -247,6 +255,7 @@ Deno.serve(async (req) => {
       system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
       user: userPrompt,
       tool: ANALYSIS_SCHEMA,
+      modelOverride: { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 12000 },
     }) as Record<string, any>;
 
     // Validate summary against known facts
