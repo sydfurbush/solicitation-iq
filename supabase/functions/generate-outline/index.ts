@@ -191,6 +191,36 @@ Deno.serve(async (req) => {
     }
     console.log(`[generate-outline] renumbered first 5:`, nodes.slice(0, 5).map((n) => n.section_number));
 
+    // Scale per-section page_allocation values to match volume page limits, if a profile is set
+    if (Object.keys(volumePageLimits).length) {
+      const byVolume = new Map<string, Array<Record<string, unknown>>>();
+      for (const n of nodes) {
+        if ((n.depth as number) === 0) continue; // skip volume rows themselves
+        const v = (n.volume as string) ?? "";
+        if (!byVolume.has(v)) byVolume.set(v, []);
+        byVolume.get(v)!.push(n);
+      }
+      for (const [vol, group] of byVolume.entries()) {
+        const limit = volumePageLimits[vol];
+        if (typeof limit !== "number" || limit <= 0) continue;
+        const total = group.reduce((s, n) => s + (Number(n.page_allocation) || 0), 0);
+        if (total <= 0) {
+          const even = Math.max(1, Math.floor(limit / group.length));
+          for (const n of group) n.page_allocation = even;
+        } else if (Math.abs(total - limit) > 1) {
+          const scale = limit / total;
+          for (const n of group) {
+            const v = Math.max(1, Math.round((Number(n.page_allocation) || 0) * scale));
+            n.page_allocation = v;
+          }
+        }
+        const newTotal = group.reduce((s, n) => s + (Number(n.page_allocation) || 0), 0);
+        console.log(`[generate-outline] volume "${vol}" limit=${limit} scaled total=${newTotal}`);
+      }
+    }
+
+
+
 
     // Deactivate prior outlines
     await supabase
