@@ -89,6 +89,7 @@ export function useAnalysisJob(jobId: string | null | undefined, solicitationId:
     if (job.status === "completed") {
       qc.invalidateQueries({ queryKey: ["solicitation-insights", solicitationId] });
       qc.invalidateQueries({ queryKey: ["solicitation", solicitationId] });
+      qc.refetchQueries({ queryKey: ["solicitation-insights", solicitationId] });
     }
   }, [job?.status, solicitationId, qc]);
 
