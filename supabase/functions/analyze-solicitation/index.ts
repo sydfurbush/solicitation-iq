@@ -255,6 +255,7 @@ Deno.serve(async (req) => {
       system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
       user: userPrompt,
       tool: ANALYSIS_SCHEMA,
+      modelOverride: { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 12000 },
     }) as Record<string, any>;
 
     // Validate summary against known facts
