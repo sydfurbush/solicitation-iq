@@ -223,18 +223,30 @@ export function DraftingWorkspace({ solicitationId }: Props) {
   const draftedCount = draftableNodes.filter((n) => draftMap.has(n.id)).length;
 
   return (
-    <div className="grid grid-cols-12 gap-4 h-[calc(100vh-22rem)] min-h-[480px]">
+    <div className="space-y-3">
+      <Phase5ProgressHeader
+        nodes={draftableNodes}
+        drafts={drafts}
+        statuses={statusByNode}
+        filter={statusFilter}
+        onFilterChange={setStatusFilter}
+      />
+      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-26rem)] min-h-[480px]">
       {/* Left: section tree */}
       <Card className="col-span-3 flex flex-col">
         <div className="p-3 border-b">
           <div className="text-xs text-muted-foreground">Sections</div>
-          <div className="text-sm font-medium">{draftedCount}/{draftableNodes.length} drafted · {totalWords.toLocaleString()} words</div>
+          <div className="text-sm font-medium">
+            {draftedCount}/{draftableNodes.length} drafted · {totalWords.toLocaleString()} words
+            {statusFilter && <span className="ml-1 text-muted-foreground font-normal">· showing {visibleNodes.length}</span>}
+          </div>
         </div>
         <ScrollArea className="flex-1">
           <ul className="p-2 space-y-1">
-            {draftableNodes.map((n) => {
+            {visibleNodes.map((n) => {
               const d = draftMap.get(n.id);
               const active = n.id === selectedId;
+              const status = statusByNode.get(n.id) ?? "none";
               return (
                 <li key={n.id}>
                   <button
@@ -245,9 +257,10 @@ export function DraftingWorkspace({ solicitationId }: Props) {
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate">
+                      <span className="truncate flex items-center gap-1.5 min-w-0">
+                        <SectionStatusDot status={status} />
                         {n.section_number && <span className="text-muted-foreground mr-1">{n.section_number}</span>}
-                        {n.title}
+                        <span className="truncate">{n.title}</span>
                       </span>
                       {d ? (
                         <Badge variant="outline" className="shrink-0 text-[10px] py-0 px-1">{d.word_count ?? 0}w</Badge>
@@ -255,11 +268,14 @@ export function DraftingWorkspace({ solicitationId }: Props) {
                         <span className="text-muted-foreground text-[10px]">—</span>
                       )}
                     </div>
-                    {n.volume && <div className="text-[10px] text-muted-foreground mt-0.5">{n.volume}</div>}
+                    {n.volume && <div className="text-[10px] text-muted-foreground mt-0.5 ml-3.5">{n.volume}</div>}
                   </button>
                 </li>
               );
             })}
+            {visibleNodes.length === 0 && (
+              <li className="px-2 py-4 text-center text-xs text-muted-foreground">No sections match this filter</li>
+            )}
           </ul>
         </ScrollArea>
       </Card>
