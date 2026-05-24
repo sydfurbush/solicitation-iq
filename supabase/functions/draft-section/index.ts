@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
 import { getTeamingPromptBlock } from "../_shared/teaming.ts";
 import { buildClientLens } from "../_shared/clientLens.ts";
+import { buildPriorSectionsBlock, buildUpcomingSectionsBlock, NO_TRANSITION_RULE } from "../_shared/priorSections.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,6 +45,8 @@ PUNCTUATION — HYPHEN USAGE:
 - PRESERVE hyphens that are grammatically required: compound modifiers before a noun (e.g. "cloud-native architecture", "low-risk approach"), prefixed words (e.g. "pre-award", "non-conforming", "re-baseline"), and standard hyphenated terms.
 - PRESERVE hyphens inside technical, contractual, or industry-specific terms verbatim (e.g. "FAR 52.212-4", "NAICS 541-330", "ISO 27001-compliant", "SOC 2 Type-II", part numbers, CLIN identifiers, CDRL designators, contract line items).
 - Never insert a hyphen where a comma or period would be grammatically correct.
+
+${NO_TRANSITION_RULE}
 
 Avoid: marketing fluff, unverifiable claims, "we are committed to excellence" filler.`;
 
