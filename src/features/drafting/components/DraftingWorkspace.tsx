@@ -413,6 +413,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
           </div>
         </ScrollArea>
       </Card>
+      </div>
     </div>
   );
 }
