@@ -71,6 +71,22 @@ export function DraftingWorkspace({ solicitationId }: Props) {
   }, [draftableNodes, selectedId]);
 
   const draftMap = useMemo(() => new Map(drafts.map((d) => [d.outline_node_id, d])), [drafts]);
+
+  const statusByNode = useMemo(() => {
+    const m = new Map<string, DraftStatus>();
+    for (const n of draftableNodes) {
+      const d = draftMap.get(n.id);
+      const snap = d ? aiSnapshots?.get(d.id) ?? null : null;
+      m.set(n.id, deriveDraftStatus(d, snap));
+    }
+    return m;
+  }, [draftableNodes, draftMap, aiSnapshots]);
+
+  const visibleNodes = useMemo(() => {
+    if (!statusFilter) return draftableNodes;
+    return draftableNodes.filter((n) => (statusByNode.get(n.id) ?? "none") === statusFilter);
+  }, [draftableNodes, statusByNode, statusFilter]);
+
   const selectedNode = draftableNodes.find((n) => n.id === selectedId);
   const selectedDraft = selectedId ? draftMap.get(selectedId) : null;
 
