@@ -323,10 +323,25 @@ export function DraftingWorkspace({ solicitationId }: Props) {
               {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
               <span className="ml-1">Save</span>
             </Button>
-            <Button size="sm" onClick={onAiDraft} disabled={!selectedNode || aiDraft.isPending}>
-              {aiDraft.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            <Button size="sm" onClick={onAiDraft} disabled={!selectedNode || aiDraft.isPending || batchRunning}>
+              {aiDraft.isPending && !batchRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               <span className="ml-1">AI Draft</span>
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={batchRunning || aiDraft.isPending}>
+                  {batchRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  <span className="ml-1">Batch</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => runBatch("next")}>Draft next undrafted</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => runBatch("next5")}>Draft next 5</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => runBatch("volume")} disabled={!selectedNode?.volume}>
+                  Draft all undrafted in this volume
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
         {mode === "edit" ? (
