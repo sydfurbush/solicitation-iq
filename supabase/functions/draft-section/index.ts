@@ -39,6 +39,12 @@ NON-REPETITION RULES (strict — read the PRIOR SECTIONS ALREADY DRAFTED block c
 - Do NOT restate facts, themes, proof points, or narratives the reader has already seen — build on them, advance them, add new specifics.
 - If this node's natural content overlaps with a prior section, narrow your focus to what is genuinely new for this node and cross-reference the earlier section instead of repeating.
 
+PUNCTUATION — HYPHEN USAGE:
+- Do NOT use a hyphen (-) or a pair of hyphens (--) to join independent clauses, separate thoughts, or stand in for sentence punctuation. Replace such hyphens with the correct mark: a period for separate sentences, a semicolon for closely related independent clauses, a comma for a non-essential clause, or an em dash (—) only when an emphatic parenthetical break is stylistically warranted.
+- PRESERVE hyphens that are grammatically required: compound modifiers before a noun (e.g. "cloud-native architecture", "low-risk approach"), prefixed words (e.g. "pre-award", "non-conforming", "re-baseline"), and standard hyphenated terms.
+- PRESERVE hyphens inside technical, contractual, or industry-specific terms verbatim (e.g. "FAR 52.212-4", "NAICS 541-330", "ISO 27001-compliant", "SOC 2 Type-II", part numbers, CLIN identifiers, CDRL designators, contract line items).
+- Never insert a hyphen where a comma or period would be grammatically correct.
+
 Avoid: marketing fluff, unverifiable claims, "we are committed to excellence" filler.`;
 
 const SCHEMA = {

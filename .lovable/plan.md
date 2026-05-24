@@ -1,77 +1,32 @@
-# Auto-Derive Format Profile from Solicitation
+## Goal
+During Phase 5 drafting, prevent the AI from using hyphens as makeshift sentence/clause joiners while preserving legitimate hyphenation (compound modifiers, prefixes, technical terms).
 
-Section L of nearly every federal RFP dictates document format (font, size, margins, line spacing, page limits per volume, file naming, pagination). Today these are configured manually in `buyer_format_profiles`. We'll add an AI extractor that drafts a profile from the solicitation, surface those rules on the Phase 3 outline as visible guidance, and let the existing Phase 5 compile step enforce them.
+## Where the rule belongs
+Phase 5 generates and revises text through two edge functions:
+- `supabase/functions/draft-section/index.ts` — first-pass draft (`SYSTEM_PROMPT`)
+- `supabase/functions/polish-section/index.ts` — tighten / expand / rewrite-to-theme / compliance-check (system message in `callAiTool`)
 
-## Three connected pieces
+Both call Lovable AI and return Markdown that lands in `proposal_drafts.content_json.markdown`. Adding the rule once per system prompt covers every AI write path into a draft. No schema or UI changes needed.
 
-### 1. Derive (new)
-A new edge function reads Section L from the solicitation's processed documents and proposes a complete format profile with per-field citations. User reviews, edits, and saves — creating a new `buyer_format_profiles` row and setting `solicitations.format_profile_id`.
+## Rule text to add (shared, identical in both functions)
+A new "PUNCTUATION" block:
 
-### 2. Reference on the outline (new)
-The active profile becomes visible context on the Phase 3 outline so writers see the rules they're working against:
-- A "Format Profile" panel at the top of the outline (font, size, margins, line spacing, page-number format, file-name pattern, per-volume page limits)
-- Each volume header shows its page budget (e.g. *Volume I — Technical · 50 pages*) from `volume_page_limits`
-- A per-section pill comparing the AI's `page_allocation` against the volume budget, flagging overruns
-- Each derived field links to the L-clause snippet it came from
-- The outline generator receives `volume_page_limits` so per-section `page_allocation` values **sum to the limit per volume** (today they're an independent AI guess)
+> PUNCTUATION — HYPHEN USAGE:
+> - Do NOT use a hyphen (`-`) or a pair of hyphens (`--`) to join independent clauses, separate thoughts, or stand in for sentence punctuation. Replace such hyphens with the correct mark: a period for separate sentences, a semicolon for closely related independent clauses, a comma for a non-essential clause, or an em dash (`—`) only when an emphatic parenthetical break is stylistically warranted.
+> - PRESERVE hyphens that are grammatically required: compound modifiers before a noun (e.g. "cloud-native architecture", "low-risk approach"), prefixed words (e.g. "pre-award", "non-conforming", "re-baseline"), and standard hyphenated terms.
+> - PRESERVE hyphens inside technical, contractual, or industry-specific terms verbatim (e.g. "FAR 52.212-4", "NAICS 541-330", "ISO 27001-compliant", "SOC 2 Type-II", part numbers, CLIN identifiers, CDRL designators, contract line items).
+> - Never insert a hyphen where a comma or period would be grammatically correct.
 
-### 3. Apply at compile (already works)
-`compile-proposal` already reads `buyer_format_profiles` and applies font, size, margins, line spacing, page-number footer, file-name pattern, and enforces `volume_page_limits` in pre-flight. Once a derived profile is saved, **compile picks it up automatically** — no additional wiring.
+## Files to change
+1. `supabase/functions/draft-section/index.ts` — append the PUNCTUATION block to `SYSTEM_PROMPT` (after the existing FORMATTING line, before "Avoid: marketing fluff…").
+2. `supabase/functions/polish-section/index.ts` — append the same block to the `system:` string passed into `callAiTool` (after the existing FORMATTING sentence).
 
-## Flow
-
-```text
-[Solicitation docs]
-        │
-        ▼
-extract-format-profile (new edge function)
-  • Loads Section L chunks (same source as generate-outline)
-  • Calls Lovable AI (google/gemini-2.5-flash) with strict JSON schema
-  • Returns { profile, citations, confidence, unresolved[] }
-        │
-        ▼
-[Review modal] → save → buyer_format_profiles row
-                       solicitations.format_profile_id = new id
-        │
-        ├──► [Phase 3 outline] reads profile, renders panel + volume budgets
-        │        • generate-outline now receives volume_page_limits and
-        │          allocates pages within them
-        │
-        └──► [Phase 5 compile] applies typography + enforces page limits
-```
-
-## User experience
-
-1. Phase 3 outline header gains a **"Derive format from solicitation"** button (also surfaced on the Format Profiles tab).
-2. Clicking runs the extractor and opens a review modal: each field side-by-side with the L-clause snippet, low-confidence fields flagged, unresolved fields fall back to org default / `DEFAULT_PROFILE`.
-3. User edits as needed → Save creates a profile named *"Auto — {solicitation number}"* and links it to the solicitation.
-4. Outline immediately shows the Format Profile panel and per-volume page budgets. Re-running outline generation will respect those budgets.
-5. At Phase 5, the existing compile button produces a DOCX in the derived format with pre-flight page-limit checks.
-
-## Technical changes
-
-**New edge function** — `supabase/functions/extract-format-profile/index.ts`
-- Input: `{ solicitationId }`
-- Loads Section L from `document_sections` (filtered by Section-L tags), same path `generate-outline` uses
-- Strict JSON schema matching `buyer_format_profiles` columns + `citations` object keyed by field name
-- Read-only: returns the proposal; the UI controls the save
-
-**Outline generator update** — `supabase/functions/generate-outline/index.ts`
-- Look up `format_profile_id` for the solicitation; pass `volume_page_limits` into the prompt
-- Add a post-process step: if a volume's section `page_allocation` values exceed its limit, scale proportionally; if under, leave headroom
-- Log per-volume totals vs limits
-
-**Frontend**
-- `src/features/formatProfiles/hooks/useDeriveFormatProfile.ts` — calls the new function, returns proposal + citations
-- `src/features/formatProfiles/components/DeriveFormatDialog.tsx` — review/edit modal with citation tooltips
-- `src/features/outline/components/FormatProfilePanel.tsx` — read-only summary panel at top of outline
-- Update `SolicitationOutline.tsx` to render the panel and per-volume page-budget headers + per-section overrun pills
-- Add the Derive button to `FormatProfilesTab.tsx` and the outline header
-
-**No schema changes** — `buyer_format_profiles` already has every field needed; `solicitations.format_profile_id` already exists.
+Both functions are auto-deployed on save.
 
 ## Out of scope
+- No regex post-processor. Reliably distinguishing a "joiner hyphen" from a compound-modifier hyphen in arbitrary prose is exactly what we're asking the model to do; a regex would either miss cases or damage legitimate terms like `FAR 52.212-4`. We rely on the prompt rule and can add a targeted post-processor later if reviewers see recurring misses.
+- No change to the outline, format profile, or compile step.
+- No change to the editor UI — the rule applies at generation time only.
 
-- Auto-running extraction on document upload (kept user-initiated so they review before it drives compilation).
-- Learning format rules from past proposals — Section L only for now.
-- Auto-detecting format-related amendments after extraction (handled by re-running the extractor).
+## Verification
+After the edit, generate a new section draft on a Phase 5 node and run a Polish → Tighten on an existing draft. Confirm hyphen-as-joiner instances are replaced with proper punctuation and that compound modifiers / clause references like `FAR 52.212-4` are untouched.
