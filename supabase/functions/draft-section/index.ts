@@ -187,6 +187,8 @@ Notes: ${node.notes ?? "—"}
 
 ${boundaryText}
 
+${upcomingBlock}
+
 ${priorBlock}
 
 REQUIREMENTS TO ADDRESS
