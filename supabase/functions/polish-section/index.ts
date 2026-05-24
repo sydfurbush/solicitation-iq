@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { buildPriorSectionsBlock, NO_TRANSITION_RULE } from "../_shared/priorSections.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: node } = await supabase.from("outline_nodes").select("title, section_number, linked_requirement_ids").eq("id", draft.outline_node_id).maybeSingle();
+    const { data: node } = await supabase.from("outline_nodes").select("title, section_number, linked_requirement_ids, outline_id, sort_order, id").eq("id", draft.outline_node_id).maybeSingle();
 
     const reqIds = (node?.linked_requirement_ids ?? []) as string[];
     const { data: requirements } = reqIds.length
@@ -78,11 +79,24 @@ Deno.serve(async (req) => {
       .eq("solicitation_id", draft.solicitation_id)
       .contains("linked_outline_node_ids", [draft.outline_node_id]);
 
+    let priorBlock = "";
+    if (node?.outline_id && typeof node.sort_order === "number") {
+      const r = await buildPriorSectionsBlock({
+        supabase,
+        outlineId: node.outline_id,
+        currentNodeId: node.id,
+        currentSortOrder: node.sort_order,
+      });
+      priorBlock = r.block;
+    }
+
     const reqText = (requirements ?? []).map((r) => `- [Req-${r.req_number}]: ${r.shall_text}`).join("\n") || "(none)";
     const themeText = (themes ?? []).map((t) => `- ${t.title}: ${t.theme_statement}`).join("\n") || "(none)";
     const currentMd = (draft.content_json as { markdown?: string } | null)?.markdown ?? draft.content_html ?? "";
 
     const userPrompt = `Section: ${node?.section_number ?? ""} ${node?.title ?? ""}
+
+${priorBlock}
 
 REQUIREMENTS
 ${reqText}
@@ -97,7 +111,7 @@ ${currentMd}`;
 
     const result = await callAiTool({
       functionName: "polish-section",
-      system: "You polish proposal section drafts. Always return the full updated Markdown — never a partial diff. FORMATTING: Do NOT hard-wrap lines at 80 columns or any fixed width. Write each paragraph as a SINGLE continuous line. Separate paragraphs and list items with one blank line. Preserve existing paragraph and list structure; do not introduce baked-in line breaks. PUNCTUATION — HYPHEN USAGE: Do NOT use a hyphen (-) or a pair of hyphens (--) to join independent clauses, separate thoughts, or stand in for sentence punctuation; replace such hyphens with the correct mark — a period for separate sentences, a semicolon for closely related independent clauses, a comma for a non-essential clause, or an em dash (—) only when an emphatic parenthetical break is stylistically warranted. PRESERVE hyphens that are grammatically required: compound modifiers before a noun (e.g. \"cloud-native architecture\", \"low-risk approach\"), prefixed words (e.g. \"pre-award\", \"non-conforming\"), and standard hyphenated terms. PRESERVE hyphens inside technical, contractual, or industry-specific terms verbatim (e.g. \"FAR 52.212-4\", \"NAICS 541-330\", \"ISO 27001-compliant\", part numbers, CLIN/CDRL identifiers). Never insert a hyphen where a comma or period would be grammatically correct.",
+      system: "You polish proposal section drafts. Always return the full updated Markdown — never a partial diff. Do NOT re-introduce content (company identification, certifications, themes, tables, narratives) that already appears in any PRIOR SECTIONS block — reference instead. " + NO_TRANSITION_RULE + " FORMATTING: Do NOT hard-wrap lines at 80 columns or any fixed width. Write each paragraph as a SINGLE continuous line. Separate paragraphs and list items with one blank line. Preserve existing paragraph and list structure; do not introduce baked-in line breaks. PUNCTUATION — HYPHEN USAGE: Do NOT use a hyphen (-) or a pair of hyphens (--) to join independent clauses, separate thoughts, or stand in for sentence punctuation; replace such hyphens with the correct mark — a period for separate sentences, a semicolon for closely related independent clauses, a comma for a non-essential clause, or an em dash (—) only when an emphatic parenthetical break is stylistically warranted. PRESERVE hyphens that are grammatically required: compound modifiers before a noun (e.g. \"cloud-native architecture\", \"low-risk approach\"), prefixed words (e.g. \"pre-award\", \"non-conforming\"), and standard hyphenated terms. PRESERVE hyphens inside technical, contractual, or industry-specific terms verbatim (e.g. \"FAR 52.212-4\", \"NAICS 541-330\", \"ISO 27001-compliant\", part numbers, CLIN/CDRL identifiers). Never insert a hyphen where a comma or period would be grammatically correct.",
       user: userPrompt,
       tool: SCHEMA,
     });

@@ -51,6 +51,12 @@
     --phase-4: 152 69% 42%;
     --phase-5: 340 82% 52%;
 
+    /* Drafting status colors */
+    --status-none: 215 16% 65%;
+    --status-ai: 221 83% 53%;
+    --status-edited: 38 92% 50%;
+    --status-polished: 160 84% 39%;
+
     /* Dark sidebar */
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 96%;
@@ -99,6 +105,11 @@
     --phase-3: 38 92% 55%;
     --phase-4: 152 69% 42%;
     --phase-5: 340 82% 52%;
+
+    --status-none: 215 16% 45%;
+    --status-ai: 221 83% 60%;
+    --status-edited: 38 92% 55%;
+    --status-polished: 160 84% 45%;
 
     --sidebar-background: 222 47% 6%;
     --sidebar-foreground: 210 40% 96%;

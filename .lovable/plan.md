@@ -1,32 +1,59 @@
-## Goal
-During Phase 5 drafting, prevent the AI from using hyphens as makeshift sentence/clause joiners while preserving legitimate hyphenation (compound modifiers, prefixes, technical terms).
 
-## Where the rule belongs
-Phase 5 generates and revises text through two edge functions:
-- `supabase/functions/draft-section/index.ts` — first-pass draft (`SYSTEM_PROMPT`)
-- `supabase/functions/polish-section/index.ts` — tighten / expand / rewrite-to-theme / compliance-check (system message in `callAiTool`)
+## Decisions locked in
+- Batch runner: all three scopes — "Draft next undrafted", "Draft next 5", "Draft all undrafted in this volume"
+- Edited status: any human save counts as Edited (no diff check)
+- No forward-handoff transition copy — sections end cleanly
 
-Both call Lovable AI and return Markdown that lands in `proposal_drafts.content_json.markdown`. Adding the rule once per system prompt covers every AI write path into a draft. No schema or UI changes needed.
+## 1. Prompt updates for flow & non-redundancy
 
-## Rule text to add (shared, identical in both functions)
-A new "PUNCTUATION" block:
+**`supabase/functions/draft-section/index.ts`**
+- Keep existing PRIOR SECTIONS block and NON-REPETITION RULES as-is.
+- Add an UPCOMING SECTIONS block (titles only, no content) listing remaining siblings and the next top-level section, so the AI knows what NOT to encroach on.
+- Add one rule to SYSTEM_PROMPT: "End each section cleanly on its own substantive last sentence. Do NOT write forward-pointing transitions, 'in the next section…' phrasing, or hand-off sentences. The next section will stand on its own."
 
-> PUNCTUATION — HYPHEN USAGE:
-> - Do NOT use a hyphen (`-`) or a pair of hyphens (`--`) to join independent clauses, separate thoughts, or stand in for sentence punctuation. Replace such hyphens with the correct mark: a period for separate sentences, a semicolon for closely related independent clauses, a comma for a non-essential clause, or an em dash (`—`) only when an emphatic parenthetical break is stylistically warranted.
-> - PRESERVE hyphens that are grammatically required: compound modifiers before a noun (e.g. "cloud-native architecture", "low-risk approach"), prefixed words (e.g. "pre-award", "non-conforming", "re-baseline"), and standard hyphenated terms.
-> - PRESERVE hyphens inside technical, contractual, or industry-specific terms verbatim (e.g. "FAR 52.212-4", "NAICS 541-330", "ISO 27001-compliant", "SOC 2 Type-II", part numbers, CLIN identifiers, CDRL designators, contract line items).
-> - Never insert a hyphen where a comma or period would be grammatically correct.
+**`supabase/functions/polish-section/index.ts`**
+- Pass the same PRIOR SECTIONS summary the draft function builds (extract the builder into `_shared/priorSections.ts` so both functions use it), so polishes don't re-introduce content present elsewhere.
+- Add the same "no forward transitions" rule.
+
+## 2. Batch runner
+
+In `DraftingWorkspace.tsx`, add a "Batch draft" dropdown next to the AI Draft button with three actions:
+- **Draft next undrafted** — first node with no draft, in `sort_order`.
+- **Draft next 5** — next 5 undrafted nodes in order.
+- **Draft all undrafted in this volume** — every undrafted node whose `volume` matches the currently selected node.
+
+Implementation: sequential loop over existing `useAiDraftSection` mutation (no new edge function). Each iteration sees the latest prior-section context because the previous call already wrote to the DB. Show a progress toast ("Drafting 3 of 7…"), stop on first error and surface it, disable the button while running. Cancellable via a "Stop" toast action.
+
+## 3. Section status visibility (Option A + C)
+
+**Status derivation (no schema change):**
+- `none` — no row in `proposal_drafts` for that node
+- `ai` — draft exists, `last_ai_action` set, no human save since (compare `updated_at` against the most recent `proposal_draft_versions.created_at` where `change_summary = 'Pre-AI-draft snapshot'`)
+- `edited` — `updated_at` is after the most recent AI snapshot (any save counts)
+- `polished` — `last_ai_action` ∈ {tighten, expand, rewrite_to_theme, compliance_check} and no human save since
+
+**Option A — dots in the left rail.** Replace the `—` / `Nw` badge with: a small status dot (color-coded via semantic tokens) + word-count badge. Tooltip shows full status + last-touched timestamp.
+
+**Option C — Phase-5 progress header.** Above the 3-column grid:
+- Progress bar: drafted / total nodes
+- Per-volume meter: words vs. (page_allocation × 350) budget, color shifts at >100%
+- Status chips: counts for None / AI / Edited / Polished; click a chip to filter the left rail to that bucket
+
+Color tokens to add (HSL) in `index.css` + `tailwind.config.ts`: `--status-none`, `--status-ai`, `--status-edited`, `--status-polished`.
 
 ## Files to change
-1. `supabase/functions/draft-section/index.ts` — append the PUNCTUATION block to `SYSTEM_PROMPT` (after the existing FORMATTING line, before "Avoid: marketing fluff…").
-2. `supabase/functions/polish-section/index.ts` — append the same block to the `system:` string passed into `callAiTool` (after the existing FORMATTING sentence).
-
-Both functions are auto-deployed on save.
+1. `supabase/functions/_shared/priorSections.ts` (new) — shared prior-sections summary builder
+2. `supabase/functions/draft-section/index.ts` — use shared builder, add UPCOMING block + no-transition rule
+3. `supabase/functions/polish-section/index.ts` — add PRIOR SECTIONS block + no-transition rule
+4. `src/features/drafting/utils/draftStatus.ts` (new) — pure helper deriving status from draft + versions
+5. `src/features/drafting/hooks/useDraftVersions.ts` (new) — query latest version per draft for AI-snapshot timestamps
+6. `src/features/drafting/components/DraftingWorkspace.tsx` — status dots in left rail, batch dropdown, progress header, status chip filter
+7. `src/features/drafting/components/SectionStatusDot.tsx` (new) — small presentational component
+8. `src/features/drafting/components/Phase5ProgressHeader.tsx` (new)
+9. `src/index.css` + `tailwind.config.ts` — status color tokens
 
 ## Out of scope
-- No regex post-processor. Reliably distinguishing a "joiner hyphen" from a compound-modifier hyphen in arbitrary prose is exactly what we're asking the model to do; a regex would either miss cases or damage legitimate terms like `FAR 52.212-4`. We rely on the prompt rule and can add a targeted post-processor later if reviewers see recurring misses.
-- No change to the outline, format profile, or compile step.
-- No change to the editor UI — the rule applies at generation time only.
-
-## Verification
-After the edit, generate a new section draft on a Phase 5 node and run a Polish → Tighten on an existing draft. Confirm hyphen-as-joiner instances are replaced with proper punctuation and that compound modifiers / clause references like `FAR 52.212-4` are untouched.
+- No DB migration (everything keys off existing `proposal_drafts.last_ai_action`, `updated_at`, and `proposal_draft_versions`)
+- No diff-based "really changed" detection — any save = Edited as agreed
+- No realtime presence on section rows
+- No flat status-table view (Option B) — superseded by header + dots
