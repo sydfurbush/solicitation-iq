@@ -1,16 +1,21 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useActiveOutline, useOutlineNodes } from "@/features/outline/hooks/useProposalOutline";
 import { useRequirementItems } from "@/features/deepdive/hooks/useRequirementItems";
 import { useWinThemes } from "@/features/winthemes/hooks/useWinThemes";
 import {
   useProposalDrafts, useSaveDraft, useAiDraftSection, useAiPolishSection,
 } from "../hooks/useProposalDrafts";
+import { useDraftAiSnapshots } from "../hooks/useDraftVersions";
+import { deriveDraftStatus, type DraftStatus } from "../utils/draftStatus";
+import { SectionStatusDot } from "./SectionStatusDot";
+import { Phase5ProgressHeader } from "./Phase5ProgressHeader";
 import { Button } from "@/components/ui/button";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Save, FileText, AlertCircle, Loader2, Eye, Pencil } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Sparkles, Save, FileText, AlertCircle, Loader2, Eye, Pencil, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
