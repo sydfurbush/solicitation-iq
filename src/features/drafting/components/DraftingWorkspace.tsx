@@ -147,7 +147,44 @@ export function DraftingWorkspace({ solicitationId }: Props) {
     }
   };
 
-  const linkedReqs = useMemo(() => {
+  const runBatch = useCallback(async (scope: "next" | "next5" | "volume") => {
+    const undrafted = draftableNodes.filter((n) => !draftMap.has(n.id));
+    let targets = undrafted;
+    if (scope === "next") targets = undrafted.slice(0, 1);
+    else if (scope === "next5") targets = undrafted.slice(0, 5);
+    else if (scope === "volume") {
+      const vol = selectedNode?.volume ?? null;
+      targets = undrafted.filter((n) => (n.volume ?? null) === vol);
+    }
+    if (targets.length === 0) {
+      toast.info("No undrafted sections to draft");
+      return;
+    }
+    batchCancelRef.current = false;
+    setBatchRunning(true);
+    const toastId = toast.loading(`Drafting 0 of ${targets.length}…`, {
+      action: { label: "Stop", onClick: () => { batchCancelRef.current = true; } },
+    });
+    let done = 0;
+    try {
+      for (const n of targets) {
+        if (batchCancelRef.current) break;
+        toast.loading(`Drafting ${done + 1} of ${targets.length}: ${n.title}`, { id: toastId });
+        await aiDraft.mutateAsync(n.id);
+        done += 1;
+      }
+      if (batchCancelRef.current) {
+        toast.warning(`Stopped after ${done} of ${targets.length}`, { id: toastId });
+      } else {
+        toast.success(`Drafted ${done} sections`, { id: toastId });
+      }
+    } catch (e) {
+      toast.error(`Stopped at ${done + 1} of ${targets.length}: ${e instanceof Error ? e.message : "error"}`, { id: toastId });
+    } finally {
+      setBatchRunning(false);
+      batchCancelRef.current = false;
+    }
+  }, [aiDraft, draftMap, draftableNodes, selectedNode]);
     if (!selectedNode) return [];
     const ids = new Set(selectedNode.linked_requirement_ids ?? []);
     return requirements.filter((r) => ids.has(r.id));
