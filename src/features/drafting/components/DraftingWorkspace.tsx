@@ -185,6 +185,8 @@ export function DraftingWorkspace({ solicitationId }: Props) {
       batchCancelRef.current = false;
     }
   }, [aiDraft, draftMap, draftableNodes, selectedNode]);
+
+  const linkedReqs = useMemo(() => {
     if (!selectedNode) return [];
     const ids = new Set(selectedNode.linked_requirement_ids ?? []);
     return requirements.filter((r) => ids.has(r.id));
