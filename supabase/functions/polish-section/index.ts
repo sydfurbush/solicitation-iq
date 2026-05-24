@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { buildPriorSectionsBlock, NO_TRANSITION_RULE } from "../_shared/priorSections.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
