@@ -57,6 +57,11 @@ export function DraftingWorkspace({ solicitationId }: Props) {
   const { data: drafts = [] } = useProposalDrafts(solicitationId);
   const { data: requirements = [] } = useRequirementItems(solicitationId);
   const { data: themes = [] } = useWinThemes(solicitationId);
+  const { data: aiSnapshots } = useDraftAiSnapshots(solicitationId);
+
+  const [statusFilter, setStatusFilter] = useState<DraftStatus | null>(null);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const batchCancelRef = useRef(false);
 
   const draftableNodes = useMemo(() => nodes.filter((n) => n.title), [nodes]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
