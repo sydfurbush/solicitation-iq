@@ -520,6 +520,17 @@ function PartnerDrawer({
           </SheetDescription>
         </SheetHeader>
 
+        {canRefill && (
+          <div className="mt-2 flex items-center justify-between rounded-md border border-dashed bg-muted/30 px-3 py-2">
+            <span className="text-xs text-muted-foreground">
+              Linked to client <span className="font-medium text-foreground">{client?.name}</span>
+            </span>
+            <Button size="sm" variant="ghost" onClick={refillFromClient}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refill from client profile
+            </Button>
+          </div>
+        )}
+
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
