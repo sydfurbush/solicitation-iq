@@ -29,8 +29,10 @@ const SEV_COLOR: Record<string, string> = {
   low: "bg-muted text-muted-foreground",
 };
 
-export default function DeepDiveTab({ solicitationId, clientId, currentPhase, solicitationTitle, clientName }: { solicitationId: string; clientId?: string | null; currentPhase: string; solicitationTitle?: string; clientName?: string }) {
-  const [tab, setTab] = useState("rtm");
+export default function DeepDiveTab({ solicitationId, clientId, currentPhase, solicitationTitle, clientName, step, onStepChange }: { solicitationId: string; clientId?: string | null; currentPhase: string; solicitationTitle?: string; clientName?: string; step?: string; onStepChange?: (k: string) => void }) {
+  const [internalTab, setInternalTab] = useState("rtm");
+  const tab = step ?? internalTab;
+  const setTab = (v: string) => { onStepChange ? onStepChange(v) : setInternalTab(v); };
   const { data: items = [] } = useRequirementItems(solicitationId);
   const { data: sections = [] } = useSectionAnalyses(solicitationId);
   const { data: gaps = [] } = useCapabilityGaps(solicitationId);

@@ -73,6 +73,13 @@ const PHASE_1_STEPS = [
   { key: "risks", label: "Risks & Opportunities" },
 ];
 
+const PHASE_2_STEPS = [
+  { key: "rtm", label: "Requirements (RTM)" },
+  { key: "sections", label: "Section analysis" },
+  { key: "gaps", label: "Gaps" },
+  { key: "teaming", label: "Teaming" },
+];
+
 // Maps any legacy ?tab= value (or pre-redesign deep links) to the new shape.
 const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   overview: { tab: "phase-1", step: "overview" },
@@ -451,9 +458,19 @@ export default function SolicitationDetail() {
             <PhaseHelpPanel phase="phase_1_initial" />
           </div>
 
-          <PhaseNavBtn phase="phase_2_deep_dive" active={tab === "phase-2"} onClick={() => goTab("phase-2")}>
-            {phaseLabelByKey["phase-2"]}
-          </PhaseNavBtn>
+          {/* Phase 2 with sub-step menu */}
+          <div className="inline-flex items-center">
+            <PhaseNavMenu
+              label={phaseLabelByKey["phase-2"]}
+              active={tab === "phase-2"}
+              steps={PHASE_2_STEPS}
+              activeStep={tab === "phase-2" ? (step ?? "rtm") : undefined}
+              onPick={(k) => goTab("phase-2", k)}
+              onOpen={() => goTab("phase-2", "rtm")}
+              phase="phase_2_deep_dive"
+            />
+            <PhaseHelpPanel phase="phase_2_deep_dive" />
+          </div>
           <PhaseNavBtn phase="phase_3_outline" active={tab === "phase-3"} onClick={() => goTab("phase-3")}>
             {phaseLabelByKey["phase-3"]}
           </PhaseNavBtn>
@@ -494,13 +511,22 @@ export default function SolicitationDetail() {
         {tab === "phase-1" && renderPhase1()}
 
         {tab === "phase-2" && (
-          <PhaseShell solicitationId={s.id} phase="phase_2_deep_dive" currentPhase={currentPhase}>
+          <PhaseShell
+            solicitationId={s.id}
+            phase="phase_2_deep_dive"
+            currentPhase={currentPhase}
+            subSteps={PHASE_2_STEPS}
+            activeStep={step ?? "rtm"}
+            onStepChange={(k) => goTab("phase-2", k)}
+          >
             <SolicitationDeepDive
               solicitationId={s.id}
               clientId={s.client_id}
               currentPhase={currentPhase}
               solicitationTitle={s.title}
               clientName={clientName}
+              step={step ?? "rtm"}
+              onStepChange={(k) => goTab("phase-2", k)}
             />
           </PhaseShell>
         )}
