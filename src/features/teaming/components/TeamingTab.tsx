@@ -396,12 +396,17 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
 
       {(creating || editing) && (
         <PartnerDrawer
+          key={editing?.id ?? "create"}
           solicitationId={solicitationId}
           partner={editing}
+          initialValues={creating ? createDefaults : null}
+          client={client ?? null}
+          clientProfile={clientProfile ?? null}
           open={creating || !!editing}
           onClose={() => {
             setCreating(false);
             setEditing(null);
+            setCreateDefaults(null);
           }}
           onCreate={handleCreate}
           onUpdate={handleUpdate}
