@@ -341,7 +341,7 @@ export function ExhibitsTab({ solicitationId }: Props) {
         description={confirmDelete ? `"${confirmDelete.title}" will be permanently removed, including any uploaded file.` : ""}
         confirmText="Delete"
         onConfirm={onDelete}
-        variant="destructive"
+        variant="danger"
       />
     </div>
   );
