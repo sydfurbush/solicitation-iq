@@ -73,6 +73,13 @@ const PHASE_1_STEPS = [
   { key: "risks", label: "Risks & Opportunities" },
 ];
 
+const PHASE_2_STEPS = [
+  { key: "rtm", label: "Requirements (RTM)" },
+  { key: "sections", label: "Section analysis" },
+  { key: "gaps", label: "Gaps" },
+  { key: "teaming", label: "Teaming" },
+];
+
 // Maps any legacy ?tab= value (or pre-redesign deep links) to the new shape.
 const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   overview: { tab: "phase-1", step: "overview" },
