@@ -458,9 +458,19 @@ export default function SolicitationDetail() {
             <PhaseHelpPanel phase="phase_1_initial" />
           </div>
 
-          <PhaseNavBtn phase="phase_2_deep_dive" active={tab === "phase-2"} onClick={() => goTab("phase-2")}>
-            {phaseLabelByKey["phase-2"]}
-          </PhaseNavBtn>
+          {/* Phase 2 with sub-step menu */}
+          <div className="inline-flex items-center">
+            <PhaseNavMenu
+              label={phaseLabelByKey["phase-2"]}
+              active={tab === "phase-2"}
+              steps={PHASE_2_STEPS}
+              activeStep={tab === "phase-2" ? (step ?? "rtm") : undefined}
+              onPick={(k) => goTab("phase-2", k)}
+              onOpen={() => goTab("phase-2", "rtm")}
+              phase="phase_2_deep_dive"
+            />
+            <PhaseHelpPanel phase="phase_2_deep_dive" />
+          </div>
           <PhaseNavBtn phase="phase_3_outline" active={tab === "phase-3"} onClick={() => goTab("phase-3")}>
             {phaseLabelByKey["phase-3"]}
           </PhaseNavBtn>
