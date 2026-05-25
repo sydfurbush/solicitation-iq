@@ -420,6 +420,9 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
 function PartnerDrawer({
   solicitationId,
   partner,
+  initialValues,
+  client,
+  clientProfile,
   open,
   onClose,
   onCreate,
@@ -428,6 +431,9 @@ function PartnerDrawer({
 }: {
   solicitationId: string;
   partner: TeamingPartner | null;
+  initialValues?: Partial<TeamingPartner> | null;
+  client?: ClientRow | null;
+  clientProfile?: ClientProfile | null;
   open: boolean;
   onClose: () => void;
   onCreate: (input: Partial<TeamingPartner> & { name: string }) => void;
@@ -436,7 +442,8 @@ function PartnerDrawer({
 }) {
   const isEdit = !!partner;
   const [form, setForm] = useState<Partial<TeamingPartner>>(() =>
-    partner ?? {
+    partner ??
+    initialValues ?? {
       name: "",
       role: "sub" as TeamingPartner["role"],
       set_asides: [],
@@ -444,6 +451,32 @@ function PartnerDrawer({
       agreement_status: "none" as TeamingPartner["agreement_status"],
     },
   );
+
+  const linkedClientId = (form.linked_client_id ?? partner?.linked_client_id) as string | null | undefined;
+  const canRefill = !!linkedClientId && !!client && client.id === linkedClientId;
+
+  const refillFromClient = () => {
+    if (!client) return;
+    const role = (form.role ?? "sub") as ClientPartnerRole;
+    const defaults = buildClientPartnerDefaults(client, clientProfile ?? null, role);
+    setForm((f) => {
+      const merged: Partial<TeamingPartner> = { ...f };
+      for (const [k, v] of Object.entries(defaults)) {
+        const key = k as keyof TeamingPartner;
+        const current = (f as Record<string, unknown>)[k];
+        const isEmpty =
+          current == null ||
+          current === "" ||
+          (Array.isArray(current) && current.length === 0);
+        if (isEmpty && v != null && v !== "") {
+          (merged as Record<string, unknown>)[key] = v;
+        }
+      }
+      return merged;
+    });
+    toast({ title: "Refilled from client profile" });
+  };
+
 
   const setField = <K extends keyof TeamingPartner>(k: K, v: TeamingPartner[K] | null) =>
     setForm((f) => ({ ...f, [k]: v as TeamingPartner[K] }));
