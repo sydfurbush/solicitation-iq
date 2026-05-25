@@ -220,9 +220,33 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
             <Users className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base">Teaming &amp; Subcontractors</CardTitle>
           </div>
-          <Button onClick={() => setCreating(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" /> Add partner
-          </Button>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={!client}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  {clientPartner ? "Edit client row" : "Add client as…"}
+                  <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {clientPartner ? (
+                  <DropdownMenuItem onClick={() => setEditing(clientPartner)}>
+                    Edit existing client row
+                  </DropdownMenuItem>
+                ) : (
+                  (["prime", "sub", "teaming", "mentor_protege"] as ClientPartnerRole[]).map((r) => (
+                    <DropdownMenuItem key={r} onClick={() => openAddClientAs(r)}>
+                      {ROLE_LABEL[r]}
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={() => { setCreateDefaults(null); setCreating(true); }} size="sm">
+              <Plus className="h-4 w-4 mr-2" /> Add partner
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
