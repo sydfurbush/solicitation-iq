@@ -64,7 +64,6 @@ export function DraftingWorkspace({ solicitationId }: Props) {
   const { data: requirements = [] } = useRequirementItems(solicitationId);
   const { data: themes = [] } = useWinThemes(solicitationId);
   const { data: aiSnapshots } = useDraftAiSnapshots(solicitationId);
-  const { data: aiSnapshots } = useDraftAiSnapshots(solicitationId);
 
   const [statusFilter, setStatusFilter] = useState<DraftStatus | null>(null);
   const [batchRunning, setBatchRunning] = useState(false);
