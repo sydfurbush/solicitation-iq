@@ -80,6 +80,11 @@ const PHASE_2_STEPS = [
   { key: "teaming", label: "Teaming" },
 ];
 
+const PHASE_3_STEPS = [
+  { key: "outline", label: "Proposal outline" },
+  { key: "exhibits", label: "Exhibits & Attachments" },
+];
+
 // Maps any legacy ?tab= value (or pre-redesign deep links) to the new shape.
 const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   overview: { tab: "phase-1", step: "overview" },
