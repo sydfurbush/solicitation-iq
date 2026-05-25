@@ -21,6 +21,9 @@ import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { normalizeIfWrapped } from "../utils/markdownNormalize";
+import { SectionExhibitsPanel } from "@/features/exhibits/components/SectionExhibitsPanel";
+import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
+import { useClient } from "@/features/clients/hooks/useClients";
 
 interface Props { solicitationId: string }
 
