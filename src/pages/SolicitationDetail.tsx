@@ -511,13 +511,22 @@ export default function SolicitationDetail() {
         {tab === "phase-1" && renderPhase1()}
 
         {tab === "phase-2" && (
-          <PhaseShell solicitationId={s.id} phase="phase_2_deep_dive" currentPhase={currentPhase}>
+          <PhaseShell
+            solicitationId={s.id}
+            phase="phase_2_deep_dive"
+            currentPhase={currentPhase}
+            subSteps={PHASE_2_STEPS}
+            activeStep={step ?? "rtm"}
+            onStepChange={(k) => goTab("phase-2", k)}
+          >
             <SolicitationDeepDive
               solicitationId={s.id}
               clientId={s.client_id}
               currentPhase={currentPhase}
               solicitationTitle={s.title}
               clientName={clientName}
+              step={step ?? "rtm"}
+              onStepChange={(k) => goTab("phase-2", k)}
             />
           </PhaseShell>
         )}
