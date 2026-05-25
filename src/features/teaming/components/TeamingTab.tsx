@@ -306,7 +306,14 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
                 <TableBody>
                   {partners.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{p.name}</span>
+                          {p.linked_client_id && clientId && p.linked_client_id === clientId && (
+                            <Badge variant="secondary" className="text-[10px]">Client</Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline">{ROLE_LABEL[p.role] ?? p.role}</Badge>
                       </TableCell>
