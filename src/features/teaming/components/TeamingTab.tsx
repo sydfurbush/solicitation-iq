@@ -123,8 +123,33 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
   const update = useUpdateTeamingPartner(solicitationId);
   const remove = useDeleteTeamingPartner(solicitationId);
 
+  const { data: solicitation } = useSolicitation(solicitationId);
+  const clientId = solicitation?.client_id;
+  const { data: client } = useClient(clientId);
+  const { data: clientProfile } = useClientProfile(clientId);
+
   const [editing, setEditing] = useState<TeamingPartner | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createDefaults, setCreateDefaults] = useState<Partial<TeamingPartner> | null>(null);
+
+  const clientPartner = useMemo(
+    () => (clientId ? partners.find((p) => p.linked_client_id === clientId) ?? null : null),
+    [partners, clientId],
+  );
+
+  const openAddClientAs = (role: ClientPartnerRole) => {
+    if (!client) {
+      toast({ title: "Client not loaded yet", variant: "destructive" });
+      return;
+    }
+    if (clientPartner) {
+      setEditing(clientPartner);
+      return;
+    }
+    setCreateDefaults(buildClientPartnerDefaults(client, clientProfile ?? null, role));
+    setCreating(true);
+  };
+
 
   const totals = useMemo(() => {
     const totalShare = partners.reduce((acc, p) => acc + (Number(p.workshare_pct) || 0), 0);
