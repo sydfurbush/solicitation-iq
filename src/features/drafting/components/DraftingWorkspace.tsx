@@ -431,6 +431,19 @@ export function DraftingWorkspace({ solicitationId }: Props) {
                 ))}
               </ul>
             </div>
+
+            <div className="space-y-1.5 pt-2 border-t">
+              <SectionExhibitsPanel
+                solicitationId={solicitationId}
+                organizationId={organizationId}
+                outlineNodeId={selectedNode?.id ?? null}
+                onInsertToken={(token) => {
+                  setText((t) => (t ? `${t}\n\n${token}\n\n` : token));
+                  setDirty(true);
+                }}
+                outlineNodes={nodes.map((n) => ({ id: n.id, title: n.title, section_number: n.section_number, volume: n.volume }))}
+              />
+            </div>
           </div>
         </ScrollArea>
       </Card>
