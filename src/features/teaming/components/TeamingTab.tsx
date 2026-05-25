@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Edit, Loader2, Paperclip, Download, X, AlertTriangle, Users } from "lucide-react";
+import { Plus, Trash2, Edit, Loader2, Paperclip, Download, X, AlertTriangle, Users, UserPlus, RefreshCw, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -46,6 +52,43 @@ import {
   downloadTeamingAttachment,
   type TeamingPartner,
 } from "@/features/teaming/hooks/useTeamingPartners";
+import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
+import { useClient, type ClientRow } from "@/features/clients/hooks/useClients";
+import { useClientProfile, type ClientProfile } from "@/features/clients/hooks/useClientProfile";
+
+type ClientPartnerRole = "prime" | "sub" | "teaming" | "mentor_protege";
+
+function buildClientPartnerDefaults(
+  client: ClientRow,
+  profile: ClientProfile | null | undefined,
+  role: ClientPartnerRole,
+): Partial<TeamingPartner> & { name: string } {
+  const wc = (profile?.workforce_capacity ?? {}) as Record<string, unknown>;
+  const clearanceLevel = typeof wc.clearance_level === "string" ? (wc.clearance_level as string) : null;
+  const clearedCountRaw = wc.cleared_count ?? wc.cleared_staff_count;
+  const clearedCount =
+    typeof clearedCountRaw === "number"
+      ? clearedCountRaw
+      : typeof clearedCountRaw === "string" && clearedCountRaw.trim() !== ""
+        ? Number(clearedCountRaw)
+        : null;
+  return {
+    name: client.name,
+    role,
+    set_asides: (profile?.set_asides ?? []) as string[],
+    naics_codes: (profile?.naics_codes ?? []) as string[],
+    workshare_pct: role === "prime" ? 100 : null,
+    scope_summary: null,
+    agreement_status: role === "prime" ? "subcontract" : "none",
+    poc_name: client.primary_contact_name ?? null,
+    poc_email: client.primary_contact_email ?? null,
+    poc_phone: null,
+    clearance_level: clearanceLevel,
+    cleared_staff_count: Number.isFinite(clearedCount as number) ? (clearedCount as number) : null,
+    notes: "Auto-populated from client profile.",
+    linked_client_id: client.id,
+  } as Partial<TeamingPartner> & { name: string };
+}
 
 const ROLE_LABEL: Record<string, string> = {
   prime: "Prime",
