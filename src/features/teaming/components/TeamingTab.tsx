@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Edit, Loader2, Paperclip, Download, X, AlertTriangle, Users } from "lucide-react";
+import { Plus, Trash2, Edit, Loader2, Paperclip, Download, X, AlertTriangle, Users, UserPlus, RefreshCw, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -46,6 +52,43 @@ import {
   downloadTeamingAttachment,
   type TeamingPartner,
 } from "@/features/teaming/hooks/useTeamingPartners";
+import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
+import { useClient, type ClientRow } from "@/features/clients/hooks/useClients";
+import { useClientProfile, type ClientProfile } from "@/features/clients/hooks/useClientProfile";
+
+type ClientPartnerRole = "prime" | "sub" | "teaming" | "mentor_protege";
+
+function buildClientPartnerDefaults(
+  client: ClientRow,
+  profile: ClientProfile | null | undefined,
+  role: ClientPartnerRole,
+): Partial<TeamingPartner> & { name: string } {
+  const wc = (profile?.workforce_capacity ?? {}) as Record<string, unknown>;
+  const clearanceLevel = typeof wc.clearance_level === "string" ? (wc.clearance_level as string) : null;
+  const clearedCountRaw = wc.cleared_count ?? wc.cleared_staff_count;
+  const clearedCount =
+    typeof clearedCountRaw === "number"
+      ? clearedCountRaw
+      : typeof clearedCountRaw === "string" && clearedCountRaw.trim() !== ""
+        ? Number(clearedCountRaw)
+        : null;
+  return {
+    name: client.name,
+    role,
+    set_asides: (profile?.set_asides ?? []) as string[],
+    naics_codes: (profile?.naics_codes ?? []) as string[],
+    workshare_pct: role === "prime" ? 100 : null,
+    scope_summary: null,
+    agreement_status: role === "prime" ? "subcontract" : "none",
+    poc_name: client.primary_contact_name ?? null,
+    poc_email: client.primary_contact_email ?? null,
+    poc_phone: null,
+    clearance_level: clearanceLevel,
+    cleared_staff_count: Number.isFinite(clearedCount as number) ? (clearedCount as number) : null,
+    notes: "Auto-populated from client profile.",
+    linked_client_id: client.id,
+  } as Partial<TeamingPartner> & { name: string };
+}
 
 const ROLE_LABEL: Record<string, string> = {
   prime: "Prime",
@@ -80,8 +123,33 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
   const update = useUpdateTeamingPartner(solicitationId);
   const remove = useDeleteTeamingPartner(solicitationId);
 
+  const { data: solicitation } = useSolicitation(solicitationId);
+  const clientId = solicitation?.client_id;
+  const { data: client } = useClient(clientId);
+  const { data: clientProfile } = useClientProfile(clientId);
+
   const [editing, setEditing] = useState<TeamingPartner | null>(null);
   const [creating, setCreating] = useState(false);
+  const [createDefaults, setCreateDefaults] = useState<Partial<TeamingPartner> | null>(null);
+
+  const clientPartner = useMemo(
+    () => (clientId ? partners.find((p) => p.linked_client_id === clientId) ?? null : null),
+    [partners, clientId],
+  );
+
+  const openAddClientAs = (role: ClientPartnerRole) => {
+    if (!client) {
+      toast({ title: "Client not loaded yet", variant: "destructive" });
+      return;
+    }
+    if (clientPartner) {
+      setEditing(clientPartner);
+      return;
+    }
+    setCreateDefaults(buildClientPartnerDefaults(client, clientProfile ?? null, role));
+    setCreating(true);
+  };
+
 
   const totals = useMemo(() => {
     const totalShare = partners.reduce((acc, p) => acc + (Number(p.workshare_pct) || 0), 0);
@@ -152,9 +220,33 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
             <Users className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base">Teaming &amp; Subcontractors</CardTitle>
           </div>
-          <Button onClick={() => setCreating(true)} size="sm">
-            <Plus className="h-4 w-4 mr-2" /> Add partner
-          </Button>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={!client}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  {clientPartner ? "Edit client row" : "Add client as…"}
+                  <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {clientPartner ? (
+                  <DropdownMenuItem onClick={() => setEditing(clientPartner)}>
+                    Edit existing client row
+                  </DropdownMenuItem>
+                ) : (
+                  (["prime", "sub", "teaming", "mentor_protege"] as ClientPartnerRole[]).map((r) => (
+                    <DropdownMenuItem key={r} onClick={() => openAddClientAs(r)}>
+                      {ROLE_LABEL[r]}
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={() => { setCreateDefaults(null); setCreating(true); }} size="sm">
+              <Plus className="h-4 w-4 mr-2" /> Add partner
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-xs text-muted-foreground">
@@ -214,7 +306,14 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
                 <TableBody>
                   {partners.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <span>{p.name}</span>
+                          {p.linked_client_id && clientId && p.linked_client_id === clientId && (
+                            <Badge variant="secondary" className="text-[10px]">Client</Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="outline">{ROLE_LABEL[p.role] ?? p.role}</Badge>
                       </TableCell>
@@ -297,12 +396,17 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
 
       {(creating || editing) && (
         <PartnerDrawer
+          key={editing?.id ?? "create"}
           solicitationId={solicitationId}
           partner={editing}
+          initialValues={creating ? createDefaults : null}
+          client={client ?? null}
+          clientProfile={clientProfile ?? null}
           open={creating || !!editing}
           onClose={() => {
             setCreating(false);
             setEditing(null);
+            setCreateDefaults(null);
           }}
           onCreate={handleCreate}
           onUpdate={handleUpdate}
@@ -316,6 +420,9 @@ export function TeamingTab({ solicitationId }: { solicitationId: string }) {
 function PartnerDrawer({
   solicitationId,
   partner,
+  initialValues,
+  client,
+  clientProfile,
   open,
   onClose,
   onCreate,
@@ -324,6 +431,9 @@ function PartnerDrawer({
 }: {
   solicitationId: string;
   partner: TeamingPartner | null;
+  initialValues?: Partial<TeamingPartner> | null;
+  client?: ClientRow | null;
+  clientProfile?: ClientProfile | null;
   open: boolean;
   onClose: () => void;
   onCreate: (input: Partial<TeamingPartner> & { name: string }) => void;
@@ -332,7 +442,8 @@ function PartnerDrawer({
 }) {
   const isEdit = !!partner;
   const [form, setForm] = useState<Partial<TeamingPartner>>(() =>
-    partner ?? {
+    partner ??
+    initialValues ?? {
       name: "",
       role: "sub" as TeamingPartner["role"],
       set_asides: [],
@@ -340,6 +451,32 @@ function PartnerDrawer({
       agreement_status: "none" as TeamingPartner["agreement_status"],
     },
   );
+
+  const linkedClientId = (form.linked_client_id ?? partner?.linked_client_id) as string | null | undefined;
+  const canRefill = !!linkedClientId && !!client && client.id === linkedClientId;
+
+  const refillFromClient = () => {
+    if (!client) return;
+    const role = (form.role ?? "sub") as ClientPartnerRole;
+    const defaults = buildClientPartnerDefaults(client, clientProfile ?? null, role);
+    setForm((f) => {
+      const merged: Partial<TeamingPartner> = { ...f };
+      for (const [k, v] of Object.entries(defaults)) {
+        const key = k as keyof TeamingPartner;
+        const current = (f as Record<string, unknown>)[k];
+        const isEmpty =
+          current == null ||
+          current === "" ||
+          (Array.isArray(current) && current.length === 0);
+        if (isEmpty && v != null && v !== "") {
+          (merged as Record<string, unknown>)[key] = v;
+        }
+      }
+      return merged;
+    });
+    toast({ title: "Refilled from client profile" });
+  };
+
 
   const setField = <K extends keyof TeamingPartner>(k: K, v: TeamingPartner[K] | null) =>
     setForm((f) => ({ ...f, [k]: v as TeamingPartner[K] }));
@@ -382,6 +519,17 @@ function PartnerDrawer({
             downstream AI analysis.
           </SheetDescription>
         </SheetHeader>
+
+        {canRefill && (
+          <div className="mt-2 flex items-center justify-between rounded-md border border-dashed bg-muted/30 px-3 py-2">
+            <span className="text-xs text-muted-foreground">
+              Linked to client <span className="font-medium text-foreground">{client?.name}</span>
+            </span>
+            <Button size="sm" variant="ghost" onClick={refillFromClient}>
+              <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Refill from client profile
+            </Button>
+          </div>
+        )}
 
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-3">

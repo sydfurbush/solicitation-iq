@@ -1,59 +1,57 @@
+## Goal
 
-## Decisions locked in
-- Batch runner: all three scopes — "Draft next undrafted", "Draft next 5", "Draft all undrafted in this volume"
-- Edited status: any human save counts as Edited (no diff check)
-- No forward-handoff transition copy — sections end cleanly
+Today the Teaming tab assumes the client is the prime and partners are external. Make it easy to add the **client itself** to the roster — as Prime, Subcontractor, Teaming partner, or Mentor/Protégé — and prefill from the client record + `client_profiles` so the user doesn't retype name, NAICS, set-asides, POC, clearance, etc.
 
-## 1. Prompt updates for flow & non-redundancy
+## UX
 
-**`supabase/functions/draft-section/index.ts`**
-- Keep existing PRIOR SECTIONS block and NON-REPETITION RULES as-is.
-- Add an UPCOMING SECTIONS block (titles only, no content) listing remaining siblings and the next top-level section, so the AI knows what NOT to encroach on.
-- Add one rule to SYSTEM_PROMPT: "End each section cleanly on its own substantive last sentence. Do NOT write forward-pointing transitions, 'in the next section…' phrasing, or hand-off sentences. The next section will stand on its own."
+In `TeamingTab.tsx` add a second button next to "Add partner":
 
-**`supabase/functions/polish-section/index.ts`**
-- Pass the same PRIOR SECTIONS summary the draft function builds (extract the builder into `_shared/priorSections.ts` so both functions use it), so polishes don't re-introduce content present elsewhere.
-- Add the same "no forward transitions" rule.
+- **"Add client as…" ▾** dropdown with: Prime, Subcontractor, Teaming partner, Mentor/Protégé.
+- Clicking a role opens the existing PartnerDrawer in create mode, **prefilled** from the client (see mapping below), with role preset and `linked_client_id` set to the client's id.
+- If the client is already on the roster, the dropdown shows "Client already added (edit)" and opens the existing row instead of creating a duplicate.
+- A subtle badge ("Client") on that row in the table so users can see at a glance which partner represents the client.
 
-## 2. Batch runner
+Inside the drawer, add a small **"Refill from client profile"** link (visible only when `linked_client_id` is set) that re-pulls current client data into empty fields without overwriting fields the user has edited.
 
-In `DraftingWorkspace.tsx`, add a "Batch draft" dropdown next to the AI Draft button with three actions:
-- **Draft next undrafted** — first node with no draft, in `sort_order`.
-- **Draft next 5** — next 5 undrafted nodes in order.
-- **Draft all undrafted in this volume** — every undrafted node whose `volume` matches the currently selected node.
+## Prefill mapping (client → teaming partner)
 
-Implementation: sequential loop over existing `useAiDraftSection` mutation (no new edge function). Each iteration sees the latest prior-section context because the previous call already wrote to the DB. Show a progress toast ("Drafting 3 of 7…"), stop on first error and surface it, disable the button while running. Cancellable via a "Stop" toast action.
+Source: `clients` + `client_profiles` (loaded via existing `useClientProfile` for the solicitation's client).
 
-## 3. Section status visibility (Option A + C)
+| Teaming field        | Source                                                      |
+|----------------------|-------------------------------------------------------------|
+| name                 | `clients.name`                                              |
+| role                 | chosen from dropdown (sub / prime / teaming / mentor)       |
+| set_asides           | `client_profiles.set_asides`                                |
+| naics_codes          | `client_profiles.naics_codes`                               |
+| scope_summary        | empty (role-specific — user fills)                          |
+| workshare_pct        | 100 if Prime, else empty                                    |
+| agreement_status     | `subcontract` if Prime (self), else `none`                  |
+| poc_name             | `clients.primary_contact_name`                              |
+| poc_email            | `clients.primary_contact_email`                             |
+| clearance_level      | `client_profiles.workforce_capacity.clearance_level` if present |
+| cleared_staff_count  | `client_profiles.workforce_capacity.cleared_count` if present |
+| notes                | short auto-note: "Auto-populated from client profile"       |
+| linked_client_id     | `clients.id`                                                |
 
-**Status derivation (no schema change):**
-- `none` — no row in `proposal_drafts` for that node
-- `ai` — draft exists, `last_ai_action` set, no human save since (compare `updated_at` against the most recent `proposal_draft_versions.created_at` where `change_summary = 'Pre-AI-draft snapshot'`)
-- `edited` — `updated_at` is after the most recent AI snapshot (any save counts)
-- `polished` — `last_ai_action` ∈ {tighten, expand, rewrite_to_theme, compliance_check} and no human save since
+## Downstream impact
 
-**Option A — dots in the left rail.** Replace the `—` / `Nw` badge with: a small status dot (color-coded via semantic tokens) + word-count badge. Tooltip shows full status + last-touched timestamp.
+- AI prompt helper `supabase/functions/_shared/teaming.ts` already renders whatever's in the roster, so once the client appears as a partner it flows into gap analysis, drafting, etc. automatically. No edge-function changes needed.
+- The existing comment in the tab ("Defaults live on the client's Capabilities profile; this overrides them for this bid only") stays accurate.
 
-**Option C — Phase-5 progress header.** Above the 3-column grid:
-- Progress bar: drafted / total nodes
-- Per-volume meter: words vs. (page_allocation × 350) budget, color shifts at >100%
-- Status chips: counts for None / AI / Edited / Polished; click a chip to filter the left rail to that bucket
+## Files touched
 
-Color tokens to add (HSL) in `index.css` + `tailwind.config.ts`: `--status-none`, `--status-ai`, `--status-edited`, `--status-polished`.
-
-## Files to change
-1. `supabase/functions/_shared/priorSections.ts` (new) — shared prior-sections summary builder
-2. `supabase/functions/draft-section/index.ts` — use shared builder, add UPCOMING block + no-transition rule
-3. `supabase/functions/polish-section/index.ts` — add PRIOR SECTIONS block + no-transition rule
-4. `src/features/drafting/utils/draftStatus.ts` (new) — pure helper deriving status from draft + versions
-5. `src/features/drafting/hooks/useDraftVersions.ts` (new) — query latest version per draft for AI-snapshot timestamps
-6. `src/features/drafting/components/DraftingWorkspace.tsx` — status dots in left rail, batch dropdown, progress header, status chip filter
-7. `src/features/drafting/components/SectionStatusDot.tsx` (new) — small presentational component
-8. `src/features/drafting/components/Phase5ProgressHeader.tsx` (new)
-9. `src/index.css` + `tailwind.config.ts` — status color tokens
+1. `src/features/teaming/components/TeamingTab.tsx`
+   - Add `DropdownMenu` "Add client as…" next to "Add partner".
+   - Build `buildClientPartnerDefaults(client, profile, role)` helper.
+   - Detect existing client-linked row to switch button to "Edit client row".
+   - Render "Client" badge on the client-linked row.
+2. `src/features/teaming/components/PartnerDrawer` (same file)
+   - Accept optional `initialValues` prop so prefill works.
+   - Add "Refill from client profile" link when `linked_client_id` is set.
+3. Reuse existing hooks: `useClients` / `useClientProfile`, `useCreateTeamingPartner`, `useUpdateTeamingPartner`. No new hooks, no migration — `linked_client_id` already exists on `solicitation_teaming_partners`.
 
 ## Out of scope
-- No DB migration (everything keys off existing `proposal_drafts.last_ai_action`, `updated_at`, and `proposal_draft_versions`)
-- No diff-based "really changed" detection — any save = Edited as agreed
-- No realtime presence on section rows
-- No flat status-table view (Option B) — superseded by header + dots
+
+- Auto-creating the client row on solicitation creation (still explicit user action).
+- Two-way sync (editing teaming row does not write back to client profile).
+- Changing AI prompt structure.
