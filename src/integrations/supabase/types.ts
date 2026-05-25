@@ -2171,6 +2171,87 @@ export type Database = {
         }
         Relationships: []
       }
+      proposal_exhibits: {
+        Row: {
+          appendix_code: string | null
+          caption: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          file_name: string | null
+          file_path: string | null
+          file_size: number | null
+          file_type: string | null
+          id: string
+          kind: Database["public"]["Enums"]["exhibit_kind"]
+          label: string | null
+          notes: string | null
+          organization_id: string
+          outline_node_id: string | null
+          owner_user_id: string | null
+          placement: Database["public"]["Enums"]["exhibit_placement"]
+          preview_image_path: string | null
+          solicitation_id: string
+          sort_order: number
+          status: Database["public"]["Enums"]["exhibit_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          appendix_code?: string | null
+          caption?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["exhibit_kind"]
+          label?: string | null
+          notes?: string | null
+          organization_id: string
+          outline_node_id?: string | null
+          owner_user_id?: string | null
+          placement?: Database["public"]["Enums"]["exhibit_placement"]
+          preview_image_path?: string | null
+          solicitation_id: string
+          sort_order?: number
+          status?: Database["public"]["Enums"]["exhibit_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          appendix_code?: string | null
+          caption?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          file_name?: string | null
+          file_path?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["exhibit_kind"]
+          label?: string | null
+          notes?: string | null
+          organization_id?: string
+          outline_node_id?: string | null
+          owner_user_id?: string | null
+          placement?: Database["public"]["Enums"]["exhibit_placement"]
+          preview_image_path?: string | null
+          solicitation_id?: string
+          sort_order?: number
+          status?: Database["public"]["Enums"]["exhibit_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       proposal_outlines: {
         Row: {
           created_at: string
@@ -3075,7 +3156,9 @@ export type Database = {
           agency_type: string | null
           ai_confidence_score: number | null
           ai_summary: string | null
+          appendix_volume_name: string
           client_id: string
+          compile_appendix_volume: boolean
           contract_type: string | null
           created_at: string | null
           current_phase: Database["public"]["Enums"]["phase_type"] | null
@@ -3116,7 +3199,9 @@ export type Database = {
           agency_type?: string | null
           ai_confidence_score?: number | null
           ai_summary?: string | null
+          appendix_volume_name?: string
           client_id: string
+          compile_appendix_volume?: boolean
           contract_type?: string | null
           created_at?: string | null
           current_phase?: Database["public"]["Enums"]["phase_type"] | null
@@ -3157,7 +3242,9 @@ export type Database = {
           agency_type?: string | null
           ai_confidence_score?: number | null
           ai_summary?: string | null
+          appendix_volume_name?: string
           client_id?: string
+          compile_appendix_volume?: boolean
           contract_type?: string | null
           created_at?: string | null
           current_phase?: Database["public"]["Enums"]["phase_type"] | null
@@ -3643,6 +3730,18 @@ export type Database = {
         | "prior_solicitation"
         | "attachment"
         | "other"
+      exhibit_kind:
+        | "figure"
+        | "table"
+        | "chart"
+        | "exhibit"
+        | "resume"
+        | "past_performance"
+        | "certification"
+        | "appendix"
+        | "other"
+      exhibit_placement: "inline" | "end_of_section" | "appendix"
+      exhibit_status: "placeholder" | "in_progress" | "ready" | "approved"
       field_proposal_status: "pending" | "accepted" | "rejected" | "superseded"
       gap_recommendation: "build" | "buy" | "team" | "no_bid" | "accept"
       gap_severity: "low" | "medium" | "high" | "critical"
@@ -3878,6 +3977,19 @@ export const Constants = {
         "attachment",
         "other",
       ],
+      exhibit_kind: [
+        "figure",
+        "table",
+        "chart",
+        "exhibit",
+        "resume",
+        "past_performance",
+        "certification",
+        "appendix",
+        "other",
+      ],
+      exhibit_placement: ["inline", "end_of_section", "appendix"],
+      exhibit_status: ["placeholder", "in_progress", "ready", "approved"],
       field_proposal_status: ["pending", "accepted", "rejected", "superseded"],
       gap_recommendation: ["build", "buy", "team", "no_bid", "accept"],
       gap_severity: ["low", "medium", "high", "critical"],

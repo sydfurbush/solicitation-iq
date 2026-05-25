@@ -21,6 +21,9 @@ import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { normalizeIfWrapped } from "../utils/markdownNormalize";
+import { SectionExhibitsPanel } from "@/features/exhibits/components/SectionExhibitsPanel";
+import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
+import { useClient } from "@/features/clients/hooks/useClients";
 
 interface Props { solicitationId: string }
 
@@ -52,6 +55,9 @@ function wrapNode(node: React.ReactNode, lookup: Record<string, string>): React.
 }
 
 export function DraftingWorkspace({ solicitationId }: Props) {
+  const { data: sol } = useSolicitation(solicitationId);
+  const { data: client } = useClient(sol?.client_id ?? undefined);
+  const organizationId = client?.organization_id ?? "";
   const { data: outline } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
   const { data: drafts = [] } = useProposalDrafts(solicitationId);
@@ -424,6 +430,19 @@ export function DraftingWorkspace({ solicitationId }: Props) {
                   </li>
                 ))}
               </ul>
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t">
+              <SectionExhibitsPanel
+                solicitationId={solicitationId}
+                organizationId={organizationId}
+                outlineNodeId={selectedNode?.id ?? null}
+                onInsertToken={(token) => {
+                  setText((t) => (t ? `${t}\n\n${token}\n\n` : token));
+                  setDirty(true);
+                }}
+                outlineNodes={nodes.map((n) => ({ id: n.id, title: n.title, section_number: n.section_number, volume: n.volume }))}
+              />
             </div>
           </div>
         </ScrollArea>

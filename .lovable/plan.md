@@ -1,57 +1,147 @@
+
+# Exhibits & Attachments — Plan
+
+## Problem
+
+Proposals routinely include figures, tables, charts, org charts, resumes, past-performance write-ups, certifications, and appendix files that are produced outside the narrative drafting flow. Today the system has no first-class place for these:
+
+- `documents` holds the *incoming* RFP/amendments, not outgoing proposal artifacts.
+- `solicitation_teaming_attachments` is scoped to teaming agreements only.
+- `proposal_drafts` only stores section markdown.
+- `compile-proposal` assembles drafts into Word volumes but never reads any exhibit/attachment table.
+
+So authors have nowhere to register an artifact, assign it to a section, track readiness, or have it inserted into the final compiled package.
+
 ## Goal
 
-Today the Teaming tab assumes the client is the prime and partners are external. Make it easy to add the **client itself** to the roster — as Prime, Subcontractor, Teaming partner, or Mentor/Protégé — and prefill from the client record + `client_profiles` so the user doesn't retype name, NAICS, set-asides, POC, clearance, etc.
+A per-solicitation **Exhibits & Attachments** library that:
+
+1. Lets users register exhibits (with files or as placeholders), assign each to an outline section or to an appendix.
+2. Tracks owner, due date, and status (placeholder → in_progress → ready → approved).
+3. Surfaces a per-section panel inside the Drafting workspace with one-click placeholder insertion.
+4. Drives the compiler to embed images inline, append section-level exhibits, and (optionally per solicitation) produce a separate Appendix `.docx` volume.
 
 ## UX
 
-In `TeamingTab.tsx` add a second button next to "Add partner":
+### New sub-step under Phase 4 Outline: "Exhibits"
 
-- **"Add client as…" ▾** dropdown with: Prime, Subcontractor, Teaming partner, Mentor/Protégé.
-- Clicking a role opens the existing PartnerDrawer in create mode, **prefilled** from the client (see mapping below), with role preset and `linked_client_id` set to the client's id.
-- If the client is already on the roster, the dropdown shows "Client already added (edit)" and opens the existing row instead of creating a duplicate.
-- A subtle badge ("Client") on that row in the table so users can see at a glance which partner represents the client.
+Added to the Phase 4 dropdown next to Outline / Format / Compliance Matrix.
 
-Inside the drawer, add a small **"Refill from client profile"** link (visible only when `linked_client_id` is set) that re-pulls current client data into empty fields without overwriting fields the user has edited.
+- **Roster table** columns: Label · Title · Kind · Assigned to (section / appendix) · Owner · Status · Due · File · Actions.
+- **Filters:** by kind, by status, by section, "missing file", "unassigned".
+- **"Add exhibit" drawer:**
+  - Kind: figure | table | chart | exhibit | resume | past_performance | certification | appendix | other
+  - Title, optional Label (auto-numbered if blank, e.g., "Figure 3-1")
+  - Assignment: outline node picker **or** appendix code (e.g., "Appendix B — Resumes")
+  - Placement: `inline` (at `{{exhibit:id}}` token), `end_of_section`, or `appendix`
+  - Owner, due date, status, caption, description, notes
+  - File upload (PNG/JPG/PDF/XLSX/DOCX/PPTX) — optional; placeholder allowed
+- **Per-solicitation settings panel** (top of tab):
+  - Toggle: "Compile a separate Appendix volume" (default off)
+  - Default appendix volume name & filename pattern
 
-## Prefill mapping (client → teaming partner)
+### Drafting workspace integration
 
-Source: `clients` + `client_profiles` (loaded via existing `useClientProfile` for the solicitation's client).
+- Side panel "Exhibits for this section" in `DraftingWorkspace`:
+  - Lists exhibits assigned to the current outline node.
+  - "Insert placeholder" drops `{{exhibit:<id>}}` token (rendered as a styled callout in the editor preview).
+  - Quick-add button opens the drawer prefilled with the current section.
 
-| Teaming field        | Source                                                      |
-|----------------------|-------------------------------------------------------------|
-| name                 | `clients.name`                                              |
-| role                 | chosen from dropdown (sub / prime / teaming / mentor)       |
-| set_asides           | `client_profiles.set_asides`                                |
-| naics_codes          | `client_profiles.naics_codes`                               |
-| scope_summary        | empty (role-specific — user fills)                          |
-| workshare_pct        | 100 if Prime, else empty                                    |
-| agreement_status     | `subcontract` if Prime (self), else `none`                  |
-| poc_name             | `clients.primary_contact_name`                              |
-| poc_email            | `clients.primary_contact_email`                             |
-| clearance_level      | `client_profiles.workforce_capacity.clearance_level` if present |
-| cleared_staff_count  | `client_profiles.workforce_capacity.cleared_count` if present |
-| notes                | short auto-note: "Auto-populated from client profile"       |
-| linked_client_id     | `clients.id`                                                |
+### Phase 5 progress header
 
-## Downstream impact
+- New counters: Exhibits — N placeholder / N in_progress / N ready / N approved, plus a "missing files" warning chip.
 
-- AI prompt helper `supabase/functions/_shared/teaming.ts` already renders whatever's in the roster, so once the client appears as a partner it flows into gap analysis, drafting, etc. automatically. No edge-function changes needed.
-- The existing comment in the tab ("Defaults live on the client's Capabilities profile; this overrides them for this bid only") stays accurate.
+## Data model
 
-## Files touched
+### Storage bucket
 
-1. `src/features/teaming/components/TeamingTab.tsx`
-   - Add `DropdownMenu` "Add client as…" next to "Add partner".
-   - Build `buildClientPartnerDefaults(client, profile, role)` helper.
-   - Detect existing client-linked row to switch button to "Edit client row".
-   - Render "Client" badge on the client-linked row.
-2. `src/features/teaming/components/PartnerDrawer` (same file)
-   - Accept optional `initialValues` prop so prefill works.
-   - Add "Refill from client profile" link when `linked_client_id` is set.
-3. Reuse existing hooks: `useClients` / `useClientProfile`, `useCreateTeamingPartner`, `useUpdateTeamingPartner`. No new hooks, no migration — `linked_client_id` already exists on `solicitation_teaming_partners`.
+- `proposal-exhibits` (private). Path: `{org_id}/{solicitation_id}/{exhibit_id}/{filename}`.
 
-## Out of scope
+### `proposal_exhibits` (new)
 
-- Auto-creating the client row on solicitation creation (still explicit user action).
-- Two-way sync (editing teaming row does not write back to client profile).
-- Changing AI prompt structure.
+| column | type | notes |
+|---|---|---|
+| id | uuid pk | |
+| solicitation_id | uuid not null | FK by id, RLS via `is_solicitation_member` |
+| organization_id | uuid not null | |
+| kind | enum `exhibit_kind` | figure, table, chart, exhibit, resume, past_performance, certification, appendix, other |
+| label | text | optional manual label; otherwise compiler auto-numbers |
+| title | text not null | |
+| caption | text | |
+| description | text | |
+| outline_node_id | uuid null | null when placement = appendix |
+| appendix_code | text null | e.g. "Appendix B" |
+| placement | enum `exhibit_placement` | inline, end_of_section, appendix |
+| sort_order | int default 0 | within section or appendix |
+| file_path | text | nullable when placeholder |
+| file_name | text | |
+| file_type | text | |
+| file_size | int | |
+| preview_image_path | text | rendered PNG used for inline insertion of non-image files |
+| status | enum `exhibit_status` | placeholder, in_progress, ready, approved |
+| owner_user_id | uuid | |
+| due_date | date | |
+| notes | text | |
+| created_at / updated_at / created_by | standard | |
+
+RLS mirrors `documents`: org members with solicitation access can CRUD; client portal read-only when client has `full` access.
+
+### `solicitations` (alter)
+
+- `compile_appendix_volume` boolean default false
+- `appendix_volume_name` text default 'Appendix'
+
+## Compile pipeline changes (`compile-proposal`)
+
+1. Load `proposal_exhibits` for the solicitation.
+2. Per outline node during render:
+   - Resolve `{{exhibit:<id>}}` tokens in markdown: insert image (or `preview_image_path` for non-images) with numbered caption; for appendix-placed exhibits, replace with "(see Appendix X.Y)".
+   - After section body, append all `placement = end_of_section` exhibits in `sort_order`.
+3. After all volumes, if `compile_appendix_volume` is true:
+   - Emit a separate Appendix `.docx` grouping all `placement = appendix` exhibits by `appendix_code`, sorted; insert each file (image embedded, PDF/Office attached as cover-page + filename reference) with cover/divider page per group.
+4. Auto-number `Figure N-M` and `Table N-M` per volume when `label` is blank.
+5. Extend `pre_flight_report.issues`:
+   - error: exhibit referenced by token but file missing and status ≠ placeholder
+   - error: status = approved but no file
+   - warn: unresolved `{{exhibit:…}}` token in any draft
+   - warn: duplicate label
+   - warn: exhibit assigned to deleted outline node
+6. New `proposal_packages.kind = 'appendix'` row when appendix volume is produced.
+
+## Files
+
+### New
+
+- `supabase/migrations/<ts>_proposal_exhibits.sql` — enums, table, storage bucket + policies, columns on `solicitations`.
+- `supabase/functions/_shared/exhibits.ts` — load, token resolve, image/file embed helpers.
+- `src/features/exhibits/hooks/useExhibits.ts` — list/create/update/delete/upload, signed-URL helper.
+- `src/features/exhibits/components/ExhibitsTab.tsx` — roster, filters, settings panel.
+- `src/features/exhibits/components/ExhibitDrawer.tsx` — add/edit drawer with upload.
+- `src/features/exhibits/components/SectionExhibitsPanel.tsx` — drafting side panel + insert action.
+- `src/features/exhibits/utils/exhibitNumbering.ts` — auto-label preview.
+
+### Changed
+
+- `src/pages/SolicitationDetail.tsx` — add "exhibits" entry to Phase 4 dropdown.
+- `src/pages/SolicitationOutline.tsx` (or Phase 4 host) — render `ExhibitsTab` for step "exhibits".
+- `src/features/drafting/components/DraftingWorkspace.tsx` — mount `SectionExhibitsPanel` and pass token-insert callback to `MarkdownEditor`.
+- `src/features/drafting/components/MarkdownEditor.tsx` — expose insert-at-cursor for tokens; render `{{exhibit:…}}` callouts in preview.
+- `src/features/drafting/components/Phase5ProgressHeader.tsx` — exhibit readiness counters.
+- `supabase/functions/compile-proposal/index.ts` — wire token resolution, end-of-section appends, optional appendix volume, pre-flight checks.
+
+## Out of scope (deferred)
+
+- In-app chart authoring / data-driven figure generation.
+- Versioning/diff of exhibit files (replace overwrites; history not tracked).
+- AI-suggested exhibits or auto-caption generation.
+- Cross-solicitation exhibit reuse library (e.g., shared resume bank).
+- Watermarking, redaction, or compliance scanning of attached files.
+
+## Acceptance criteria
+
+- Phase 4 dropdown shows "Exhibits" and opens the new tab.
+- A user can add a placeholder exhibit with no file, assign it to a section, and see it in the Drafting workspace side panel.
+- "Insert placeholder" puts a `{{exhibit:<id>}}` token in the markdown that previews as a styled callout.
+- Uploading an image to an exhibit and recompiling embeds it inline at the token with a numbered caption.
+- Toggling "Compile Appendix volume" produces an additional `appendix.docx` package containing appendix-placed exhibits, grouped by `appendix_code`.
+- Pre-flight report flags missing files for non-placeholder exhibits and unresolved tokens.

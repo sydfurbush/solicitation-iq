@@ -58,6 +58,7 @@ import SolicitationReports from "./SolicitationReports";
 import SolicitationDeepDive from "./SolicitationDeepDive";
 import SolicitationOutline from "./SolicitationOutline";
 import SolicitationWinThemes from "./SolicitationWinThemes";
+import { ExhibitsTab } from "@/features/exhibits/components/ExhibitsTab";
 import SolicitationWritingQueue from "./SolicitationWritingQueue";
 import { Phase5Workspace } from "@/features/drafting/components/Phase5Workspace";
 import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
@@ -78,6 +79,11 @@ const PHASE_2_STEPS = [
   { key: "sections", label: "Section analysis" },
   { key: "gaps", label: "Gaps" },
   { key: "teaming", label: "Teaming" },
+];
+
+const PHASE_3_STEPS = [
+  { key: "outline", label: "Proposal outline" },
+  { key: "exhibits", label: "Exhibits & Attachments" },
 ];
 
 // Maps any legacy ?tab= value (or pre-redesign deep links) to the new shape.
@@ -471,9 +477,18 @@ export default function SolicitationDetail() {
             />
             <PhaseHelpPanel phase="phase_2_deep_dive" />
           </div>
-          <PhaseNavBtn phase="phase_3_outline" active={tab === "phase-3"} onClick={() => goTab("phase-3")}>
-            {phaseLabelByKey["phase-3"]}
-          </PhaseNavBtn>
+          <div className="inline-flex items-center">
+            <PhaseNavMenu
+              label={phaseLabelByKey["phase-3"]}
+              active={tab === "phase-3"}
+              steps={PHASE_3_STEPS}
+              activeStep={tab === "phase-3" ? (step ?? "outline") : undefined}
+              onPick={(k) => goTab("phase-3", k)}
+              onOpen={() => goTab("phase-3", "outline")}
+              phase="phase_3_outline"
+            />
+            <PhaseHelpPanel phase="phase_3_outline" />
+          </div>
           <PhaseNavBtn phase="phase_4_win_themes" active={tab === "phase-4"} onClick={() => goTab("phase-4")}>
             {phaseLabelByKey["phase-4"]}
           </PhaseNavBtn>
@@ -532,17 +547,28 @@ export default function SolicitationDetail() {
         )}
 
         {tab === "phase-3" && (
-          <PhaseShell solicitationId={s.id} phase="phase_3_outline" currentPhase={currentPhase}>
-            <SolicitationOutline
-              solicitationId={s.id}
-              currentPhase={currentPhase}
-              solicitationTitle={s.title}
-              solicitationNumber={s.solicitation_number}
-              clientName={clientName}
-            />
-
+          <PhaseShell
+            solicitationId={s.id}
+            phase="phase_3_outline"
+            currentPhase={currentPhase}
+            subSteps={PHASE_3_STEPS}
+            activeStep={step ?? "outline"}
+            onStepChange={(k) => goTab("phase-3", k)}
+          >
+            {(step ?? "outline") === "exhibits" ? (
+              <ExhibitsTab solicitationId={s.id} />
+            ) : (
+              <SolicitationOutline
+                solicitationId={s.id}
+                currentPhase={currentPhase}
+                solicitationTitle={s.title}
+                solicitationNumber={s.solicitation_number}
+                clientName={clientName}
+              />
+            )}
           </PhaseShell>
         )}
+
 
         {tab === "phase-4" && (
           <PhaseShell solicitationId={s.id} phase="phase_4_win_themes" currentPhase={currentPhase}>
