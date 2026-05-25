@@ -546,17 +546,28 @@ export default function SolicitationDetail() {
         )}
 
         {tab === "phase-3" && (
-          <PhaseShell solicitationId={s.id} phase="phase_3_outline" currentPhase={currentPhase}>
-            <SolicitationOutline
-              solicitationId={s.id}
-              currentPhase={currentPhase}
-              solicitationTitle={s.title}
-              solicitationNumber={s.solicitation_number}
-              clientName={clientName}
-            />
-
+          <PhaseShell
+            solicitationId={s.id}
+            phase="phase_3_outline"
+            currentPhase={currentPhase}
+            subSteps={PHASE_3_STEPS}
+            activeStep={step ?? "outline"}
+            onStepChange={(k) => goTab("phase-3", k)}
+          >
+            {(step ?? "outline") === "exhibits" ? (
+              <ExhibitsTab solicitationId={s.id} />
+            ) : (
+              <SolicitationOutline
+                solicitationId={s.id}
+                currentPhase={currentPhase}
+                solicitationTitle={s.title}
+                solicitationNumber={s.solicitation_number}
+                clientName={clientName}
+              />
+            )}
           </PhaseShell>
         )}
+
 
         {tab === "phase-4" && (
           <PhaseShell solicitationId={s.id} phase="phase_4_win_themes" currentPhase={currentPhase}>
