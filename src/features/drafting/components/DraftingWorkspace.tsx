@@ -55,11 +55,15 @@ function wrapNode(node: React.ReactNode, lookup: Record<string, string>): React.
 }
 
 export function DraftingWorkspace({ solicitationId }: Props) {
+  const { data: sol } = useSolicitation(solicitationId);
+  const { data: client } = useClient(sol?.client_id ?? undefined);
+  const organizationId = client?.organization_id ?? "";
   const { data: outline } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
   const { data: drafts = [] } = useProposalDrafts(solicitationId);
   const { data: requirements = [] } = useRequirementItems(solicitationId);
   const { data: themes = [] } = useWinThemes(solicitationId);
+  const { data: aiSnapshots } = useDraftAiSnapshots(solicitationId);
   const { data: aiSnapshots } = useDraftAiSnapshots(solicitationId);
 
   const [statusFilter, setStatusFilter] = useState<DraftStatus | null>(null);
