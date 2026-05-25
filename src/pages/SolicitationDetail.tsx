@@ -58,6 +58,7 @@ import SolicitationReports from "./SolicitationReports";
 import SolicitationDeepDive from "./SolicitationDeepDive";
 import SolicitationOutline from "./SolicitationOutline";
 import SolicitationWinThemes from "./SolicitationWinThemes";
+import { ExhibitsTab } from "@/features/exhibits/components/ExhibitsTab";
 import SolicitationWritingQueue from "./SolicitationWritingQueue";
 import { Phase5Workspace } from "@/features/drafting/components/Phase5Workspace";
 import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
