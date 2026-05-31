@@ -3676,6 +3676,7 @@ export type Database = {
         Args: { _solicitation_id: string; _threshold_minutes?: number }
         Returns: number
       }
+      remove_org_member: { Args: { p_user_id: string }; Returns: undefined }
       search_document_content: {
         Args: { p_search_term: string; p_solicitation_id: string }
         Returns: {
@@ -3687,6 +3688,13 @@ export type Database = {
           section_title: string
           snippet: string
         }[]
+      }
+      set_member_role: {
+        Args: {
+          p_role: Database["public"]["Enums"]["app_role"]
+          p_user_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {
