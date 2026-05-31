@@ -26,7 +26,7 @@ const optionalUrl = z
   .max(500)
   .optional()
   .or(z.literal(""))
-  .transform((v) => (v ? v : undefined))
+  .transform((v) => (v ? v : null))
   .refine(
     (v) => {
       if (!v) return true;
@@ -46,14 +46,14 @@ const optionalEmail = z
   .max(255)
   .optional()
   .or(z.literal(""))
-  .transform((v) => (v ? v : undefined))
+  .transform((v) => (v ? v : null))
   .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
     message: "Enter a valid email",
   });
 
 export const clientSchema = z.object({
   name: z.string().trim().min(2, { message: "Name must be at least 2 characters" }).max(120),
-  industry: z.string().optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+  industry: z.string().optional().or(z.literal("")).transform((v) => (v ? v : null)),
   website: optionalUrl,
   primary_contact_name: z
     .string()
@@ -61,7 +61,7 @@ export const clientSchema = z.object({
     .max(120)
     .optional()
     .or(z.literal(""))
-    .transform((v) => (v ? v : undefined)),
+    .transform((v) => (v ? v : null)),
   primary_contact_email: optionalEmail,
   access_level: z.enum(ACCESS_LEVELS).default("summary"),
   notes: z
@@ -69,8 +69,9 @@ export const clientSchema = z.object({
     .max(5000)
     .optional()
     .or(z.literal(""))
-    .transform((v) => (v ? v : undefined)),
-  logo_url: z.string().optional().or(z.literal("")).transform((v) => (v ? v : undefined)),
+    .transform((v) => (v ? v : null)),
+  logo_url: z.string().optional().or(z.literal("")).transform((v) => (v ? v : null)),
 });
+
 
 export type ClientInput = z.infer<typeof clientSchema>;
