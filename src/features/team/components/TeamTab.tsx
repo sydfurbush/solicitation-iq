@@ -317,7 +317,7 @@ export function TeamTab() {
             : ""
         }
         confirmText="Remove member"
-        variant="destructive"
+        variant="danger"
         onConfirm={() => removeTarget && removeMember.mutate(removeTarget.id)}
         loading={removeMember.isPending}
       />
