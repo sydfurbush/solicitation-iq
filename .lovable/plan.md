@@ -1,33 +1,65 @@
-## The actual problem
+# Team Member Management
 
-"Primary client" for Inverness is stored in two places, and the one you're trying to clear is the **client record's primary contact**, not a client portal user:
+Add the missing controls to **Settings → Team → Members** so owners/admins can change a teammate's role or remove them, without touching the database.
 
-- `clients.primary_contact_email = jb4smith@gmail.com`
-- `clients.primary_contact_name = Cindy Furbush`
+## Scope
 
-The matching client portal user (`jb4smith@gmail.com`) is already revoked (`deleted_at` set, `is_primary = false`), so the "Client portal users" table is not the issue.
+- Change a member's role between **admin**, **analyst**, **viewer**.
+- Remove a member from the organization.
+- Protect against foot-guns: can't change/remove yourself, can't remove the last owner, owner role can only be granted/revoked by another owner.
+- Owners are listed but their role can only be edited by another owner.
 
-## Why clearing it from Edit Client doesn't work
+Out of scope (can follow up): transferring ownership, "sign out everywhere", last-active timestamps, bulk actions.
 
-In `src/lib/validators/client.ts`, the optional string fields (`primary_contact_email`, `primary_contact_name`, `industry`, `website`, `notes`, `logo_url`) all do:
+## UX
 
-```ts
-.transform((v) => (v ? v : undefined))
+In the existing **Members** card, each row gains two controls on the right:
+
+```text
+Sydney Furbush                          [Role ▾ Owner]   [⋯]
+sfurbush@emergence...                                      └─ Remove from organization
 ```
 
-When you delete the email and save, the value becomes `undefined`. In `useUpdateClient` the payload is handed straight to `supabase.from("clients").update(payload)`, and `undefined` fields are stripped from the JSON body — so PostgREST never receives the column and the existing value stays. The field looks editable but cannot actually be cleared.
+- **Role dropdown** — inline Select with Owner / Admin / Analyst / Viewer. Disabled for the current user and for owners (unless the viewer is also an owner). Changing fires a confirm toast → mutation.
+- **Remove (⋯ menu)** → "Remove from organization" opens a ConfirmDialog: "Remove {name} from {org}? They will lose access immediately." Disabled for self and for the last remaining owner.
+- After success: invalidate `org-members` query, toast confirmation.
+- Non-admins (analyst/viewer) keep read-only badges as today.
 
-## Fix
+## Backend
 
-Change the optional-string transforms in `src/lib/validators/client.ts` from `undefined` to `null`, so cleared fields are sent as explicit `null` and actually wipe the column. Applies to: `optionalUrl`, `optionalEmail`, `industry`, `primary_contact_name`, `notes`, `logo_url`.
+Two new SECURITY DEFINER RPCs in `public`, callable only by org owners/admins, scoped to the caller's org:
 
-Also widen `ClientInput` consumers minimally: `useUpdateClient` already accepts `Partial<ClientInput>` and passes it to `.update()` — `null` is valid for these nullable columns, so no further change needed. `useCreateClient`'s `Insert` type also accepts `null`.
+1. `set_member_role(p_user_id uuid, p_role app_role)`
+   - Validates: caller is owner/admin in same org as target; target is in caller's org; caller ≠ target; only owners can grant or revoke the `owner` role; if revoking `owner`, ensure at least one owner remains.
+   - Implementation: delete existing rows in `user_roles` for that user with role in (owner/admin/analyst/viewer), insert the new role. Mirrors the pattern in `attach_existing_user_to_org`.
 
-### Files touched
-- `src/lib/validators/client.ts` — swap the six `(v ? v : undefined)` transforms to `(v ? v : null)` and adjust the zod types to `.nullable()` so the inferred `ClientInput` matches.
+2. `remove_org_member(p_user_id uuid)`
+   - Validates: caller is owner/admin; target is in caller's org; caller ≠ target; if target is owner, ensure another owner exists.
+   - Action: delete from `user_roles`, set `users.organization_id = NULL` (keeps the auth account + their authored history intact). Does NOT delete the auth user.
 
-No DB migration, no UI changes, no changes to `client_users` / portal invitation flow.
+Both raise descriptive exceptions that bubble up as toast errors.
 
-## After the fix
+No schema changes, no new tables, no RLS changes.
 
-You'll be able to open Edit on Inverness, clear the Primary contact name and email fields, save, and the columns will be nulled. The already-revoked `jb4smith@gmail.com` portal user row stays as-is (correctly revoked).
+## Frontend
+
+Edit only `src/features/team/components/TeamTab.tsx`:
+
+- Read current user's role (already available via `useUser`) to decide whether owner options are enabled.
+- Add `setRole` mutation calling `supabase.rpc('set_member_role', { p_user_id, p_role })`.
+- Add `removeMember` mutation calling `supabase.rpc('remove_org_member', { p_user_id })` wrapped in ConfirmDialog.
+- Replace the static `<Badge>` in the Members list with the Select + dropdown menu described above.
+- Compute `ownerCount` from the members list to client-side-disable the last-owner actions (server still enforces).
+
+## Technical notes
+
+- RPCs use `SECURITY DEFINER ... SET search_path = public` like the other helpers in this project.
+- Authorization helper: reuse `public.is_org_admin(auth.uid())` and `public.current_user_org()`.
+- "Same org" check joins `public.users` for both caller and target.
+- Owner-only escalation: `IF (NEW role = 'owner' OR OLD role = 'owner') AND NOT has_role(auth.uid(),'owner') THEN RAISE`.
+- Last-owner guard: `SELECT count(*) FROM user_roles ur JOIN users u ON u.id=ur.user_id WHERE u.organization_id = v_org AND ur.role='owner'`.
+
+## Migration order
+
+1. Migration: create `set_member_role` and `remove_org_member` functions.
+2. Edit `TeamTab.tsx` to wire the UI to the new RPCs.
