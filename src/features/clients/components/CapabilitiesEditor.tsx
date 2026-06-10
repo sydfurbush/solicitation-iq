@@ -270,6 +270,7 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
   const [savedAt, setSavedAt] = useState<Date | null>(client.updated_at ? new Date(client.updated_at) : null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingTemplate, setPendingTemplate] = useState<CapabilityTemplate | null>(null);
+  const [injectorOpen, setInjectorOpen] = useState(false);
 
   const applyTemplate = (tpl: CapabilityTemplate, mode: "merge" | "replace") => {
     const base: Capabilities = mode === "replace" ? {} : { ...draft };
