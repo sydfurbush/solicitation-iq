@@ -195,6 +195,18 @@ export default function SolicitationDetail() {
     setSearchParams(next);
   };
 
+  // Track the last non-assistant tab so the collapse button can return there.
+  const previousTabRef = useRef<string>("phase-1");
+  useEffect(() => {
+    if (tab && tab !== "assistant") previousTabRef.current = tab;
+  }, [tab]);
+
+  const exitAssistant = () => {
+    const next = new URLSearchParams();
+    next.set("tab", previousTabRef.current || "phase-1");
+    setSearchParams(next);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
