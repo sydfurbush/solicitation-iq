@@ -606,6 +606,12 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CapabilityInjectorDialog
+        open={injectorOpen}
+        onOpenChange={setInjectorOpen}
+        client={client}
+      />
     </Card>
   );
 }
