@@ -135,6 +135,48 @@ function toInsert(input: Partial<SolicitationFullInput>) {
   return payload;
 }
 
+type SolicitationCreateDiagnostics = {
+  inputs?: { client_id?: string | null };
+  session?: { auth_uid?: string | null; jwt_role?: string | null; email?: string | null };
+  user?: { organization_id?: string | null; is_org_staff?: boolean; is_org_admin?: boolean };
+  client?: { exists?: boolean; organization_id?: string | null; name?: string | null };
+  solicitations_insert_policy_checks?: Record<string, boolean | null | undefined>;
+  likely_failure?: string;
+};
+
+async function loadCreateDiagnostics(clientId: string): Promise<SolicitationCreateDiagnostics | null> {
+  const { data, error } = await supabase.rpc("diagnose_solicitation_create", {
+    _client_id: clientId,
+  });
+  if (error) {
+    console.error("Solicitation create diagnostics failed:", error);
+    return null;
+  }
+  return data as SolicitationCreateDiagnostics;
+}
+
+function createDiagnosticMessage(error: unknown, diagnostics: SolicitationCreateDiagnostics | null) {
+  const base = error && typeof error === "object" && "message" in error ? String((error as { message?: unknown }).message) : String(error);
+  if (!diagnostics) return base;
+
+  const checks = diagnostics.solicitations_insert_policy_checks ?? {};
+  const failedChecks = Object.entries(checks)
+    .filter(([, passed]) => passed === false)
+    .map(([name]) => name)
+    .join(", ");
+
+  return [
+    base,
+    diagnostics.likely_failure ? `Likely failure: ${diagnostics.likely_failure}` : null,
+    `Sent client_id: ${diagnostics.inputs?.client_id ?? "none"}`,
+    `User org: ${diagnostics.user?.organization_id ?? "none"}`,
+    `Client org: ${diagnostics.client?.organization_id ?? "none"}`,
+    failedChecks ? `Failed checks: ${failedChecks}` : "Failed checks: none reported",
+  ]
+    .filter(Boolean)
+    .join(" — ");
+}
+
 export function useCreateSolicitation() {
   const qc = useQueryClient();
   return useMutation({
@@ -145,7 +187,25 @@ export function useCreateSolicitation() {
       const { error } = await supabase
         .from("solicitations")
         .insert(insertPayload);
-      if (error) throw error;
+      if (error) {
+        const isRlsError = error.code === "42501" || error.message.toLowerCase().includes("row-level security");
+        const diagnostics = isRlsError ? await loadCreateDiagnostics(input.client_id) : null;
+        if (diagnostics) {
+          console.error("Solicitation create RLS diagnostics:", {
+            error,
+            sent: { id, client_id: input.client_id, status: insertPayload.status },
+            diagnostics,
+          });
+        }
+        const diagnosticError = new Error(createDiagnosticMessage(error, diagnostics));
+        Object.assign(diagnosticError, {
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          diagnostics,
+        });
+        throw diagnosticError;
+      }
       return insertPayload as SolicitationRow;
     },
     onSuccess: () => {

@@ -3631,6 +3631,10 @@ export type Database = {
       }
       current_client_id: { Args: never; Returns: string }
       current_user_org: { Args: never; Returns: string }
+      diagnose_solicitation_create: {
+        Args: { _client_id: string }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
