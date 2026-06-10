@@ -47,7 +47,7 @@ const ANALYSIS_SCHEMA = {
             id: { type: "string" },
             text: { type: "string" },
             priority: { type: "string", enum: ["critical", "high", "medium", "low"] },
-            category: { type: "string", enum: ["submission", "technical", "management", "staffing", "compliance", "other"] },
+            category: { type: "string", enum: ["submission", "personnel_security", "technical", "management", "staffing", "compliance", "other"] },
             source: {
               type: "object",
               properties: {
