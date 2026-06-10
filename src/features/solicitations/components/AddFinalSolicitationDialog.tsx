@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatSupabaseError } from "@/lib/supabase/formatError";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,7 +59,8 @@ export function AddFinalSolicitationDialog({ sourceId, sourceTitle, sourceStage,
       setOpen(false);
       navigate(`/solicitations/${newId}?tab=phase-1&step=documents`);
     } catch (e) {
-      toast({ title: "Failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+      console.error("Create next-stage solicitation failed:", e);
+      toast({ title: "Failed", description: formatSupabaseError(e), variant: "destructive" });
     }
   };
 
