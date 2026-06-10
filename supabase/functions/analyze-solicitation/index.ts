@@ -291,12 +291,19 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
 
     const docPayload = documents.map((d) => {
       const docSections = (sections ?? []).filter((s) => s.document_id === d.id);
-      // Keep ALL priority sections (Section L/M, Instructions to Offerors, Evaluation, Submission, etc.)
-      // and the first 80 non-priority sections in sort order. Previously this was capped at 40 per doc,
-      // which dropped late-document submission rules (e.g. Section 4.2 in long RFQs).
-      const prioritySecs = docSections.filter(isPrioritySection);
-      const otherSecs = docSections.filter((s) => !isPrioritySection(s)).slice(0, 80);
-      const merged = [...prioritySecs, ...otherSecs];
+      // Tag every section with its critical-keyword hits (full content scan).
+      const tagged: PromptSection[] = docSections.map((s) => ({
+        section_number: s.section_number,
+        section_title: s.section_title,
+        content: s.content ?? "",
+        page_start: s.page_start,
+        _criticalHits: criticalKeywordHits(s.content ?? ""),
+      }));
+      // Keep ALL critical-keyword sections, ALL priority sections, and the first 80 other sections.
+      const criticalSecs = tagged.filter((s) => (s._criticalHits?.length ?? 0) > 0);
+      const prioritySecs = tagged.filter((s) => (s._criticalHits?.length ?? 0) === 0 && isPrioritySection(s));
+      const otherSecs = tagged.filter((s) => (s._criticalHits?.length ?? 0) === 0 && !isPrioritySection(s)).slice(0, 80);
+      const merged = [...criticalSecs, ...prioritySecs, ...otherSecs];
       return {
         name: d.file_name,
         sections: merged,
@@ -307,8 +314,15 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
           title: s.section_title,
           page: s.page_start,
         })),
+        criticalSectionRefs: criticalSecs.map((s) => ({
+          number: s.section_number,
+          title: s.section_title,
+          page: s.page_start,
+          hits: s._criticalHits ?? [],
+        })),
       };
     });
+
 
     const knownFacts = buildKnownFactsBlock(solicitation as Record<string, any> | null);
     const userPrompt = buildUserPrompt(knownFacts, docPayload);
