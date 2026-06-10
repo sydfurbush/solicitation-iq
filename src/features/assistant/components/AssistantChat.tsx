@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send, Sparkles } from "lucide-react";
+import { Loader2, Mic, Send, Sparkles, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,8 @@ import {
   useSendAssistantMessage,
   type AssistantMessage,
 } from "../hooks/useAssistantThreads";
+import { useAssistantTranscribe } from "../hooks/useAssistantTranscribe";
+import { cn } from "@/lib/utils";
 
 type Props = {
   solicitationId: string;
