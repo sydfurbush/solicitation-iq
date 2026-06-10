@@ -69,8 +69,10 @@ export interface SolicitationAnalysisResult {
 
 export interface AnalysisValidationWarning {
   field: string;
-  expected: string;
-  found: string;
+  expected?: string;
+  found?: string;
+  message?: string;
+  severity?: "info" | "warning" | "error";
 }
 
 export interface AnalysisMetadata {
