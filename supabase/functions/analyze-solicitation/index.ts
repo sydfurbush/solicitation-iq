@@ -16,12 +16,17 @@ const SYSTEM_PROMPT = `You are an expert government contracting analyst with 20+
 You will receive excerpts from one or more solicitation documents and must produce a single JSON object that strictly matches the provided schema. Always:
 - When a "KNOWN FACTS" block is provided, treat those values as AUTHORITATIVE. Do NOT restate them with different values, even if the document text suggests otherwise. Cover sheets and SF1449 templates often contain misleading boilerplate (e.g. a "WOMEN-OWNED SMALL BUSINESS (WOSB) SOLICITATION" header) that is NOT the actual set-aside designation.
 - The executive_summary MUST be consistent with KNOWN FACTS. If the documents conflict with a known fact, mention the conflict in risk_signals instead of changing the summary.
-- Cite EXACT sections (e.g. "L.5.2") and page numbers when available.
+- Cite EXACT sections (e.g. "L.5.2", "4.2.1") and page numbers when available.
 - Quote source text verbatim in the "quote" field (max 280 chars).
 - Use priority levels: critical (must comply or no-bid), high, medium, low.
-- Return at most 10 key requirements, ranked by importance.
-- If a field cannot be determined from the documents, use null or an empty array.
-- Confidence score is 0.0-1.0 reflecting how complete the source material is.
+
+REQUIREMENT EXTRACTION PRIORITY (read carefully):
+1. ALWAYS extract requirements from Section L (Instructions to Offerors), Section M (Evaluation), and any section titled "Proposal Submission", "Instructions to Offerors", "Evaluation", "Basis for Award", "Eligibility", "Minimum Requirements", or "BPA/IDIQ Award". These sections contain bid-eligibility GATES.
+2. Every must-submit rule, minimum-scope rule (e.g. "must propose on X and at least one other Y"), page limit, proposal volume requirement, format gate, and pass/fail criterion is a CRITICAL requirement and MUST appear in key_requirements with category="submission" and priority="critical". Do not omit these in favor of technical/staffing items.
+3. Then extract technical, staffing, management, and compliance requirements.
+4. Return up to 25 key_requirements, ranked by importance (submission/eligibility gates first, then critical compliance, then technical/staffing).
+5. If a field cannot be determined from the documents, use null or an empty array.
+6. Confidence score is 0.0-1.0 reflecting how complete the source material is.
 
 Output ONLY the JSON object, no prose.`;
 
@@ -40,7 +45,7 @@ const ANALYSIS_SCHEMA = {
             id: { type: "string" },
             text: { type: "string" },
             priority: { type: "string", enum: ["critical", "high", "medium", "low"] },
-            category: { type: "string", enum: ["technical", "management", "staffing", "compliance", "other"] },
+            category: { type: "string", enum: ["submission", "technical", "management", "staffing", "compliance", "other"] },
             source: {
               type: "object",
               properties: {
@@ -131,22 +136,40 @@ function buildKnownFactsBlock(sol: Record<string, any> | null): string {
   return `=== KNOWN FACTS (authoritative — do not contradict) ===\n${lines.join("\n")}\n\n`;
 }
 
+const PRIORITY_SECTION_NUMBER_RX = /^(L|M|4|5)(\b|\.|$)/i;
+const PRIORITY_SECTION_TITLE_RX =
+  /instructions to offerors|proposal submission|proposal preparation|evaluation factors?|basis for award|eligibility|minimum requirement|bpa award|idiq award|submission requirement|how to submit/i;
+
+function isPrioritySection(s: { section_number: string | null; section_title: string | null }) {
+  const n = (s.section_number ?? "").trim();
+  const t = (s.section_title ?? "").trim();
+  if (n && PRIORITY_SECTION_NUMBER_RX.test(n)) return true;
+  if (t && PRIORITY_SECTION_TITLE_RX.test(t)) return true;
+  return false;
+}
+
 function buildUserPrompt(
   knownFacts: string,
   documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>,
 ) {
-  // Soft total budget across all docs. Gemini Pro reliably handles ~180k chars;
-  // beyond that the gateway sometimes returns empty responses.
   const TOTAL_CHAR_BUDGET = 180_000;
   const perDocBudget = Math.max(8_000, Math.floor(TOTAL_CHAR_BUDGET / Math.max(1, documents.length)));
 
   const docBlocks = documents.map((d) => {
+    // Reorder: priority sections first (L/M/4/5/Instructions/Evaluation/etc.), then the rest in order.
+    const priority = d.sections.filter(isPrioritySection);
+    const others = d.sections.filter((s) => !isPrioritySection(s));
+    const ordered = [...priority, ...others];
+
     let remaining = perDocBudget;
     const parts: string[] = [];
-    for (const s of d.sections) {
+    for (const s of ordered) {
       if (remaining <= 0) break;
-      const slice = s.content.slice(0, Math.min(4000, remaining));
-      parts.push(`[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}]\n${slice}`);
+      const isPriority = isPrioritySection(s);
+      const maxSlice = isPriority ? 8_000 : 4_000;
+      const slice = s.content.slice(0, Math.min(maxSlice, remaining));
+      const tag = isPriority ? " *PRIORITY*" : "";
+      parts.push(`[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}${tag}]\n${slice}`);
       remaining -= slice.length;
     }
     const sectionText = parts.join("\n\n");
@@ -155,7 +178,7 @@ function buildUserPrompt(
       : "";
     return `=== DOCUMENT: ${d.name} ===\n${sectionText}${entityText}`;
   });
-  return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\n${docBlocks.join("\n\n")}`;
+  return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\nSections flagged *PRIORITY* contain Instructions to Offerors, Evaluation, Eligibility, or Submission rules — extract every must-submit/minimum-scope/page-limit/pass-fail rule from them as critical "submission" requirements.\n\n${docBlocks.join("\n\n")}`;
 }
 
 const SET_ASIDE_TERMS: Record<string, RegExp> = {
@@ -230,11 +253,26 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
       .select("document_id, entity_type, entity_value")
       .in("document_id", docIds);
 
-    const docPayload = documents.map((d) => ({
-      name: d.file_name,
-      sections: (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 40),
-      entities: (entities ?? []).filter((e) => e.document_id === d.id),
-    }));
+    const docPayload = documents.map((d) => {
+      const docSections = (sections ?? []).filter((s) => s.document_id === d.id);
+      // Keep ALL priority sections (Section L/M, Instructions to Offerors, Evaluation, Submission, etc.)
+      // and the first 80 non-priority sections in sort order. Previously this was capped at 40 per doc,
+      // which dropped late-document submission rules (e.g. Section 4.2 in long RFQs).
+      const prioritySecs = docSections.filter(isPrioritySection);
+      const otherSecs = docSections.filter((s) => !isPrioritySection(s)).slice(0, 80);
+      const merged = [...prioritySecs, ...otherSecs];
+      return {
+        name: d.file_name,
+        sections: merged,
+        entities: (entities ?? []).filter((e) => e.document_id === d.id),
+        // Used for coverage validation post-analysis
+        prioritySectionRefs: prioritySecs.map((s) => ({
+          number: s.section_number,
+          title: s.section_title,
+          page: s.page_start,
+        })),
+      };
+    });
 
     const knownFacts = buildKnownFactsBlock(solicitation as Record<string, any> | null);
     const userPrompt = buildUserPrompt(knownFacts, docPayload);
@@ -279,14 +317,46 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
 
     await updateJob(jobId, { progress_step: "persisting" });
 
-    const validationWarnings = validateSummary(
-      String(analysis.executive_summary ?? ""),
-      solicitation as Record<string, any> | null,
-    );
+    const validationWarnings: Array<{ field: string; expected?: string; found?: string; message?: string; severity?: "info" | "warning" | "error" }> =
+      validateSummary(
+        String(analysis.executive_summary ?? ""),
+        solicitation as Record<string, any> | null,
+      );
     let finalSummary = String(analysis.executive_summary ?? "");
     if (validationWarnings.length && solicitation?.set_aside) {
       finalSummary = `This solicitation is a ${solicitation.set_aside} set-aside. ${finalSummary}`;
     }
+
+    // Coverage validation: for each document, if priority sections (L/M/Instructions/Evaluation/
+    // Submission) exist but NO extracted requirement cites one of them, surface a warning so
+    // the user knows to review the source manually.
+    const reqs = Array.isArray(analysis.key_requirements) ? analysis.key_requirements : [];
+    const citedSectionNumbers = new Set(
+      reqs
+        .map((r: any) => String(r?.source?.section ?? "").trim().toLowerCase())
+        .filter((s: string) => s.length > 0),
+    );
+    for (const d of docPayload) {
+      const refs = (d as any).prioritySectionRefs as Array<{ number: string | null; title: string | null; page: number | null }>;
+      if (!refs || refs.length === 0) continue;
+      const anyCited = refs.some((r) => {
+        const n = String(r.number ?? "").trim().toLowerCase();
+        if (!n) return false;
+        for (const cited of citedSectionNumbers) {
+          if (cited === n || cited.startsWith(n + ".") || n.startsWith(cited + ".")) return true;
+        }
+        return false;
+      });
+      if (!anyCited) {
+        const sample = refs.slice(0, 3).map((r) => `${r.number ?? "?"}${r.title ? ` ${r.title}` : ""}`).join("; ");
+        validationWarnings.push({
+          field: "coverage",
+          message: `No requirements were extracted from priority sections in "${d.name}" (e.g. ${sample}). These sections likely contain Instructions to Offerors / Evaluation / Submission rules — review manually and add any missed requirements.`,
+          severity: "warning",
+        });
+      }
+    }
+
 
     const toArr = (v: unknown): unknown[] => {
       if (Array.isArray(v)) return v;

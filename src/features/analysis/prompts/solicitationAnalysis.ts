@@ -17,7 +17,7 @@ export interface AnalysisRequirement {
   id: string;
   text: string;
   priority: "critical" | "high" | "medium" | "low";
-  category: "technical" | "management" | "staffing" | "compliance" | "other";
+  category: "submission" | "technical" | "management" | "staffing" | "compliance" | "other";
   source?: {
     document?: string;
     section?: string;
@@ -69,8 +69,10 @@ export interface SolicitationAnalysisResult {
 
 export interface AnalysisValidationWarning {
   field: string;
-  expected: string;
-  found: string;
+  expected?: string;
+  found?: string;
+  message?: string;
+  severity?: "info" | "warning" | "error";
 }
 
 export interface AnalysisMetadata {
