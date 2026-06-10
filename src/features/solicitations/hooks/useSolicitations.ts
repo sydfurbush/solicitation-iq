@@ -145,7 +145,7 @@ type SolicitationCreateDiagnostics = {
 };
 
 async function loadCreateDiagnostics(clientId: string): Promise<SolicitationCreateDiagnostics | null> {
-  const { data, error } = await (supabase as any).rpc("diagnose_solicitation_create", {
+  const { data, error } = await supabase.rpc("diagnose_solicitation_create", {
     _client_id: clientId,
   });
   if (error) {
