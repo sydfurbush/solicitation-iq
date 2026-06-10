@@ -82,23 +82,13 @@ async function embedDocument(
   | { chunks: number; embedded: number; embeddings_available: boolean }
   | { error: string; status?: number }
 > {
-  try {
-
-
-    const supa = createClient(SUPABASE_URL, SERVICE_KEY);
-
     const { data: doc, error: docErr } = await supa
       .from("documents")
       .select("id, solicitation_id, file_name, deleted_at")
       .eq("id", documentId)
       .maybeSingle();
     if (docErr) throw docErr;
-    if (!doc || doc.deleted_at) {
-      return new Response(JSON.stringify({ error: "document not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!doc || doc.deleted_at) return { error: "document not found", status: 404 };
 
     const { data: sections, error: secErr } = await supa
       .from("document_sections")
@@ -119,11 +109,8 @@ async function embedDocument(
     }
 
     if (!items.length) {
-      // Wipe any stale chunks
       await supa.from("document_chunks").delete().eq("document_id", documentId);
-      return new Response(JSON.stringify({ ok: true, chunks: 0, embedded: 0 }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return { chunks: 0, embedded: 0, embeddings_available: true };
     }
 
     // Replace existing chunks atomically (delete-then-insert)
@@ -169,21 +156,11 @@ async function embedDocument(
       if (vectors) embedded += vectors.length;
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        chunks: items.length,
-        embedded,
-        embeddings_available: !embeddingsUnavailable,
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return { chunks: items.length, embedded, embeddings_available: !embeddingsUnavailable };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error("[embed-document] failed:", message);
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[embed-document] embedDocument failed:", message);
+    return { error: message };
   }
-});
+}
+
