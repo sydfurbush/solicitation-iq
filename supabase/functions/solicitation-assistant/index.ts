@@ -317,7 +317,7 @@ Deno.serve(async (req) => {
     }
     await supa.from("assistant_threads").update(updates).eq("id", threadId);
 
-    return new Response(JSON.stringify({ message: assistantMsg, citations, followups }), {
+    return new Response(JSON.stringify({ message: assistantMsg, citations: mergedCitations, followups }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
