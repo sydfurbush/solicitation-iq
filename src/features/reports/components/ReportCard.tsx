@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { FileText, FileType, Download, Eye, Trash2, Send, Globe } from "lucide-react";
+import { FileText, FileType, Download, Eye, Trash2, Send, Globe, Loader2, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
