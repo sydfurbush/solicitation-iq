@@ -11,7 +11,7 @@ import {
   useSendAssistantMessage,
   type AssistantMessage,
 } from "../hooks/useAssistantThreads";
-import { useAssistantTranscribe } from "../hooks/useAssistantTranscribe";
+import { useAssistantTranscribe, MicrophoneError } from "../hooks/useAssistantTranscribe";
 import { cn } from "@/lib/utils";
 
 type Props = {
