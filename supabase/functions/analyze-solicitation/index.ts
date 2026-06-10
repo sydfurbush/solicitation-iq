@@ -136,22 +136,40 @@ function buildKnownFactsBlock(sol: Record<string, any> | null): string {
   return `=== KNOWN FACTS (authoritative — do not contradict) ===\n${lines.join("\n")}\n\n`;
 }
 
+const PRIORITY_SECTION_NUMBER_RX = /^(L|M|4|5)(\b|\.|$)/i;
+const PRIORITY_SECTION_TITLE_RX =
+  /instructions to offerors|proposal submission|proposal preparation|evaluation factors?|basis for award|eligibility|minimum requirement|bpa award|idiq award|submission requirement|how to submit/i;
+
+function isPrioritySection(s: { section_number: string | null; section_title: string | null }) {
+  const n = (s.section_number ?? "").trim();
+  const t = (s.section_title ?? "").trim();
+  if (n && PRIORITY_SECTION_NUMBER_RX.test(n)) return true;
+  if (t && PRIORITY_SECTION_TITLE_RX.test(t)) return true;
+  return false;
+}
+
 function buildUserPrompt(
   knownFacts: string,
   documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>,
 ) {
-  // Soft total budget across all docs. Gemini Pro reliably handles ~180k chars;
-  // beyond that the gateway sometimes returns empty responses.
   const TOTAL_CHAR_BUDGET = 180_000;
   const perDocBudget = Math.max(8_000, Math.floor(TOTAL_CHAR_BUDGET / Math.max(1, documents.length)));
 
   const docBlocks = documents.map((d) => {
+    // Reorder: priority sections first (L/M/4/5/Instructions/Evaluation/etc.), then the rest in order.
+    const priority = d.sections.filter(isPrioritySection);
+    const others = d.sections.filter((s) => !isPrioritySection(s));
+    const ordered = [...priority, ...others];
+
     let remaining = perDocBudget;
     const parts: string[] = [];
-    for (const s of d.sections) {
+    for (const s of ordered) {
       if (remaining <= 0) break;
-      const slice = s.content.slice(0, Math.min(4000, remaining));
-      parts.push(`[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}]\n${slice}`);
+      const isPriority = isPrioritySection(s);
+      const maxSlice = isPriority ? 8_000 : 4_000;
+      const slice = s.content.slice(0, Math.min(maxSlice, remaining));
+      const tag = isPriority ? " *PRIORITY*" : "";
+      parts.push(`[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}${tag}]\n${slice}`);
       remaining -= slice.length;
     }
     const sectionText = parts.join("\n\n");
@@ -160,7 +178,7 @@ function buildUserPrompt(
       : "";
     return `=== DOCUMENT: ${d.name} ===\n${sectionText}${entityText}`;
   });
-  return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\n${docBlocks.join("\n\n")}`;
+  return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\nSections flagged *PRIORITY* contain Instructions to Offerors, Evaluation, Eligibility, or Submission rules — extract every must-submit/minimum-scope/page-limit/pass-fail rule from them as critical "submission" requirements.\n\n${docBlocks.join("\n\n")}`;
 }
 
 const SET_ASIDE_TERMS: Record<string, RegExp> = {
