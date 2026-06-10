@@ -23,7 +23,54 @@ export function useAssistantTranscribe() {
   const start = useCallback(async (): Promise<string> => {
     if (state !== "idle") throw new Error("Recorder busy");
     setError(null);
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      throw new MicrophoneError(
+        "unsupported",
+        "Voice input isn't supported in this browser. Try Chrome, Edge, or Safari on a secure (https) page.",
+      );
+    }
+
+    // Pre-check the permission state when available so we can give a clearer message
+    // before invoking the native prompt.
+    try {
+      const status = await (navigator.permissions as any)?.query?.({ name: "microphone" as PermissionName });
+      if (status?.state === "denied") {
+        throw new MicrophoneError(
+          "denied",
+          "Microphone access is blocked for this site. Click the lock icon in the address bar, allow the microphone, then try again.",
+        );
+      }
+    } catch (e) {
+      if (e instanceof MicrophoneError) throw e;
+      // permissions API not supported — fall through to getUserMedia which will prompt
+    }
+
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err: any) {
+      const name = err?.name ?? "";
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        throw new MicrophoneError(
+          "denied",
+          "Microphone access was denied. Click the lock icon in the address bar, allow the microphone for this site, then click the mic again.",
+        );
+      }
+      if (name === "NotFoundError" || name === "OverconstrainedError") {
+        throw new MicrophoneError(
+          "no_device",
+          "No microphone was found. Plug in or enable a microphone and try again.",
+        );
+      }
+      if (name === "NotReadableError") {
+        throw new MicrophoneError(
+          "in_use",
+          "Your microphone is being used by another app. Close other apps using it and try again.",
+        );
+      }
+      throw new MicrophoneError("unknown", err?.message || "Could not start the microphone.");
+    }
     streamRef.current = stream;
 
     const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
