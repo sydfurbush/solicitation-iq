@@ -342,7 +342,7 @@ export function CapabilityInjectorDialog({
           </ScrollArea>
         )}
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 shrink-0">
           {!draft ? (
             <>
               <Button variant="ghost" onClick={() => handleClose(false)}>Cancel</Button>
