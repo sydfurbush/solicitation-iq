@@ -77,20 +77,54 @@ export default function SolicitationRisksOpportunities({ solicitationId }: Props
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Risks &amp; opportunities</h2>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-xl font-semibold">Risks &amp; opportunities</h2>
+            {isProcessing && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Analyzing in background…
+              </span>
+            )}
+            {!isProcessing && isFailed && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="destructive" className="cursor-help">
+                      Last run failed — click Re-analyze
+                    </Badge>
+                  </TooltipTrigger>
+                  {job?.error_message && (
+                    <TooltipContent className="max-w-sm">
+                      <p className="text-xs">{job.error_message}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">
             AI-identified threats and competitive openings, with manual overrides.
           </p>
         </div>
-        <Tabs value={view} onValueChange={(v) => setView(v as View)}>
-          <TabsList>
-            <TabsTrigger value="combined">Combined</TabsTrigger>
-            <TabsTrigger value="risks">Risks</TabsTrigger>
-            <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button size="sm" onClick={handleIdentify} disabled={isProcessing}>
+            {isProcessing ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
+            {isProcessing ? "Analyzing…" : hasAny ? "Re-analyze" : "Identify risks & opportunities"}
+          </Button>
+          <Tabs value={view} onValueChange={(v) => setView(v as View)}>
+            <TabsList>
+              <TabsTrigger value="combined">Combined</TabsTrigger>
+              <TabsTrigger value="risks">Risks</TabsTrigger>
+              <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
       <CompetitivePositionSummary risks={risks} opportunities={opportunities} />
