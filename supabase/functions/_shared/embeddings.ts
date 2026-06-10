@@ -1,7 +1,7 @@
 // Lightweight embeddings client for Lovable AI Gateway (Google text-embedding-004, 768 dims).
 
 const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/embeddings";
-const MODEL = "google/text-embedding-004";
+const MODEL = "google/gemini-embedding-001";
 export const EMBEDDING_DIMS = 768;
 
 export class EmbeddingsUnavailableError extends Error {
@@ -26,7 +26,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
       "Content-Type": "application/json",
       "Lovable-API-Key": apiKey,
     },
-    body: JSON.stringify({ model: MODEL, input: texts }),
+    body: JSON.stringify({ model: MODEL, input: texts, dimensions: EMBEDDING_DIMS }),
   });
 
   if (!res.ok) {
