@@ -601,7 +601,10 @@ export default function SolicitationDetail() {
         {tab === "reports" && <SolicitationReports solicitationId={s.id} />}
         {tab === "comparison" && <SolicitationComparison solicitationId={s.id} />}
         {tab === "activity" && <SolicitationActivity solicitationId={s.id} />}
+        {tab === "assistant" && <SolicitationAssistant solicitationId={s.id} />}
       </div>
+
+      <AssistantLauncher solicitationId={s.id} />
     </div>
   );
 }
