@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
 
     const { data: sol } = await supabase
       .from("solicitations")
-      .select("title, ai_summary, key_requirements, evaluation_factors, has_incumbent, incumbent_name, client_id, lens_overrides")
+      .select("title, ai_summary, key_requirements, evaluation_factors, has_incumbent, incumbent_name, client_id, lens_overrides, metadata")
       .eq("id", solicitationId)
       .maybeSingle();
 
@@ -156,7 +156,6 @@ Deno.serve(async (req) => {
       .in("document_id", docIds)
       .order("sort_order", { ascending: true });
 
-    // Cap prompt size to avoid 150s edge timeout. Distribute section budget across documents.
     const MAX_SECTIONS_PER_DOC = 12;
     const MAX_CHARS_PER_SECTION = 1200;
     const MAX_TOTAL_CHARS = 120_000;
@@ -182,26 +181,15 @@ Deno.serve(async (req) => {
     const teamingBlock = await getTeamingPromptBlock(solicitationId);
     const userPrompt = `Solicitation: ${sol?.title ?? "Untitled"}${summaryText}${incumbentText}\n\n${teamingBlock ? teamingBlock + "\n\n" : ""}${docBlocks}`;
 
-    console.log(`[identify-risks-opportunities] sol=${solicitationId} docs=${documents.length} regenerate=${!!regenerate}`);
+    console.log(`[identify-risks-opportunities] sol=${solicitationId} docs=${documents.length} regenerate=${!!regenerate} (queued)`);
 
-    const lens = await buildClientLens((sol as { client_id?: string | null } | null)?.client_id ?? null, { topic: "risks", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: ((sol as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
-    const parsed = await callAiTool({
-      functionName: "identify-risks-opportunities",
-      system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
-      user: userPrompt,
-      tool: SCHEMA,
-    }) as Record<string, any>;
-    const risks = asObjectArray(parsed.risks);
-    const opportunities = asObjectArray(parsed.opportunities);
-
-    if (risks.length === 0 && opportunities.length === 0) {
-      throw new Error("AI returned no risks or opportunities. Existing data was not modified. Try again, or raise max_tokens for this function in AI Models settings.");
-    }
-
-    if (regenerate) {
-      await supabase.from("risks").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
-      await supabase.from("opportunities").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
-    }
+    const baseMetadata = (sol?.metadata && typeof sol.metadata === "object" ? sol.metadata : {}) as Record<string, unknown>;
+    await supabase.from("solicitations").update({
+      metadata: {
+        ...baseMetadata,
+        risks_opportunities_job: { status: "processing", started_at: new Date().toISOString() },
+      },
+    }).eq("id", solicitationId);
 
     const docByName = new Map<string, string>();
     documents.forEach((d) => docByName.set(d.file_name, d.id));
@@ -213,46 +201,99 @@ Deno.serve(async (req) => {
           ? `p.${q.source_page}`
           : null;
 
-    const riskRows = risks.map((r: Record<string, unknown>) => ({
-      solicitation_id: solicitationId,
-      title: r.title as string,
-      description: r.description as string,
-      severity: (r.severity as string) ?? "medium",
-      mitigation_strategy: (r.mitigation_strategy as string) ?? null,
-      source_document_id: r.source_document ? docByName.get(r.source_document as string) ?? null : null,
-      source_citation: buildCitation(r),
-      source_quote: (r.source_quote as string) ?? null,
-      is_ai_generated: true,
-    }));
+    const finalize = async () => {
+      try {
+        const lens = await buildClientLens((sol as { client_id?: string | null } | null)?.client_id ?? null, { topic: "risks", query: `${(sol as any)?.title ?? ""} ${(sol as any)?.issuing_agency ?? ""} ${(((sol as any)?.ai_summary ?? "") + "").slice(0, 600)}`, override: ((sol as { lens_overrides?: Record<string, unknown> | null } | null)?.lens_overrides) ?? null });
+        const parsed = await callAiTool({
+          functionName: "identify-risks-opportunities",
+          system: lens.promptBlock ? `${lens.promptBlock}\n\n${SYSTEM_PROMPT}` : SYSTEM_PROMPT,
+          user: userPrompt,
+          tool: SCHEMA,
+        }) as Record<string, any>;
+        const risks = asObjectArray(parsed.risks);
+        const opportunities = asObjectArray(parsed.opportunities);
 
-    const opportunityRows = opportunities.map((o: Record<string, unknown>) => ({
-      solicitation_id: solicitationId,
-      title: o.title as string,
-      description: o.description as string,
-      opportunity_type: o.opportunity_type as string,
-      impact_score: Math.max(1, Math.min(100, Math.round(Number(o.impact_score) || 50))),
-      recommended_approach: (o.recommended_approach as string) ?? null,
-      client_capability_match: (o.client_capability_match as string) ?? null,
-      source_document_id: o.source_document ? docByName.get(o.source_document as string) ?? null : null,
-      source_citation: buildCitation(o),
-      source_quote: (o.source_quote as string) ?? null,
-      is_ai_generated: true,
-    }));
+        if (risks.length === 0 && opportunities.length === 0) {
+          throw new Error("AI returned no risks or opportunities. Existing data was not modified.");
+        }
 
-    if (riskRows.length) {
-      const { error } = await supabase.from("risks").insert(riskRows);
-      if (error) throw error;
+        if (regenerate) {
+          await supabase.from("risks").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
+          await supabase.from("opportunities").delete().eq("solicitation_id", solicitationId).eq("is_ai_generated", true);
+        }
+
+        const riskRows = risks.map((r: Record<string, unknown>) => ({
+          solicitation_id: solicitationId,
+          title: r.title as string,
+          description: r.description as string,
+          severity: (r.severity as string) ?? "medium",
+          mitigation_strategy: (r.mitigation_strategy as string) ?? null,
+          source_document_id: r.source_document ? docByName.get(r.source_document as string) ?? null : null,
+          source_citation: buildCitation(r),
+          source_quote: (r.source_quote as string) ?? null,
+          is_ai_generated: true,
+        }));
+
+        const opportunityRows = opportunities.map((o: Record<string, unknown>) => ({
+          solicitation_id: solicitationId,
+          title: o.title as string,
+          description: o.description as string,
+          opportunity_type: o.opportunity_type as string,
+          impact_score: Math.max(1, Math.min(100, Math.round(Number(o.impact_score) || 50))),
+          recommended_approach: (o.recommended_approach as string) ?? null,
+          client_capability_match: (o.client_capability_match as string) ?? null,
+          source_document_id: o.source_document ? docByName.get(o.source_document as string) ?? null : null,
+          source_citation: buildCitation(o),
+          source_quote: (o.source_quote as string) ?? null,
+          is_ai_generated: true,
+        }));
+
+        if (riskRows.length) {
+          const { error } = await supabase.from("risks").insert(riskRows);
+          if (error) throw error;
+        }
+        if (opportunityRows.length) {
+          const { error } = await supabase.from("opportunities").insert(opportunityRows);
+          if (error) throw error;
+        }
+
+        await supabase.from("solicitations").update({
+          metadata: {
+            ...baseMetadata,
+            risks_opportunities_job: {
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              risks_count: riskRows.length,
+              opportunities_count: opportunityRows.length,
+            },
+          },
+        }).eq("id", solicitationId);
+        console.log(`[identify-risks-opportunities] sol=${solicitationId} completed risks=${riskRows.length} opps=${opportunityRows.length}`);
+      } catch (e) {
+        console.error("[identify-risks-opportunities] background error", e);
+        await supabase.from("solicitations").update({
+          metadata: {
+            ...baseMetadata,
+            risks_opportunities_job: {
+              status: "failed",
+              error_message: e instanceof Error ? e.message : String(e),
+              failed_at: new Date().toISOString(),
+            },
+          },
+        }).eq("id", solicitationId);
+      }
+    };
+
+    const runtime = (globalThis as any).EdgeRuntime;
+    if (runtime && typeof runtime.waitUntil === "function") {
+      runtime.waitUntil(finalize());
+    } else {
+      finalize().catch((e) => console.error("[identify-risks-opportunities] fire-and-forget error", e));
     }
-    if (opportunityRows.length) {
-      const { error } = await supabase.from("opportunities").insert(opportunityRows);
-      if (error) throw error;
-    }
 
-    return new Response(JSON.stringify({
-      success: true,
-      risks_count: riskRows.length,
-      opportunities_count: opportunityRows.length,
-    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ success: true, queued: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error("[identify-risks-opportunities] error", e);
     return aiErrorResponse(e, corsHeaders);
