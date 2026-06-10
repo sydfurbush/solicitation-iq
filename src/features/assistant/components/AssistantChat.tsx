@@ -37,6 +37,28 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   }, [threadId]);
 
   const sending = send.isPending;
+  const transcribe = useAssistantTranscribe();
+
+  const handleMic = async () => {
+    if (transcribe.state === "recording") {
+      transcribe.stop();
+      return;
+    }
+    if (transcribe.state !== "idle") return;
+    try {
+      const text = await transcribe.start();
+      if (text) {
+        setInput((prev) => (prev ? `${prev.trimEnd()} ${text}` : text));
+        taRef.current?.focus();
+      }
+    } catch (e: any) {
+      toast({
+        title: "Voice input failed",
+        description: e?.message ?? "Could not transcribe audio",
+        variant: "destructive",
+      });
+    }
+  };
 
   const submit = async (text?: string) => {
     const msg = (text ?? input).trim();
