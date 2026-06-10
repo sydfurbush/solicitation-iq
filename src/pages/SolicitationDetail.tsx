@@ -500,7 +500,7 @@ export default function SolicitationDetail() {
           </PhaseNavBtn>
 
           <WorkspaceNavMenu
-            active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity"}
+            active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity" || tab === "assistant"}
             currentKey={(tab as WorkspaceKey) || undefined}
             onPick={(k) => goTab(k)}
           />
