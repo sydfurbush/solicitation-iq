@@ -241,6 +241,7 @@ export type Database = {
           created_by: string | null
           file_name: string
           id: string
+          kind: string
           message_id: string | null
           mime_type: string | null
           size_bytes: number | null
@@ -252,6 +253,7 @@ export type Database = {
           created_by?: string | null
           file_name: string
           id?: string
+          kind?: string
           message_id?: string | null
           mime_type?: string | null
           size_bytes?: number | null
@@ -263,6 +265,7 @@ export type Database = {
           created_by?: string | null
           file_name?: string
           id?: string
+          kind?: string
           message_id?: string | null
           mime_type?: string | null
           size_bytes?: number | null
@@ -293,6 +296,124 @@ export type Database = {
           },
         ]
       }
+      assistant_audit_log: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          latency_ms: number | null
+          message_id: string | null
+          model: string | null
+          organization_id: string | null
+          persona: string | null
+          solicitation_id: string | null
+          status: string
+          thread_id: string | null
+          tokens_in: number | null
+          tokens_out: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          latency_ms?: number | null
+          message_id?: string | null
+          model?: string | null
+          organization_id?: string | null
+          persona?: string | null
+          solicitation_id?: string | null
+          status?: string
+          thread_id?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          latency_ms?: number | null
+          message_id?: string | null
+          model?: string | null
+          organization_id?: string | null
+          persona?: string | null
+          solicitation_id?: string | null
+          status?: string
+          thread_id?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_audit_log_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_audit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_audit_log_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_audit_log_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_memory: {
+        Row: {
+          created_at: string
+          fact: string
+          id: string
+          organization_id: string | null
+          source: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          fact: string
+          id?: string
+          organization_id?: string | null
+          source?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          fact?: string
+          id?: string
+          organization_id?: string | null
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_memory_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assistant_messages: {
         Row: {
           citations: Json
@@ -301,6 +422,9 @@ export type Database = {
           id: string
           parts: Json
           role: string
+          safety_reason: string | null
+          safety_status: string
+          safety_topics: string[]
           thread_id: string
         }
         Insert: {
@@ -310,6 +434,9 @@ export type Database = {
           id?: string
           parts?: Json
           role: string
+          safety_reason?: string | null
+          safety_status?: string
+          safety_topics?: string[]
           thread_id: string
         }
         Update: {
@@ -319,6 +446,9 @@ export type Database = {
           id?: string
           parts?: Json
           role?: string
+          safety_reason?: string | null
+          safety_status?: string
+          safety_topics?: string[]
           thread_id?: string
         }
         Relationships: [
@@ -337,6 +467,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      assistant_preferences: {
+        Row: {
+          auto_learn: boolean
+          blocked_topics: string[]
+          default_persona: string
+          plain_mode_default: boolean
+          tone: string
+          updated_at: string
+          user_id: string
+          voice_replies: boolean
+        }
+        Insert: {
+          auto_learn?: boolean
+          blocked_topics?: string[]
+          default_persona?: string
+          plain_mode_default?: boolean
+          tone?: string
+          updated_at?: string
+          user_id: string
+          voice_replies?: boolean
+        }
+        Update: {
+          auto_learn?: boolean
+          blocked_topics?: string[]
+          default_persona?: string
+          plain_mode_default?: boolean
+          tone?: string
+          updated_at?: string
+          user_id?: string
+          voice_replies?: boolean
+        }
+        Relationships: []
       }
       assistant_presets: {
         Row: {
@@ -392,13 +555,36 @@ export type Database = {
           },
         ]
       }
+      assistant_rate_limits: {
+        Row: {
+          request_count: number
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          request_count?: number
+          user_id: string
+          window_start: string
+        }
+        Update: {
+          request_count?: number
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       assistant_threads: {
         Row: {
           created_at: string
           created_by: string | null
           id: string
           last_message_at: string
+          persona: string
           pinned: boolean
+          pinned_client_id: string | null
+          pinned_entity: Json | null
+          pinned_solicitation_id: string | null
+          plain_mode: boolean
           solicitation_id: string
           title: string
           updated_at: string
@@ -408,7 +594,12 @@ export type Database = {
           created_by?: string | null
           id?: string
           last_message_at?: string
+          persona?: string
           pinned?: boolean
+          pinned_client_id?: string | null
+          pinned_entity?: Json | null
+          pinned_solicitation_id?: string | null
+          plain_mode?: boolean
           solicitation_id: string
           title?: string
           updated_at?: string
@@ -418,7 +609,12 @@ export type Database = {
           created_by?: string | null
           id?: string
           last_message_at?: string
+          persona?: string
           pinned?: boolean
+          pinned_client_id?: string | null
+          pinned_entity?: Json | null
+          pinned_solicitation_id?: string | null
+          plain_mode?: boolean
           solicitation_id?: string
           title?: string
           updated_at?: string
@@ -429,6 +625,20 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_threads_pinned_client_id_fkey"
+            columns: ["pinned_client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_threads_pinned_solicitation_id_fkey"
+            columns: ["pinned_solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
             referencedColumns: ["id"]
           },
           {
@@ -3881,6 +4091,14 @@ export type Database = {
     }
     Functions: {
       accept_org_invitation: { Args: { p_token: string }; Returns: string }
+      assistant_check_and_increment: {
+        Args: { p_limit: number; p_user_id: string; p_window_seconds: number }
+        Returns: {
+          allowed: boolean
+          remaining: number
+          reset_at: string
+        }[]
+      }
       attach_existing_user_to_org: {
         Args: {
           p_email: string
