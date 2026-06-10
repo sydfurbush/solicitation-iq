@@ -236,7 +236,7 @@ export function CapabilityInjectorDialog({
             </Tabs>
           </div>
         ) : (
-          <ScrollArea className="flex-1 pr-3">
+          <ScrollArea className="flex-1 min-h-0 pr-3 -mr-3">
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 Review each suggested field. Tick the ones you want to apply, then choose merge or replace. Nothing is saved until you click Apply.
