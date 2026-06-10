@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { useRisks, useIdentifyRisksOpportunities } from "@/features/risks/hooks/useRisks";
+import { useRisks, useIdentifyRisksOpportunities, useRisksOpportunitiesJobStatus } from "@/features/risks/hooks/useRisks";
 import { useOpportunities } from "@/features/opportunities/hooks/useOpportunities";
 import { RisksOpportunitiesDashboard } from "@/features/analysis/components/RisksOpportunitiesDashboard";
 import { RiskMitigationTracker } from "@/features/analysis/components/RiskMitigationTracker";
 import { OpportunityActionPlan } from "@/features/analysis/components/OpportunityActionPlan";
 import { CompetitivePositionSummary } from "@/features/analysis/components/CompetitivePositionSummary";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Props {
   solicitationId: string;
