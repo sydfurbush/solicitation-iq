@@ -17,7 +17,7 @@ export interface AnalysisRequirement {
   id: string;
   text: string;
   priority: "critical" | "high" | "medium" | "low";
-  category: "technical" | "management" | "staffing" | "compliance" | "other";
+  category: "submission" | "technical" | "management" | "staffing" | "compliance" | "other";
   source?: {
     document?: string;
     section?: string;
