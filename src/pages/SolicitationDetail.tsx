@@ -98,12 +98,13 @@ const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   "win-themes": { tab: "phase-4" },
 };
 
-type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity";
+type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity" | "assistant";
 const WORKSPACE_LABELS: Record<WorkspaceKey, string> = {
   "writing-queue": "Writing Queue",
   reports: "Reports",
   comparison: "Comparison",
   activity: "Activity",
+  assistant: "AI Assistant",
 };
 
 function ParentChildLinks({ solId, parentId }: { solId: string; parentId: string | null }) {
