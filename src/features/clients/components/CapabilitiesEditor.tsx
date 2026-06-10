@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CloudOff, Loader2, Pencil, Plus, Save, Sparkles, X } from "lucide-react";
+import { Check, CloudOff, FileUp, Loader2, Pencil, Plus, Save, Sparkles, X } from "lucide-react";
+import { CapabilityInjectorDialog } from "@/features/clients/components/CapabilityInjectorDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -269,6 +270,7 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
   const [savedAt, setSavedAt] = useState<Date | null>(client.updated_at ? new Date(client.updated_at) : null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [pendingTemplate, setPendingTemplate] = useState<CapabilityTemplate | null>(null);
+  const [injectorOpen, setInjectorOpen] = useState(false);
 
   const applyTemplate = (tpl: CapabilityTemplate, mode: "merge" | "replace") => {
     const base: Capabilities = mode === "replace" ? {} : { ...draft };
@@ -428,6 +430,9 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
         </div>
         <div className="flex items-center gap-3">
           {editing && <SaveIndicator status={status} savedAt={savedAt} error={errorMsg} />}
+          <Button size="sm" variant="outline" onClick={() => setInjectorOpen(true)}>
+            <FileUp className="h-3.5 w-3.5 mr-1" /> Inject from document
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline">
@@ -601,6 +606,12 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CapabilityInjectorDialog
+        open={injectorOpen}
+        onOpenChange={setInjectorOpen}
+        client={client}
+      />
     </Card>
   );
 }

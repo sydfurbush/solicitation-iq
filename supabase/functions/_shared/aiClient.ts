@@ -28,6 +28,7 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "draft-clarification-request": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 4000 },
   "reconcile-solicitation-overview": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 4000 },
   "suggest-risk-mitigation": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 2000 },
+  "extract-capabilities": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 8000 },
 };
 
 export interface OpenAIToolSchema {
