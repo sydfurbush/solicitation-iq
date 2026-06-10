@@ -70,6 +70,7 @@ export type Database = {
           function_name: string
           max_tokens: number | null
           model: string
+          organization_id: string
           provider: string
           updated_at: string
           updated_by: string | null
@@ -78,6 +79,7 @@ export type Database = {
           function_name: string
           max_tokens?: number | null
           model: string
+          organization_id: string
           provider: string
           updated_at?: string
           updated_by?: string | null
@@ -86,11 +88,20 @@ export type Database = {
           function_name?: string
           max_tokens?: number | null
           model?: string
+          organization_id?: string
           provider?: string
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_model_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       analysis_jobs: {
         Row: {
