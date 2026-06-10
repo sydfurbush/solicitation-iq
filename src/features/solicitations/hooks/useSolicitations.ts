@@ -139,14 +139,14 @@ export function useCreateSolicitation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: SolicitationFullInput) => {
+      const id = crypto.randomUUID();
       const payload = toInsert(input) as Database["public"]["Tables"]["solicitations"]["Insert"];
-      const { data, error } = await supabase
+      const insertPayload = { ...payload, id, status: "intake" as const };
+      const { error } = await supabase
         .from("solicitations")
-        .insert({ ...payload, status: "intake" })
-        .select()
-        .single();
+        .insert(insertPayload);
       if (error) throw error;
-      return data as SolicitationRow;
+      return insertPayload as SolicitationRow;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["solicitations"] });
