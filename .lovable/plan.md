@@ -1,49 +1,57 @@
 ## Problem
 
-The "Full Analysis" report failed with:
-> AI response truncated by token limit (model=claude-sonnet-4-5, max_tokens=16384)
+On the Risks & Opportunities step, the "Identify risks & opportunities" / "Re-analyze" button only appears in two places:
 
-Claude Sonnet 4.5's max output is 16,384 tokens (8,192 default, 16k with the extended-output beta header). The report prompt is large enough that the model wants to emit more than 16k tokens of structured JSON, so any attempt at 16,384 will keep truncating. We need a model with a larger output ceiling, or we need to split the work.
+1. The full empty state (only when there are zero risks AND zero opportunities).
+2. Buried inside the small "Mitigation" stats card down in `RisksOpportunitiesDashboard`, below the Competitive Position panel and the Risk/Opportunity action panels.
 
-## Options
+Because the previous run partially completed (6 risks + 6 opportunities exist), the empty state never renders and the only re-run control is invisible above the fold. The header area the user circled has no action button at all.
 
-**Option A — Switch to Google Gemini 2.5 Pro (recommended)**
-- Output ceiling ~65k tokens via Lovable AI Gateway, with the 150s timeout now non-blocking thanks to the existing background-job architecture.
-- One-line change in `supabase/functions/_shared/aiClient.ts` `MODEL_CONFIG["generate-report"]`.
-- Set `maxTokens` to ~32,000 (2× current ceiling, well under Gemini's limit, leaves headroom).
-- Pros: minimal change, large output, strong long-form quality, free under Lovable AI Gateway promo through Oct 13.
-- Cons: different writing voice from Claude; structured-output reliability is good but not identical.
+We also have a background job (`solicitations.metadata.risks_opportunities_job`) that tracks `processing | completed | failed`. The UI currently ignores that state, so a stuck/failed prior run gives no signal.
 
-**Option B — Switch to OpenAI GPT-5**
-- Large context + output, strong reasoning.
-- Same one-line config change; set `maxTokens` ~24,000.
-- Pros: high quality, reliable tool output.
-- Cons: slower and more expensive than Gemini; same background-job path keeps timeouts manageable.
+## Goal
 
-**Option C — Keep Claude Sonnet 4.5 but chunk the report**
-- Generate the report section-by-section (exec summary → requirements → eval factors → risks → recommendations) and stitch results.
-- Pros: keeps Claude's writing voice.
-- Cons: largest code change (new orchestration in `generate-report/index.ts`), more total tokens/latency, risk of inconsistency across sections. Not worth it unless you specifically want Claude's voice.
+Always show a clearly placed "Identify risks & opportunities" / "Re-analyze" button in the header of this step, and reflect the background-job status so users can tell whether a run is in-flight or failed.
 
-## Recommendation
+## Changes
 
-Go with **Option A** now. It is the smallest, safest change and directly addresses the truncation. If output quality is unsatisfactory afterward, fall back to Option B; only reach for Option C if both models disappoint.
+### 1. Add action button in the header — `src/pages/SolicitationRisksOpportunities.tsx`
 
-## Plan
+In the header row (next to the Combined / Risks / Opportunities tabs):
 
-1. Edit `supabase/functions/_shared/aiClient.ts`:
-   - Change `"generate-report"` entry to `{ provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 }`.
-2. No other code changes needed:
-   - Background-job flow (`EdgeRuntime.waitUntil` + polling) already in place from prior turn.
-   - `AIModelsTab` already lists `google/gemini-2.5-pro` so an org-level override via Settings → AI Models will continue to work; users can override per-org without code changes.
-3. Verify by clicking **Generate report**; the card should appear with "Generating", then flip to completed once Gemini returns. Watch edge function logs for `finish=stop` and `tool_arg_chars` well under the new cap.
+- Add a primary action button:
+  - Label: "Identify risks & opportunities" when there are no results, otherwise "Re-analyze".
+  - Click handler: existing `handleIdentify` (passes `regenerate: hasAny`).
+  - Disabled while `identify.isPending` is true OR a background job is currently `processing`.
+  - Shows spinner + label "Analyzing…" when pending/processing.
+- Add a small status hint to the right of the title:
+  - `processing` → muted text "Analyzing in background…" with a small spinner.
+  - `failed` → small destructive-tone badge "Last run failed — click Re-analyze" (with tooltip = the stored `error_message`).
+  - `completed` / no job → nothing.
 
-### Fallback if Gemini still truncates or errors
+### 2. Read background-job status
 
-- Bump `maxTokens` further (Gemini 2.5 Pro supports up to ~65k output).
-- If the response comes back empty (Gemini gateway no-op), the existing empty-response retry in `callLovable` will retry twice automatically.
-- If quality regresses, switch the same line to `openai/gpt-5` with `maxTokens: 24000`.
+Add a lightweight hook (inside the same page file or a tiny new file under `src/features/risks/hooks/`):
 
-## Files to change
+- `useRisksOpportunitiesJobStatus(solicitationId)` — selects `metadata` from `solicitations`, returns `{ status, error_message }` from `metadata.risks_opportunities_job`.
+- Use a `refetchInterval` of ~3s while `status === "processing"`, otherwise `false`.
+- When the status transitions to `completed`, invalidate the `risks` and `opportunities` query keys so the lists refresh even if the page was opened mid-run.
 
-- `supabase/functions/_shared/aiClient.ts` (1 line)
+### 3. De-duplicate the buried button — `src/features/analysis/components/RisksOpportunitiesDashboard.tsx`
+
+The Mitigation stats card currently hosts the re-analyze button. Once the header button exists, remove that duplicate button (keep the mitigated/total count). The dashboard already exposes `identify` for nothing else, so that prop usage can be dropped too.
+
+### 4. No edge-function or schema changes
+
+The background-job pattern from the previous step already writes `metadata.risks_opportunities_job`. We only consume it on the client.
+
+## Out of scope
+
+- Reaping stale `processing` jobs server-side (not needed; the mutation poll already errors out after 10 minutes, and a manual re-run overwrites the metadata).
+- Redesigning the Competitive Position / mitigation cards.
+
+## Files touched
+
+- `src/pages/SolicitationRisksOpportunities.tsx` — header button + status hint, new hook usage.
+- `src/features/risks/hooks/useRisks.ts` (or a new small file) — `useRisksOpportunitiesJobStatus` hook.
+- `src/features/analysis/components/RisksOpportunitiesDashboard.tsx` — remove the duplicate button in the Mitigation card.
