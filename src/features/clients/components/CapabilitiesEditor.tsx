@@ -430,6 +430,9 @@ export function CapabilitiesEditor({ client }: { client: ClientRow }) {
         </div>
         <div className="flex items-center gap-3">
           {editing && <SaveIndicator status={status} savedAt={savedAt} error={errorMsg} />}
+          <Button size="sm" variant="outline" onClick={() => setInjectorOpen(true)}>
+            <FileUp className="h-3.5 w-3.5 mr-1" /> Inject from document
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline">
