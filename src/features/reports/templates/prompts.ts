@@ -14,8 +14,19 @@ export const FULL_ANALYSIS_PROMPT = `Generate a comprehensive solicitation analy
 3. Requirements Analysis
 4. Evaluation Criteria Analysis
 5. Risk Assessment
+   - Risk Landscape — markdown table with counts by severity (critical/high/medium/low/informational) split into "Open" vs "Mitigated" columns (use each risk's is_mitigated flag).
+   - Critical & High Risks — for each, include description, citation, current mitigation note (mitigation_strategy), and a clear status label of "Open" or "Mitigated". When mitigated, summarize how the mitigation resolves the risk.
+   - Risk Mitigation Plan — prioritized, owner-ready action list for the remaining Open risks only, ordered by severity. Each item: action, target owner role, suggested timing, and the risk it addresses.
 6. Opportunities Analysis
+   - High-Impact Opportunities — ranked by impact_score, with description, type, and citation.
+   - Opportunity Action Plan — numbered list of the top 5 opportunities by impact_score. For each: recommended approach (from recommended_approach) and client capability match (from client_capability_match).
 7. Competitive Landscape
+   - Market & Incumbent Context — narrative.
+   - Competitive Position Summary —
+     - Win-probability indicator: qualitative band (Strong / Balanced / Reassess) derived from average opportunity impact minus unmitigated-risk severity weight. State the band and one sentence of rationale. Not a forecast.
+     - Strengths: top 3 opportunities by impact_score (title + one-line why).
+     - Weaknesses: top 3 unmitigated risks by severity (title + one-line why).
+     - Recommended positioning: one short paragraph tying strengths against weaknesses.
 8. Strategic Questions
 9. Comparison to Prior Solicitation
 10. Proposal Strategy Recommendations
