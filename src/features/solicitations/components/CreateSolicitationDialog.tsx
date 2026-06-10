@@ -199,9 +199,10 @@ export function CreateSolicitationDialog({
                     });
                 }
               } catch (e) {
+                console.error("Create solicitation failed:", e);
                 toast({
                   title: "Could not create",
-                  description: e instanceof Error ? e.message : String(e),
+                  description: formatSupabaseError(e),
                   variant: "destructive",
                 });
               }
