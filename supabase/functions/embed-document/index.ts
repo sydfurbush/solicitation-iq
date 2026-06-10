@@ -82,7 +82,9 @@ async function embedDocument(
   | { chunks: number; embedded: number; embeddings_available: boolean }
   | { error: string; status?: number }
 > {
+  try {
     const { data: doc, error: docErr } = await supa
+
       .from("documents")
       .select("id, solicitation_id, file_name, deleted_at")
       .eq("id", documentId)
