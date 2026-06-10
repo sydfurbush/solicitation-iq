@@ -4,6 +4,17 @@ import { readEdgeError } from "@/lib/supabase/edgeError";
 
 export type RecordingState = "idle" | "recording" | "transcribing";
 
+export type MicErrorKind = "denied" | "no_device" | "in_use" | "unsupported" | "unknown";
+
+export class MicrophoneError extends Error {
+  kind: MicErrorKind;
+  constructor(kind: MicErrorKind, message: string) {
+    super(message);
+    this.name = "MicrophoneError";
+    this.kind = kind;
+  }
+}
+
 export function useAssistantTranscribe() {
   const [state, setState] = useState<RecordingState>("idle");
   const [error, setError] = useState<string | null>(null);
