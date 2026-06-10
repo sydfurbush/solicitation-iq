@@ -207,19 +207,6 @@ export function RisksOpportunitiesDashboard({ solicitationId, view = "combined" 
               {mitigatedCount}<span className="text-base font-normal text-muted-foreground">/{risks.length}</span>
             </div>
             <p className="text-xs text-muted-foreground">risks mitigated</p>
-            <Button
-              size="sm"
-              className="mt-auto"
-              onClick={() => handleIdentify(risks.length > 0 || opportunities.length > 0)}
-              disabled={identify.isPending}
-            >
-              {identify.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
-              )}
-              {risks.length || opportunities.length ? "Re-analyze" : "Identify risks & opportunities"}
-            </Button>
           </CardContent>
         </Card>
       </div>
