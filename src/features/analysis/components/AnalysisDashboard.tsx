@@ -57,10 +57,26 @@ export function AnalysisDashboard({ solicitationId, insights, onRerun, isRerunni
 
       {(insights.metadata?.validation_warnings?.length ?? 0) > 0 && (() => {
         const warnings = insights.metadata!.validation_warnings!;
+        const missing = warnings.filter((w) => w.field === "missing_requirement" || w.severity === "error");
         const coverage = warnings.filter((w) => w.field === "coverage");
-        const others = warnings.filter((w) => w.field !== "coverage");
+        const others = warnings.filter(
+          (w) => w.field !== "coverage" && w.field !== "missing_requirement" && w.severity !== "error",
+        );
         return (
           <div className="space-y-2">
+            {missing.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Critical requirements possibly missed</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {missing.map((w, i) => (
+                      <li key={i}>{w.message}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
             {coverage.length > 0 && (
               <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
@@ -90,6 +106,7 @@ export function AnalysisDashboard({ solicitationId, insights, onRerun, isRerunni
           </div>
         );
       })()}
+
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ExecutiveSummaryCard solicitationId={solicitationId} summary={insights.ai_summary} />
