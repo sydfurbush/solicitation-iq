@@ -23,9 +23,12 @@ export default function SolicitationRisksOpportunities({ solicitationId }: Props
   const { data: risks = [], isLoading: rl } = useRisks(solicitationId);
   const { data: opportunities = [], isLoading: ol } = useOpportunities(solicitationId);
   const identify = useIdentifyRisksOpportunities(solicitationId);
+  const { data: job } = useRisksOpportunitiesJobStatus(solicitationId);
   const [view, setView] = useState<View>("combined");
 
   const isLoading = rl || ol;
+  const isProcessing = identify.isPending || job?.status === "processing";
+  const isFailed = job?.status === "failed";
   const hasAny = risks.length > 0 || opportunities.length > 0;
 
   const handleIdentify = async () => {
