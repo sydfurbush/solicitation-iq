@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, CloudOff, Loader2, Pencil, Plus, Save, Sparkles, X } from "lucide-react";
+import { Check, CloudOff, FileUp, Loader2, Pencil, Plus, Save, Sparkles, X } from "lucide-react";
+import { CapabilityInjectorDialog } from "@/features/clients/components/CapabilityInjectorDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
