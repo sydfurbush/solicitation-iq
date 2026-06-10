@@ -51,7 +51,7 @@ const TOOL_SCHEMA = {
   },
 };
 
-async function buildContext(supa: ReturnType<typeof createClient>, solicitationId: string) {
+async function buildContext(supa: any, solicitationId: string) {
   const [{ data: sol }, { data: risks }, { data: opps }, { data: reqs }, { data: qs }, { data: docs }, { data: gaps }] = await Promise.all([
     supa.from("solicitations").select("title,solicitation_number,issuing_agency,proposal_due_date,current_phase,ai_summary,incumbent_name,client_id").eq("id", solicitationId).maybeSingle(),
     supa.from("risks").select("id,title,description,severity,mitigation_strategy,is_mitigated,source_citation").eq("solicitation_id", solicitationId).limit(40),
@@ -120,7 +120,7 @@ function buildSearchTerms(message: string): string[] {
 }
 
 async function retrieveDocumentExcerpts(
-  supa: ReturnType<typeof createClient>,
+  supa: any,
   solicitationId: string,
   message: string,
 ): Promise<{ block: string; citations: DocCitation[] }> {
