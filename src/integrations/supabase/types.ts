@@ -3619,6 +3619,7 @@ export type Database = {
         }
         Returns: string
       }
+      client_in_current_org: { Args: { _client_id: string }; Returns: boolean }
       clone_solicitation_for_stage: {
         Args: {
           p_new_stage: Database["public"]["Enums"]["solicitation_stage"]

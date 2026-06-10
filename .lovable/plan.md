@@ -1,80 +1,96 @@
-## Goal
 
-Figure out why jb4smith@gmail.com gets "Could not create — [object Object]" when creating a solicitation, and unblock them.
+## What's happening
 
-## What we already know
+Confirmed from Postgres logs:
+- `jb4smith@gmail.com` (uid `744dcf74…`) is an `owner` in org `256b10…`, with 3 clients in that org.
+- The insert is reaching Postgres and failing the **WITH CHECK** on `solicitations` INSERT, returning `42501`.
 
-- They are an `owner` in org `256b…fd900` with 3 clients and prior successful solicitations (latest May 21). Permissions and data look correct.
-- The toast message "[object Object]" is a **client-side bug**, not the real error. `CreateSolicitationDialog.tsx` does `e instanceof Error ? e.message : String(e)`, but Supabase's `PostgrestError` is a plain object — so the actual DB error (RLS violation? trigger failure? bad column?) is being thrown away before we see it.
-- Until we see the real error message, any "fix" is a guess.
+Today there are two permissive policies that allow INSERT:
 
-## Plan
+```
+"staff create solicitations"  (INSERT, authenticated)
+  WITH CHECK: is_org_staff(auth.uid())
+              AND client_id IN (SELECT c.id FROM clients c
+                                WHERE c.organization_id = current_user_org())
 
-### 1. Fix the error reporting (small, targeted change)
-
-In every solicitation-create catch block, format Supabase errors properly so the toast shows `message`, `code`, `details`, and `hint`, and also log the full object to the browser console.
-
-Files to touch:
-- `src/features/solicitations/components/CreateSolicitationDialog.tsx`
-- `src/features/solicitations/components/AddFinalSolicitationDialog.tsx`
-- `src/features/solicitations/hooks/useFinalFromPreSol.ts`
-
-Add a tiny helper (e.g. `src/lib/supabase/formatError.ts`) that returns a readable string for `Error`, `PostgrestError`, `FunctionsHttpError`, and anything else. Use it in those catch blocks and `console.error` the raw object alongside.
-
-This is a UI/diagnostics change only — no business logic, no schema changes.
-
-### 2. Ask jb4smith to retry and send the new error text
-
-Once shipped, the toast will say something concrete like "new row violates row-level security policy for table solicitations" or "null value in column X violates not-null constraint". With that one line we can pinpoint the cause in minutes.
-
-### 3. Fix the root cause
-
-Based on what the real error says, the likely candidates (in order of probability) are:
-
-- A required column added by a recent migration that the form isn't sending (e.g. an `organization_id` or similar not-null without a default). I checked — none of the current NOT NULL columns fit this, but a migration may land between now and the retry.
-- A failing `AFTER INSERT` trigger. There is one: `copy_client_defaults_to_solicitation` copies `client_assignments` → `solicitation_assignments`. It looks safe (uses `ON CONFLICT DO NOTHING`), but if a `client_assignments.role` value ever fails the cast to `solicitation_assignment_role` enum, the whole insert aborts.
-- A stale auth session where `auth.uid()` doesn't match (forces them to sign out / sign in).
-
-We patch whichever the real error points at, in a follow-up turn.
-
-### On the "push a new version when they log in" idea
-
-Not recommended as a fix for this. Lovable's hosting already serves fresh hashed bundles on every page load, so a normal browser refresh is the existing "push new version" mechanism. Adding a forced-reload-on-login mechanism would be extra code that doesn't address the actual failure, which is server-side (the DB rejects the insert and our UI hides why). If you still want a "new version available, reload" banner as a separate product feature later, we can add it as its own task.
-
-## Out of scope
-
-- No database migrations in this step.
-- No changes to RLS, the solicitation form fields, or the create-solicitation mutation logic.
-- No version-pinning / service-worker / forced-reload work.
-
-## Technical detail
-
-The helper looks roughly like:
-
-```ts
-export function formatSupabaseError(e: unknown): string {
-  if (!e) return "Unknown error";
-  if (e instanceof Error) return e.message;
-  if (typeof e === "object") {
-    const o = e as Record<string, unknown>;
-    const parts = [o.message, o.details, o.hint, o.code]
-      .filter(Boolean)
-      .map(String);
-    if (parts.length) return parts.join(" — ");
-  }
-  return String(e);
-}
+"staff manage solicitations"  (ALL, public)
+  WITH CHECK: client_id IN (SELECT id FROM clients
+                            WHERE organization_id = current_user_org())
+              AND (is_org_admin(auth.uid()) OR is_org_staff(auth.uid()))
 ```
 
-Used as:
+Both rely on a **subquery against `public.clients`**, which is itself subject to RLS. For an owner this should resolve, but the subquery evaluation inside WITH CHECK is the most likely failure point (e.g. when `current_user_org()` returns `NULL` because the session falls back to `anon`, or when the inner `clients` policy fails to match for any reason — both produce exactly this `42501`).
 
-```ts
-} catch (e) {
-  console.error("Create solicitation failed:", e);
-  toast({
-    title: "Could not create",
-    description: formatSupabaseError(e),
-    variant: "destructive",
-  });
-}
+Anon also currently has table-level `INSERT`/`SELECT` GRANTs on `solicitations` (separate hardening issue).
+
+## Recommendation
+
+Replace the fragile subquery with a `SECURITY DEFINER` helper that checks `clients.organization_id` directly, bypassing nested RLS. Collapse the two overlapping INSERT-applicable policies into one explicit policy per command, and tighten grants.
+
+### Migration
+
+```sql
+-- 1. Helper: does this client belong to the caller's org? Bypasses clients RLS.
+CREATE OR REPLACE FUNCTION public.client_in_current_org(_client_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.clients c
+    JOIN public.users u ON u.id = auth.uid()
+    WHERE c.id = _client_id
+      AND c.organization_id = u.organization_id
+  );
+$$;
+GRANT EXECUTE ON FUNCTION public.client_in_current_org(uuid) TO authenticated;
+
+-- 2. Rebuild solicitations policies cleanly.
+DROP POLICY IF EXISTS "staff create solicitations" ON public.solicitations;
+DROP POLICY IF EXISTS "staff manage solicitations" ON public.solicitations;
+
+-- INSERT: org staff creating for a client in their org
+CREATE POLICY "staff insert solicitations"
+ON public.solicitations FOR INSERT TO authenticated
+WITH CHECK (
+  public.is_org_staff(auth.uid())
+  AND public.client_in_current_org(client_id)
+);
+
+-- UPDATE / DELETE: solicitation member + still in org
+CREATE POLICY "staff update solicitations"
+ON public.solicitations FOR UPDATE TO authenticated
+USING (public.is_solicitation_member(auth.uid(), id)
+       AND public.client_in_current_org(client_id))
+WITH CHECK (public.client_in_current_org(client_id)
+            AND public.is_org_staff(auth.uid()));
+
+CREATE POLICY "staff delete solicitations"
+ON public.solicitations FOR DELETE TO authenticated
+USING (public.is_org_admin(auth.uid())
+       AND public.client_in_current_org(client_id));
+
+-- 3. Tighten grants: anon should never touch solicitations.
+REVOKE INSERT, UPDATE, DELETE, SELECT ON public.solicitations FROM anon;
 ```
+
+The existing SELECT policies (`view accessible solicitations`, `client user view own solicitations`) stay as-is.
+
+### Why this fixes it
+
+- `client_in_current_org` runs as SECURITY DEFINER, so the `clients` lookup is no longer subject to a nested RLS pass that could silently return zero rows.
+- A single, explicit INSERT policy removes ambiguity from overlapping permissive policies.
+- Revoking `anon` grants ensures a misrouted (unauthenticated) request fails with a clear table-level permission error instead of a confusing RLS failure.
+
+## After the migration
+
+Ask jb4smith to:
+1. Fully sign out and sign back in (force a fresh JWT).
+2. Retry creating the solicitation.
+3. If it still fails, capture the exact toast text and the network response body for the `POST .../solicitations` request — that response includes `code`, `message`, `details`, and `hint` which will pinpoint any remaining cause (e.g. a trigger).
+
+## Options if you'd rather not change RLS
+
+1. **Diagnostic-only first** — add a temporary edge function the client can call that reports `auth.uid()`, `current_user_org()`, `is_org_staff(...)` for the live session. Confirms whether the session is actually authenticated before changing policies.
+2. **Service-role insert** — route solicitation creation through an edge function using the service role, bypassing RLS entirely. Heavier change; only worth it if we expect more policy churn.
+
+Recommendation: ship the migration above (option 0). It's a small, targeted change that also closes the anon-grant hole.
