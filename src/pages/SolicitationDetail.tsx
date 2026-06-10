@@ -1,8 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock,
   ExternalLink,
@@ -10,6 +11,7 @@ import {
   HelpCircle,
   Lightbulb,
   ShieldAlert,
+  Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
