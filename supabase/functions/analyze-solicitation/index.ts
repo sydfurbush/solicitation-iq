@@ -407,6 +407,37 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
       }
     }
 
+    // Critical-keyword validation: for every section that contained a critical keyword
+    // (clearance, citizenship, key personnel, required certs), confirm the extraction
+    // surfaced a requirement mentioning that keyword. If not, raise a HIGH-severity
+    // "missing_requirement" warning so the user can manually add it.
+    const reqHaystack = reqs
+      .map((r: any) => `${r?.text ?? ""} ${r?.source?.quote ?? ""} ${r?.source?.section ?? ""}`.toLowerCase())
+      .join(" \n ");
+    for (const d of docPayload) {
+      const crit = (d as any).criticalSectionRefs as Array<{ number: string | null; title: string | null; page: number | null; hits: string[] }>;
+      if (!crit || crit.length === 0) continue;
+      // Aggregate unique keyword labels per document
+      const seenLabels = new Map<string, { number: string | null; title: string | null; page: number | null }>();
+      for (const c of crit) {
+        for (const h of c.hits) {
+          if (!seenLabels.has(h)) seenLabels.set(h, { number: c.number, title: c.title, page: c.page });
+        }
+      }
+      for (const [label, ref] of seenLabels.entries()) {
+        const kw = CRITICAL_KEYWORDS.find((k) => k.label === label);
+        if (!kw) continue;
+        if (!kw.rx.test(reqHaystack)) {
+          validationWarnings.push({
+            field: "missing_requirement",
+            message: `"${label}" appears in "${d.name}" §${ref.number ?? "?"}${ref.title ? ` ${ref.title}` : ""}${ref.page ? ` (p.${ref.page})` : ""} but no extracted requirement references it. This is likely a bid-eligibility gate — review and add manually.`,
+            severity: "error",
+          });
+        }
+      }
+    }
+
+
 
     const toArr = (v: unknown): unknown[] => {
       if (Array.isArray(v)) return v;
