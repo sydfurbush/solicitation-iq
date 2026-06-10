@@ -21,6 +21,13 @@ export function useReports(solicitationId: string | undefined) {
       if (error) throw error;
       return (data ?? []) as ReportRow[];
     },
+    refetchInterval: (query) => {
+      const rows = (query.state.data ?? []) as ReportRow[];
+      const anyProcessing = rows.some(
+        (r) => ((r.metadata as { generation_status?: string } | null)?.generation_status) === "processing",
+      );
+      return anyProcessing ? 4000 : false;
+    },
   });
 }
 
