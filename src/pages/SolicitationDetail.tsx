@@ -233,6 +233,32 @@ export default function SolicitationDetail() {
   const currentPhase: PhaseType = (s.current_phase ?? "phase_1_initial") as PhaseType;
   const currentPhaseIdx = PHASES.indexOf(currentPhase);
 
+  // Full-bleed assistant mode: takes over the page content area with a collapse trigger.
+  if (tab === "assistant") {
+    return (
+      <div className="flex flex-col h-[calc(100vh-3rem)] -m-4 md:-m-6">
+        <div className="flex items-center justify-between gap-3 border-b bg-card px-4 py-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-8 w-8 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold truncate">AI Assistant</div>
+              <div className="text-xs text-muted-foreground truncate">{s.title}</div>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={exitAssistant} className="gap-1.5">
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Exit assistant</span>
+          </Button>
+        </div>
+        <div className="flex-1 min-h-0">
+          <SolicitationAssistant solicitationId={s.id} />
+        </div>
+      </div>
+    );
+  }
+
   const handleStatusChange = async (next: SolicitationStatus) => {
     try {
       await updateStatus.mutateAsync({ id: s.id, status: next });
