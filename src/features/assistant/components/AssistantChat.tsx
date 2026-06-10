@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send, Sparkles } from "lucide-react";
+import { Loader2, Mic, Send, Sparkles, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,8 @@ import {
   useSendAssistantMessage,
   type AssistantMessage,
 } from "../hooks/useAssistantThreads";
+import { useAssistantTranscribe } from "../hooks/useAssistantTranscribe";
+import { cn } from "@/lib/utils";
 
 type Props = {
   solicitationId: string;
@@ -35,6 +37,28 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   }, [threadId]);
 
   const sending = send.isPending;
+  const transcribe = useAssistantTranscribe();
+
+  const handleMic = async () => {
+    if (transcribe.state === "recording") {
+      transcribe.stop();
+      return;
+    }
+    if (transcribe.state !== "idle") return;
+    try {
+      const text = await transcribe.start();
+      if (text) {
+        setInput((prev) => (prev ? `${prev.trimEnd()} ${text}` : text));
+        taRef.current?.focus();
+      }
+    } catch (e: any) {
+      toast({
+        title: "Voice input failed",
+        description: e?.message ?? "Could not transcribe audio",
+        variant: "destructive",
+      });
+    }
+  };
 
   const submit = async (text?: string) => {
     const msg = (text ?? input).trim();
@@ -100,12 +124,35 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
               submit();
             }
           }}
-          placeholder="Ask about risks, requirements, incumbents, the client lens…"
+          placeholder={
+            transcribe.state === "recording"
+              ? "Listening… click the mic to stop"
+              : transcribe.state === "transcribing"
+              ? "Transcribing…"
+              : "Ask about risks, requirements, incumbents, the client lens…"
+          }
           rows={2}
           className="resize-none min-h-[44px]"
-          disabled={sending}
+          disabled={sending || transcribe.state !== "idle"}
         />
-        <Button type="submit" size="icon" disabled={sending || !input.trim()}>
+        <Button
+          type="button"
+          size="icon"
+          variant={transcribe.state === "recording" ? "destructive" : "outline"}
+          onClick={handleMic}
+          disabled={sending || transcribe.state === "transcribing"}
+          title={transcribe.state === "recording" ? "Stop recording" : "Voice input"}
+          aria-label={transcribe.state === "recording" ? "Stop recording" : "Start voice input"}
+        >
+          {transcribe.state === "transcribing" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : transcribe.state === "recording" ? (
+            <Square className={cn("h-4 w-4")} />
+          ) : (
+            <Mic className="h-4 w-4" />
+          )}
+        </Button>
+        <Button type="submit" size="icon" disabled={sending || !input.trim() || transcribe.state !== "idle"}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </form>
