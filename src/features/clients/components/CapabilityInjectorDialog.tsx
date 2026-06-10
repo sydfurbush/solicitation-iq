@@ -180,8 +180,8 @@ export function CapabilityInjectorDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Inject capabilities from document</DialogTitle>
           <DialogDescription>
             Upload a capability statement or paste its contents. AI will extract structured fields you can review before applying.
@@ -189,7 +189,7 @@ export function CapabilityInjectorDialog({
         </DialogHeader>
 
         {!draft ? (
-          <div className="flex-1 overflow-auto space-y-4">
+          <div className="flex-1 min-h-0 overflow-auto space-y-4">
             <Tabs value={tab} onValueChange={(v) => setTab(v as "upload" | "paste")}>
               <TabsList>
                 <TabsTrigger value="upload"><Upload className="h-3.5 w-3.5 mr-1" /> Upload file</TabsTrigger>
@@ -236,7 +236,7 @@ export function CapabilityInjectorDialog({
             </Tabs>
           </div>
         ) : (
-          <ScrollArea className="flex-1 pr-3">
+          <ScrollArea className="flex-1 min-h-0 pr-3 -mr-3">
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
                 Review each suggested field. Tick the ones you want to apply, then choose merge or replace. Nothing is saved until you click Apply.
@@ -342,7 +342,7 @@ export function CapabilityInjectorDialog({
           </ScrollArea>
         )}
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 shrink-0">
           {!draft ? (
             <>
               <Button variant="ghost" onClick={() => handleClose(false)}>Cancel</Button>
