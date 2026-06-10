@@ -90,9 +90,11 @@ export function AIModelsTab() {
 function FunctionRow({
   meta,
   current,
+  orgId,
 }: {
   meta: { name: string; label: string; description: string; defaultMax: number };
   current: Row | null;
+  orgId: string;
 }) {
   const qc = useQueryClient();
   const { user } = useAuthContext();
@@ -114,6 +116,7 @@ function FunctionRow({
   const save = useMutation({
     mutationFn: async () => {
       const payload = {
+        organization_id: orgId,
         function_name: meta.name,
         provider,
         model,
@@ -123,7 +126,7 @@ function FunctionRow({
       };
       const { error } = await supabase
         .from("ai_model_settings")
-        .upsert(payload, { onConflict: "function_name" });
+        .upsert(payload, { onConflict: "organization_id,function_name" });
       if (error) throw error;
     },
     onSuccess: () => {
