@@ -124,12 +124,35 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
               submit();
             }
           }}
-          placeholder="Ask about risks, requirements, incumbents, the client lens…"
+          placeholder={
+            transcribe.state === "recording"
+              ? "Listening… click the mic to stop"
+              : transcribe.state === "transcribing"
+              ? "Transcribing…"
+              : "Ask about risks, requirements, incumbents, the client lens…"
+          }
           rows={2}
           className="resize-none min-h-[44px]"
-          disabled={sending}
+          disabled={sending || transcribe.state !== "idle"}
         />
-        <Button type="submit" size="icon" disabled={sending || !input.trim()}>
+        <Button
+          type="button"
+          size="icon"
+          variant={transcribe.state === "recording" ? "destructive" : "outline"}
+          onClick={handleMic}
+          disabled={sending || transcribe.state === "transcribing"}
+          title={transcribe.state === "recording" ? "Stop recording" : "Voice input"}
+          aria-label={transcribe.state === "recording" ? "Stop recording" : "Start voice input"}
+        >
+          {transcribe.state === "transcribing" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : transcribe.state === "recording" ? (
+            <Square className={cn("h-4 w-4")} />
+          ) : (
+            <Mic className="h-4 w-4" />
+          )}
+        </Button>
+        <Button type="submit" size="icon" disabled={sending || !input.trim() || transcribe.state !== "idle"}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </form>
