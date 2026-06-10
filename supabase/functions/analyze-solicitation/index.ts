@@ -253,11 +253,26 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
       .select("document_id, entity_type, entity_value")
       .in("document_id", docIds);
 
-    const docPayload = documents.map((d) => ({
-      name: d.file_name,
-      sections: (sections ?? []).filter((s) => s.document_id === d.id).slice(0, 40),
-      entities: (entities ?? []).filter((e) => e.document_id === d.id),
-    }));
+    const docPayload = documents.map((d) => {
+      const docSections = (sections ?? []).filter((s) => s.document_id === d.id);
+      // Keep ALL priority sections (Section L/M, Instructions to Offerors, Evaluation, Submission, etc.)
+      // and the first 80 non-priority sections in sort order. Previously this was capped at 40 per doc,
+      // which dropped late-document submission rules (e.g. Section 4.2 in long RFQs).
+      const prioritySecs = docSections.filter(isPrioritySection);
+      const otherSecs = docSections.filter((s) => !isPrioritySection(s)).slice(0, 80);
+      const merged = [...prioritySecs, ...otherSecs];
+      return {
+        name: d.file_name,
+        sections: merged,
+        entities: (entities ?? []).filter((e) => e.document_id === d.id),
+        // Used for coverage validation post-analysis
+        prioritySectionRefs: prioritySecs.map((s) => ({
+          number: s.section_number,
+          title: s.section_title,
+          page: s.page_start,
+        })),
+      };
+    });
 
     const knownFacts = buildKnownFactsBlock(solicitation as Record<string, any> | null);
     const userPrompt = buildUserPrompt(knownFacts, docPayload);
