@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Download, FileType } from "lucide-react";
@@ -259,13 +260,46 @@ function BlocksRenderer({ blocks, fallbackBody }: { blocks: Block[]; fallbackBod
   );
 }
 
+const HIGHLIGHT_PATTERNS = [
+  { re: /risk\s+assessment/i, label: "Risk Mitigation Plan" },
+  { re: /opportunit(y|ies)\s+analysis/i, label: "Opportunity Action Plan" },
+  { re: /competitive\s+(landscape|position)/i, label: "Competitive Position Summary" },
+];
+
 export function ReportViewer({ report, open, onOpenChange }: { report: ReportRow | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const [active, setActive] = useState(0);
-  if (!report) return null;
-  const content = report.content as unknown as ReportContent;
+  const content = (report?.content ?? null) as unknown as ReportContent | null;
   const sections = content?.sections ?? [];
 
+  const status = (report?.metadata as { generation_status?: string } | null)?.generation_status;
+  const isProcessing = status === "processing";
+  const isFullAnalysis = report?.report_type === "full_analysis";
+
+  const highlightedIdx = useMemo(() => {
+    if (!isFullAnalysis || isProcessing) return new Map<number, string>();
+    const map = new Map<number, string>();
+    sections.forEach((s, i) => {
+      const match = HIGHLIGHT_PATTERNS.find((p) => p.re.test(s.heading ?? ""));
+      if (match) map.set(i, match.label);
+    });
+    return map;
+  }, [sections, isFullAnalysis, isProcessing]);
+
+  // Auto-expand & scroll to first highlighted section when report opens and is ready
+  useEffect(() => {
+    if (!open || isProcessing || highlightedIdx.size === 0) return;
+    const firstIdx = [...highlightedIdx.keys()][0];
+    setActive(firstIdx);
+    const t = setTimeout(() => {
+      document.getElementById(`sec-${firstIdx}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [open, isProcessing, highlightedIdx, report?.id]);
+
+  if (!report) return null;
+
   const dl = async (fmt: "pdf" | "docx") => {
+    if (!content) return;
     if (fmt === "pdf") saveAs(generatePdf(content), `${report.title}.pdf`);
     else saveAs(await generateDocx(content), `${report.title}.docx`);
   };
@@ -279,43 +313,75 @@ export function ReportViewer({ report, open, onOpenChange }: { report: ReportRow
             <LensSnapshotBadge snapshot={content?.lens ?? null} />
           </div>
         </SheetHeader>
-        <div className="flex gap-2 mt-3">
-          <Button size="sm" variant="outline" onClick={() => dl("pdf")}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
-          <Button size="sm" variant="outline" onClick={() => dl("docx")}><FileType className="h-3.5 w-3.5 mr-1" /> Word</Button>
-        </div>
-        <div className="grid lg:grid-cols-[200px_1fr] gap-6 mt-6">
-          <nav className="text-sm space-y-1 lg:sticky lg:top-0 self-start">
-            <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Contents</p>
-            {sections.map((s, i) => (
-              <button
-                key={i}
-                onClick={() => { setActive(i); document.getElementById(`sec-${i}`)?.scrollIntoView({ behavior: "smooth" }); }}
-                className={`block text-left w-full px-2 py-1 rounded hover:bg-muted ${active === i ? "bg-muted font-medium" : ""}`}
-              >
-                {s.heading}
-              </button>
-            ))}
-          </nav>
-          <article className="prose prose-sm max-w-none dark:prose-invert">
-            {content.subtitle && <p className="text-muted-foreground italic mb-4">{content.subtitle}</p>}
-            {sections.map((s, i) => (
-              <section key={i} id={`sec-${i}`} className="mb-6">
-                <h2 className="font-bold text-xl uppercase text-[#1E3A5F] border-b-2 border-[#C9A227] pb-1 mb-3">{s.heading}</h2>
-                <BlocksRenderer blocks={sectionBlocks(s)} fallbackBody={s.body} />
-              </section>
-            ))}
-            {content.citations?.length ? (
-              <section>
-                <h2 className="font-bold text-xl border-b pb-1 mb-3">Citations</h2>
-                <ol className="list-decimal pl-6 text-xs space-y-1">
-                  {content.citations.map((c, i) => (
-                    <li key={i}>{c.document}{c.section ? ` §${c.section}` : ""}{c.page ? ` p.${c.page}` : ""}{c.quote ? ` — "${c.quote}"` : ""}</li>
-                  ))}
-                </ol>
-              </section>
-            ) : null}
-          </article>
-        </div>
+        {isProcessing ? (
+          <div className="mt-6 rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+            Generation in progress — sections will appear here when ready.
+          </div>
+        ) : (
+          <>
+            <div className="flex gap-2 mt-3">
+              <Button size="sm" variant="outline" onClick={() => dl("pdf")}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+              <Button size="sm" variant="outline" onClick={() => dl("docx")}><FileType className="h-3.5 w-3.5 mr-1" /> Word</Button>
+            </div>
+            {highlightedIdx.size > 0 && (
+              <div className="mt-4 rounded-md border border-[#C9A227]/40 bg-[#FFF8E1] px-3 py-2 text-xs text-[#1E3A5F] flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-[#C9A227]" />
+                <span><strong>New sections:</strong> Risk Mitigation Plan, Opportunity Action Plan, and Competitive Position Summary are highlighted below.</span>
+              </div>
+            )}
+            <div className="grid lg:grid-cols-[200px_1fr] gap-6 mt-6">
+              <nav className="text-sm space-y-1 lg:sticky lg:top-0 self-start">
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Contents</p>
+                {sections.map((s, i) => {
+                  const hl = highlightedIdx.has(i);
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => { setActive(i); document.getElementById(`sec-${i}`)?.scrollIntoView({ behavior: "smooth" }); }}
+                      className={`flex items-center gap-1.5 text-left w-full px-2 py-1 rounded hover:bg-muted ${active === i ? "bg-muted font-medium" : ""} ${hl ? "text-[#1E3A5F]" : ""}`}
+                    >
+                      {hl && <Sparkles className="h-3 w-3 text-[#C9A227] shrink-0" />}
+                      <span className="truncate">{s.heading}</span>
+                    </button>
+                  );
+                })}
+              </nav>
+              <article className="prose prose-sm max-w-none dark:prose-invert">
+                {content?.subtitle && <p className="text-muted-foreground italic mb-4">{content.subtitle}</p>}
+                {sections.map((s, i) => {
+                  const hlLabel = highlightedIdx.get(i);
+                  return (
+                    <section
+                      key={i}
+                      id={`sec-${i}`}
+                      className={`mb-6 ${hlLabel ? "rounded-lg border-2 border-[#C9A227]/50 bg-[#FFFCEF] p-4 shadow-sm" : ""}`}
+                    >
+                      <div className="flex items-center justify-between gap-2 border-b-2 border-[#C9A227] pb-1 mb-3">
+                        <h2 className="font-bold text-xl uppercase text-[#1E3A5F] m-0">{s.heading}</h2>
+                        {hlLabel && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#C9A227] text-white text-[10px] font-bold uppercase tracking-wide px-2 py-0.5">
+                            <Sparkles className="h-3 w-3" /> {hlLabel}
+                          </span>
+                        )}
+                      </div>
+                      <BlocksRenderer blocks={sectionBlocks(s)} fallbackBody={s.body} />
+                    </section>
+                  );
+                })}
+                {content?.citations?.length ? (
+                  <section>
+                    <h2 className="font-bold text-xl border-b pb-1 mb-3">Citations</h2>
+                    <ol className="list-decimal pl-6 text-xs space-y-1">
+                      {content.citations.map((c, i) => (
+                        <li key={i}>{c.document}{c.section ? ` §${c.section}` : ""}{c.page ? ` p.${c.page}` : ""}{c.quote ? ` — "${c.quote}"` : ""}</li>
+                      ))}
+                    </ol>
+                  </section>
+                ) : null}
+              </article>
+            </div>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );
