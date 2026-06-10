@@ -52,6 +52,21 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         taRef.current?.focus();
       }
     } catch (e: any) {
+      if (e instanceof MicrophoneError) {
+        const titleByKind: Record<string, string> = {
+          denied: "Microphone access blocked",
+          no_device: "No microphone found",
+          in_use: "Microphone is busy",
+          unsupported: "Voice input not supported",
+          unknown: "Microphone error",
+        };
+        toast({
+          title: titleByKind[e.kind] ?? "Microphone error",
+          description: e.message,
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: "Voice input failed",
         description: e?.message ?? "Could not transcribe audio",
