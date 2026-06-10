@@ -24,8 +24,11 @@ export default function SolicitationReports({ solicitationId }: { solicitationId
     generate.mutate(
       { reportType: optionsType, options },
       {
-        onSuccess: () => {
-          toast({ title: "Report generated" });
+        onSuccess: (data: any) => {
+          toast({
+            title: data?.queued ? "Report queued" : "Report generated",
+            description: data?.queued ? "Generation runs in the background — it will appear when ready." : undefined,
+          });
           setOptionsType(null);
           setPickerOpen(false);
         },

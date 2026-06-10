@@ -584,81 +584,13 @@ ${ctx.priorLink ? JSON.stringify(ctx.priorLink) : "(none linked)"}
 REPORT OPTIONS:
 ${JSON.stringify(options ?? {})}`;
 
-    console.log(`[generate-report] sol=${solicitationId} type=${reportType}`);
+    console.log(`[generate-report] sol=${solicitationId} type=${reportType} (queued)`);
 
-    const reportSol = (ctx as { solicitation?: { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } }).solicitation
-      ?? (ctx as { sol?: { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } }).sol;
-    const lens = await buildClientLens(reportSol?.client_id ?? null, { topic: "report", query: `${sol?.title ?? ""} ${sol?.issuing_agency ?? ""} ${((sol?.ai_summary ?? "") + "").slice(0, 600)} report:${reportType}`, override: reportSol?.lens_overrides ?? null });
-    const baseSystem = `You are an expert proposal strategist generating professional client deliverables. ${prompt}`;
-    const parsed = await callAiTool({
-      functionName: "generate-report",
-      system: lens.promptBlock ? `${lens.promptBlock}\n\n${baseSystem}` : baseSystem,
-      user: userPrompt,
-      tool: SCHEMA,
-    }) as Record<string, any>;
-
-    // Normalize blocks: AI returns bullets/steps `items` as object arrays,
-    // but our bullets renderer expects string[].
-    const STRUCTURED = new Set(["recommendation", "key success factors", "next steps"]);
-    const normalizeSections = (sections: any[] = []) => sections.map((s) => {
-      const headingKey = String(s.heading ?? "").trim().toLowerCase();
-      if (STRUCTURED.has(headingKey)) {
-        const kinds = Array.isArray(s.blocks) ? s.blocks.map((b: any) => b?.kind) : [];
-        const hasParagraphOnly = kinds.length > 0 && kinds.every((k: string) => k === "paragraph" || k === "bullets" && headingKey !== "key success factors");
-        if (hasParagraphOnly && headingKey !== "key success factors") {
-          console.warn(`[generate-report] section "${s.heading}" returned paragraph blocks; expected structured block.`);
-        }
-      }
-      const blocks = Array.isArray(s.blocks) ? s.blocks.map((b: any) => {
-        if (!b || typeof b !== "object") return b;
-        if (b.kind === "bullets" && Array.isArray(b.items)) {
-          return { ...b, items: b.items.map((it: any) => typeof it === "string" ? it : (it?.text ?? "")) };
-        }
-        if (b.kind === "steps" && Array.isArray(b.items)) {
-          return { ...b, items: b.items.map((it: any) => ({ title: it?.title ?? "", detail: it?.detail ?? "" })) };
-        }
-        return b;
-      }) : undefined;
-      return blocks ? { ...s, blocks } : s;
-    });
-
-    // Backfill citations from context if AI returned none
-    let citations = Array.isArray(parsed.citations) ? parsed.citations : [];
-    if (includeCitations && citations.length === 0) {
-      const sourced: Array<{ source_citation?: string | null; source_quote?: string | null }> = [
-        ...(ctx.risks ?? []),
-        ...(ctx.opportunities ?? []),
-        ...(ctx.questions ?? []),
-      ];
-      const seen = new Set<string>();
-      const synth: any[] = [];
-      for (const row of sourced) {
-        const cite = (row.source_citation ?? "").trim();
-        if (!cite || seen.has(cite)) continue;
-        seen.add(cite);
-        const pageMatch = cite.match(/p(?:age|\.)?\s*(\d+)/i);
-        const sectionMatch = cite.match(/§\s*([\w.\-]+)|section\s+([\w.\-]+)/i);
-        synth.push({
-          id: `C${synth.length + 1}`,
-          document: cite.split(/[§,;]/)[0].trim() || cite,
-          section: sectionMatch ? (sectionMatch[1] || sectionMatch[2]) : undefined,
-          page: pageMatch ? Number(pageMatch[1]) : undefined,
-          quote: row.source_quote ?? undefined,
-        });
-        if (synth.length >= 8) break;
-      }
-      if (synth.length === 0 && (ctx.documents ?? []).length) {
-        for (const d of (ctx.documents ?? []).slice(0, 5)) {
-          synth.push({ id: `C${synth.length + 1}`, document: d.file_name });
-        }
-      }
-      citations = synth;
-    }
-    if (!includeCitations) citations = [];
-
-    const content = {
-      title: parsed.title ?? `${reportType.replace(/_/g, " ")} – ${sol.title}`,
-      subtitle: parsed.subtitle ?? sol.solicitation_number ?? null,
+    // Insert placeholder row immediately so the client can show a "generating" state.
+    const placeholderTitle = `${(reportType as string).replace(/_/g, " ")} – ${sol.title}`;
+    const placeholderContent = {
+      title: placeholderTitle,
+      subtitle: sol.solicitation_number ?? null,
       generatedAt: new Date().toISOString(),
       meta: {
         solicitation_number: sol.solicitation_number,
@@ -666,27 +598,141 @@ ${JSON.stringify(options ?? {})}`;
         client: (sol.client as { name?: string } | null)?.name,
         contract_type: sol.contract_type,
       },
-      sections: normalizeSections(parsed.sections),
-      citations,
+      sections: [],
+      citations: [],
       options: options ?? {},
       branding: options?.branding ?? null,
-      lens: lens.snapshot,
     };
 
-    const { data: report, error } = await supabase
+    const { data: report, error: insertErr } = await supabase
       .from("executive_reports")
       .insert({
         solicitation_id: solicitationId,
-        title: content.title,
+        title: placeholderTitle,
         report_type: reportType,
-        content,
+        content: placeholderContent,
         generated_by: userId,
+        metadata: { generation_status: "processing", started_at: new Date().toISOString() },
       })
       .select()
       .single();
-    if (error) throw error;
+    if (insertErr) throw insertErr;
 
-    return new Response(JSON.stringify({ success: true, report }), {
+    // Background task: do the AI call & finalize the row. Survives the HTTP response.
+    const finalize = async () => {
+      try {
+        const reportSol = (ctx as { solicitation?: { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } }).solicitation
+          ?? (ctx as { sol?: { client_id?: string | null; lens_overrides?: Record<string, unknown> | null } }).sol;
+        const lens = await buildClientLens(reportSol?.client_id ?? null, { topic: "report", query: `${sol?.title ?? ""} ${sol?.issuing_agency ?? ""} ${((sol?.ai_summary ?? "") + "").slice(0, 600)} report:${reportType}`, override: reportSol?.lens_overrides ?? null });
+        const baseSystem = `You are an expert proposal strategist generating professional client deliverables. ${prompt}`;
+        const parsed = await callAiTool({
+          functionName: "generate-report",
+          system: lens.promptBlock ? `${lens.promptBlock}\n\n${baseSystem}` : baseSystem,
+          user: userPrompt,
+          tool: SCHEMA,
+        }) as Record<string, any>;
+
+        const STRUCTURED = new Set(["recommendation", "key success factors", "next steps"]);
+        const normalizeSections = (sections: any[] = []) => sections.map((s) => {
+          const headingKey = String(s.heading ?? "").trim().toLowerCase();
+          if (STRUCTURED.has(headingKey)) {
+            const kinds = Array.isArray(s.blocks) ? s.blocks.map((b: any) => b?.kind) : [];
+            const hasParagraphOnly = kinds.length > 0 && kinds.every((k: string) => k === "paragraph" || k === "bullets" && headingKey !== "key success factors");
+            if (hasParagraphOnly && headingKey !== "key success factors") {
+              console.warn(`[generate-report] section "${s.heading}" returned paragraph blocks; expected structured block.`);
+            }
+          }
+          const blocks = Array.isArray(s.blocks) ? s.blocks.map((b: any) => {
+            if (!b || typeof b !== "object") return b;
+            if (b.kind === "bullets" && Array.isArray(b.items)) {
+              return { ...b, items: b.items.map((it: any) => typeof it === "string" ? it : (it?.text ?? "")) };
+            }
+            if (b.kind === "steps" && Array.isArray(b.items)) {
+              return { ...b, items: b.items.map((it: any) => ({ title: it?.title ?? "", detail: it?.detail ?? "" })) };
+            }
+            return b;
+          }) : undefined;
+          return blocks ? { ...s, blocks } : s;
+        });
+
+        let citations = Array.isArray(parsed.citations) ? parsed.citations : [];
+        if (includeCitations && citations.length === 0) {
+          const sourced: Array<{ source_citation?: string | null; source_quote?: string | null }> = [
+            ...(ctx.risks ?? []), ...(ctx.opportunities ?? []), ...(ctx.questions ?? []),
+          ];
+          const seen = new Set<string>();
+          const synth: any[] = [];
+          for (const row of sourced) {
+            const cite = (row.source_citation ?? "").trim();
+            if (!cite || seen.has(cite)) continue;
+            seen.add(cite);
+            const pageMatch = cite.match(/p(?:age|\.)?\s*(\d+)/i);
+            const sectionMatch = cite.match(/§\s*([\w.\-]+)|section\s+([\w.\-]+)/i);
+            synth.push({
+              id: `C${synth.length + 1}`,
+              document: cite.split(/[§,;]/)[0].trim() || cite,
+              section: sectionMatch ? (sectionMatch[1] || sectionMatch[2]) : undefined,
+              page: pageMatch ? Number(pageMatch[1]) : undefined,
+              quote: row.source_quote ?? undefined,
+            });
+            if (synth.length >= 8) break;
+          }
+          if (synth.length === 0 && (ctx.documents ?? []).length) {
+            for (const d of (ctx.documents ?? []).slice(0, 5)) {
+              synth.push({ id: `C${synth.length + 1}`, document: d.file_name });
+            }
+          }
+          citations = synth;
+        }
+        if (!includeCitations) citations = [];
+
+        const finalTitle = parsed.title ?? placeholderTitle;
+        const finalContent = {
+          title: finalTitle,
+          subtitle: parsed.subtitle ?? sol.solicitation_number ?? null,
+          generatedAt: new Date().toISOString(),
+          meta: placeholderContent.meta,
+          sections: normalizeSections(parsed.sections),
+          citations,
+          options: options ?? {},
+          branding: options?.branding ?? null,
+          lens: lens.snapshot,
+        };
+
+        const { error: updErr } = await supabase
+          .from("executive_reports")
+          .update({
+            title: finalTitle,
+            content: finalContent,
+            metadata: { generation_status: "completed", completed_at: new Date().toISOString() },
+          })
+          .eq("id", report.id);
+        if (updErr) console.error("[generate-report] finalize update error", updErr);
+        else console.log(`[generate-report] sol=${solicitationId} type=${reportType} completed report=${report.id}`);
+      } catch (e) {
+        console.error("[generate-report] background error", e);
+        await supabase
+          .from("executive_reports")
+          .update({
+            metadata: {
+              generation_status: "failed",
+              error_message: e instanceof Error ? e.message : String(e),
+              failed_at: new Date().toISOString(),
+            },
+          })
+          .eq("id", report.id);
+      }
+    };
+
+    // Run AI work after the response is sent; falls back to fire-and-forget if waitUntil is unavailable.
+    const runtime = (globalThis as any).EdgeRuntime;
+    if (runtime && typeof runtime.waitUntil === "function") {
+      runtime.waitUntil(finalize());
+    } else {
+      finalize().catch((e) => console.error("[generate-report] fire-and-forget error", e));
+    }
+
+    return new Response(JSON.stringify({ success: true, report, queued: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
@@ -696,3 +742,4 @@ ${JSON.stringify(options ?? {})}`;
     });
   }
 });
+
