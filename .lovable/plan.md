@@ -1,65 +1,80 @@
-# Team Member Management
+## Goal
 
-Add the missing controls to **Settings → Team → Members** so owners/admins can change a teammate's role or remove them, without touching the database.
+Figure out why jb4smith@gmail.com gets "Could not create — [object Object]" when creating a solicitation, and unblock them.
 
-## Scope
+## What we already know
 
-- Change a member's role between **admin**, **analyst**, **viewer**.
-- Remove a member from the organization.
-- Protect against foot-guns: can't change/remove yourself, can't remove the last owner, owner role can only be granted/revoked by another owner.
-- Owners are listed but their role can only be edited by another owner.
+- They are an `owner` in org `256b…fd900` with 3 clients and prior successful solicitations (latest May 21). Permissions and data look correct.
+- The toast message "[object Object]" is a **client-side bug**, not the real error. `CreateSolicitationDialog.tsx` does `e instanceof Error ? e.message : String(e)`, but Supabase's `PostgrestError` is a plain object — so the actual DB error (RLS violation? trigger failure? bad column?) is being thrown away before we see it.
+- Until we see the real error message, any "fix" is a guess.
 
-Out of scope (can follow up): transferring ownership, "sign out everywhere", last-active timestamps, bulk actions.
+## Plan
 
-## UX
+### 1. Fix the error reporting (small, targeted change)
 
-In the existing **Members** card, each row gains two controls on the right:
+In every solicitation-create catch block, format Supabase errors properly so the toast shows `message`, `code`, `details`, and `hint`, and also log the full object to the browser console.
 
-```text
-Sydney Furbush                          [Role ▾ Owner]   [⋯]
-sfurbush@emergence...                                      └─ Remove from organization
+Files to touch:
+- `src/features/solicitations/components/CreateSolicitationDialog.tsx`
+- `src/features/solicitations/components/AddFinalSolicitationDialog.tsx`
+- `src/features/solicitations/hooks/useFinalFromPreSol.ts`
+
+Add a tiny helper (e.g. `src/lib/supabase/formatError.ts`) that returns a readable string for `Error`, `PostgrestError`, `FunctionsHttpError`, and anything else. Use it in those catch blocks and `console.error` the raw object alongside.
+
+This is a UI/diagnostics change only — no business logic, no schema changes.
+
+### 2. Ask jb4smith to retry and send the new error text
+
+Once shipped, the toast will say something concrete like "new row violates row-level security policy for table solicitations" or "null value in column X violates not-null constraint". With that one line we can pinpoint the cause in minutes.
+
+### 3. Fix the root cause
+
+Based on what the real error says, the likely candidates (in order of probability) are:
+
+- A required column added by a recent migration that the form isn't sending (e.g. an `organization_id` or similar not-null without a default). I checked — none of the current NOT NULL columns fit this, but a migration may land between now and the retry.
+- A failing `AFTER INSERT` trigger. There is one: `copy_client_defaults_to_solicitation` copies `client_assignments` → `solicitation_assignments`. It looks safe (uses `ON CONFLICT DO NOTHING`), but if a `client_assignments.role` value ever fails the cast to `solicitation_assignment_role` enum, the whole insert aborts.
+- A stale auth session where `auth.uid()` doesn't match (forces them to sign out / sign in).
+
+We patch whichever the real error points at, in a follow-up turn.
+
+### On the "push a new version when they log in" idea
+
+Not recommended as a fix for this. Lovable's hosting already serves fresh hashed bundles on every page load, so a normal browser refresh is the existing "push new version" mechanism. Adding a forced-reload-on-login mechanism would be extra code that doesn't address the actual failure, which is server-side (the DB rejects the insert and our UI hides why). If you still want a "new version available, reload" banner as a separate product feature later, we can add it as its own task.
+
+## Out of scope
+
+- No database migrations in this step.
+- No changes to RLS, the solicitation form fields, or the create-solicitation mutation logic.
+- No version-pinning / service-worker / forced-reload work.
+
+## Technical detail
+
+The helper looks roughly like:
+
+```ts
+export function formatSupabaseError(e: unknown): string {
+  if (!e) return "Unknown error";
+  if (e instanceof Error) return e.message;
+  if (typeof e === "object") {
+    const o = e as Record<string, unknown>;
+    const parts = [o.message, o.details, o.hint, o.code]
+      .filter(Boolean)
+      .map(String);
+    if (parts.length) return parts.join(" — ");
+  }
+  return String(e);
+}
 ```
 
-- **Role dropdown** — inline Select with Owner / Admin / Analyst / Viewer. Disabled for the current user and for owners (unless the viewer is also an owner). Changing fires a confirm toast → mutation.
-- **Remove (⋯ menu)** → "Remove from organization" opens a ConfirmDialog: "Remove {name} from {org}? They will lose access immediately." Disabled for self and for the last remaining owner.
-- After success: invalidate `org-members` query, toast confirmation.
-- Non-admins (analyst/viewer) keep read-only badges as today.
+Used as:
 
-## Backend
-
-Two new SECURITY DEFINER RPCs in `public`, callable only by org owners/admins, scoped to the caller's org:
-
-1. `set_member_role(p_user_id uuid, p_role app_role)`
-   - Validates: caller is owner/admin in same org as target; target is in caller's org; caller ≠ target; only owners can grant or revoke the `owner` role; if revoking `owner`, ensure at least one owner remains.
-   - Implementation: delete existing rows in `user_roles` for that user with role in (owner/admin/analyst/viewer), insert the new role. Mirrors the pattern in `attach_existing_user_to_org`.
-
-2. `remove_org_member(p_user_id uuid)`
-   - Validates: caller is owner/admin; target is in caller's org; caller ≠ target; if target is owner, ensure another owner exists.
-   - Action: delete from `user_roles`, set `users.organization_id = NULL` (keeps the auth account + their authored history intact). Does NOT delete the auth user.
-
-Both raise descriptive exceptions that bubble up as toast errors.
-
-No schema changes, no new tables, no RLS changes.
-
-## Frontend
-
-Edit only `src/features/team/components/TeamTab.tsx`:
-
-- Read current user's role (already available via `useUser`) to decide whether owner options are enabled.
-- Add `setRole` mutation calling `supabase.rpc('set_member_role', { p_user_id, p_role })`.
-- Add `removeMember` mutation calling `supabase.rpc('remove_org_member', { p_user_id })` wrapped in ConfirmDialog.
-- Replace the static `<Badge>` in the Members list with the Select + dropdown menu described above.
-- Compute `ownerCount` from the members list to client-side-disable the last-owner actions (server still enforces).
-
-## Technical notes
-
-- RPCs use `SECURITY DEFINER ... SET search_path = public` like the other helpers in this project.
-- Authorization helper: reuse `public.is_org_admin(auth.uid())` and `public.current_user_org()`.
-- "Same org" check joins `public.users` for both caller and target.
-- Owner-only escalation: `IF (NEW role = 'owner' OR OLD role = 'owner') AND NOT has_role(auth.uid(),'owner') THEN RAISE`.
-- Last-owner guard: `SELECT count(*) FROM user_roles ur JOIN users u ON u.id=ur.user_id WHERE u.organization_id = v_org AND ur.role='owner'`.
-
-## Migration order
-
-1. Migration: create `set_member_role` and `remove_org_member` functions.
-2. Edit `TeamTab.tsx` to wire the UI to the new RPCs.
+```ts
+} catch (e) {
+  console.error("Create solicitation failed:", e);
+  toast({
+    title: "Could not create",
+    description: formatSupabaseError(e),
+    variant: "destructive",
+  });
+}
+```
