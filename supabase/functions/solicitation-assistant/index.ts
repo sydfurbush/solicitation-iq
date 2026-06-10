@@ -55,6 +55,7 @@ async function buildContext(supa: ReturnType<typeof createClient>, solicitationI
     supa.from("risks").select("id,title,description,severity,mitigation_strategy,is_mitigated,source_citation").eq("solicitation_id", solicitationId).limit(40),
     supa.from("opportunities").select("id,title,description,opportunity_type,impact_score,recommended_approach,client_capability_match").eq("solicitation_id", solicitationId).limit(40),
     supa.from("requirement_items").select("id,title,section_id,requirement_type,is_critical").eq("solicitation_id", solicitationId).limit(80),
+
     supa.from("strategic_questions").select("id,question_text,answer_text,category").eq("solicitation_id", solicitationId).limit(40),
     supa.from("documents").select("id,file_name,document_type").eq("solicitation_id", solicitationId).is("deleted_at", null).limit(20),
     supa.from("capability_gaps").select("id,requirement_summary,client_match_summary,severity").eq("solicitation_id", solicitationId).limit(40),
