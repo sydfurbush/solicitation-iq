@@ -260,8 +260,11 @@ Deno.serve(async (req) => {
     // Load recent history
     const { data: history } = await supa.from("assistant_messages").select("role,parts").eq("thread_id", threadId).order("created_at", { ascending: true }).limit(30);
 
-    // Build context
-    const ctx = await buildContext(supa, solicitationId);
+    // Build structured context + retrieve verbatim document excerpts via FTS
+    const [ctx, excerpts] = await Promise.all([
+      buildContext(supa, solicitationId),
+      retrieveDocumentExcerpts(supa, solicitationId, message),
+    ]);
     const ctxStr = contextToString(ctx);
 
     const conversation = (history ?? []).map((m: any) => {
@@ -269,7 +272,8 @@ Deno.serve(async (req) => {
       return `${m.role.toUpperCase()}: ${text}`;
     }).join("\n\n");
 
-    const userPrompt = `## Context for this solicitation\n\n${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
+    const excerptBlock = excerpts.block ? `${excerpts.block}\n\n` : "";
+    const userPrompt = `## Context for this solicitation\n\n${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
 
     let result;
     try {
@@ -284,15 +288,26 @@ Deno.serve(async (req) => {
     }
 
     const reply = String(result.reply ?? "");
-    const citations = Array.isArray(result.citations) ? result.citations : [];
+    const modelCitations = Array.isArray(result.citations) ? result.citations : [];
     const followups = Array.isArray(result.suggested_followups) ? result.suggested_followups : [];
+
+    // Merge retrieved document citations with model-emitted ones, dedupe by label
+    const mergedCitations = [...modelCitations];
+    const seenLabels = new Set(modelCitations.map((c: any) => String(c?.label ?? "")));
+    for (const c of excerpts.citations) {
+      if (!seenLabels.has(c.label)) {
+        mergedCitations.push(c);
+        seenLabels.add(c.label);
+      }
+    }
 
     const { data: assistantMsg } = await supa.from("assistant_messages").insert({
       thread_id: threadId,
       role: "assistant",
       parts: [{ type: "text", text: reply }],
-      citations,
+      citations: mergedCitations,
     }).select().single();
+
 
     // Update thread last_message_at + auto-title if first user message
     const updates: Record<string, unknown> = { last_message_at: new Date().toISOString() };
