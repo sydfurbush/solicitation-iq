@@ -317,14 +317,46 @@ async function runAnalysis(jobId: string, solicitationId: string, analysisType: 
 
     await updateJob(jobId, { progress_step: "persisting" });
 
-    const validationWarnings = validateSummary(
-      String(analysis.executive_summary ?? ""),
-      solicitation as Record<string, any> | null,
-    );
+    const validationWarnings: Array<{ field: string; expected?: string; found?: string; message?: string; severity?: "info" | "warning" | "error" }> =
+      validateSummary(
+        String(analysis.executive_summary ?? ""),
+        solicitation as Record<string, any> | null,
+      );
     let finalSummary = String(analysis.executive_summary ?? "");
     if (validationWarnings.length && solicitation?.set_aside) {
       finalSummary = `This solicitation is a ${solicitation.set_aside} set-aside. ${finalSummary}`;
     }
+
+    // Coverage validation: for each document, if priority sections (L/M/Instructions/Evaluation/
+    // Submission) exist but NO extracted requirement cites one of them, surface a warning so
+    // the user knows to review the source manually.
+    const reqs = Array.isArray(analysis.key_requirements) ? analysis.key_requirements : [];
+    const citedSectionNumbers = new Set(
+      reqs
+        .map((r: any) => String(r?.source?.section ?? "").trim().toLowerCase())
+        .filter((s: string) => s.length > 0),
+    );
+    for (const d of docPayload) {
+      const refs = (d as any).prioritySectionRefs as Array<{ number: string | null; title: string | null; page: number | null }>;
+      if (!refs || refs.length === 0) continue;
+      const anyCited = refs.some((r) => {
+        const n = String(r.number ?? "").trim().toLowerCase();
+        if (!n) return false;
+        for (const cited of citedSectionNumbers) {
+          if (cited === n || cited.startsWith(n + ".") || n.startsWith(cited + ".")) return true;
+        }
+        return false;
+      });
+      if (!anyCited) {
+        const sample = refs.slice(0, 3).map((r) => `${r.number ?? "?"}${r.title ? ` ${r.title}` : ""}`).join("; ");
+        validationWarnings.push({
+          field: "coverage",
+          message: `No requirements were extracted from priority sections in "${d.name}" (e.g. ${sample}). These sections likely contain Instructions to Offerors / Evaluation / Submission rules — review manually and add any missed requirements.`,
+          severity: "warning",
+        });
+      }
+    }
+
 
     const toArr = (v: unknown): unknown[] => {
       if (Array.isArray(v)) return v;
