@@ -70,6 +70,122 @@ async function buildContext(supa: ReturnType<typeof createClient>, solicitationI
   return { sol, risks: risks ?? [], opps: opps ?? [], reqs: reqs ?? [], qs: qs ?? [], docs: docs ?? [], gaps: gaps ?? [], clientProfile };
 }
 
+const STOPWORDS = new Set([
+  "the","a","an","and","or","but","if","then","else","for","of","to","in","on","at","by","with","from","as","is","are","was","were","be","been","being","it","its","this","that","these","those","i","you","we","they","he","she","them","our","your","their","my","me","us","do","does","did","done","have","has","had","will","would","should","could","can","may","might","must","not","no","so","than","into","about","over","under","what","which","who","whom","whose","when","where","why","how","please","tell","show","give","provide","need","want","know","find","summary","summarize","explain","describe","help","also","any","all","some","more","most","other","such","only","own","same","just","like","get","got","make","made","use","used","using","yes","ok","okay"
+]);
+
+type DocExcerpt = {
+  document_id: string;
+  document_name: string;
+  section_id: string | null;
+  section_title: string | null;
+  page_number: number | null;
+  snippet: string;
+  rank: number;
+  label: string;
+};
+
+type DocCitation = {
+  kind: "document";
+  label: string;
+  ref_id: string;
+  document_id: string;
+  section_id: string | null;
+  page: number | null;
+};
+
+function buildSearchTerms(message: string): string[] {
+  const trimmed = (message ?? "").trim();
+  if (!trimmed) return [];
+  const terms: string[] = [];
+  // Full message as one query (best for FTS phrase rank)
+  terms.push(trimmed.slice(0, 200));
+  // Top tokens after stopword removal
+  const tokens = trimmed
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+  // Dedupe preserving order
+  const seen = new Set<string>();
+  const keywords: string[] = [];
+  for (const t of tokens) {
+    if (!seen.has(t)) { seen.add(t); keywords.push(t); }
+    if (keywords.length >= 6) break;
+  }
+  if (keywords.length) terms.push(keywords.slice(0, 6).join(" "));
+  return Array.from(new Set(terms)).slice(0, 3);
+}
+
+async function retrieveDocumentExcerpts(
+  supa: ReturnType<typeof createClient>,
+  solicitationId: string,
+  message: string,
+): Promise<{ block: string; citations: DocCitation[] }> {
+  const queries = buildSearchTerms(message);
+  if (!queries.length) return { block: "", citations: [] };
+
+  const all: DocExcerpt[] = [];
+  for (const q of queries) {
+    const { data, error } = await supa.rpc("search_document_content", {
+      p_solicitation_id: solicitationId,
+      p_search_term: q,
+    });
+    if (error) {
+      console.warn("[solicitation-assistant] search_document_content failed:", error.message);
+      continue;
+    }
+    for (const r of (data ?? []) as any[]) {
+      const sectionLabel = r.section_title ? `§${String(r.section_title).slice(0, 60)} ` : "";
+      const pageLabel = r.page_number ? `p.${r.page_number}` : "";
+      const label = `Doc: ${r.document_name}${sectionLabel || pageLabel ? ` ${sectionLabel}${pageLabel}`.trim() : ""}`.trim();
+      all.push({
+        document_id: r.document_id,
+        document_name: r.document_name,
+        section_id: r.section_id ?? null,
+        section_title: r.section_title ?? null,
+        page_number: r.page_number ?? null,
+        snippet: String(r.snippet ?? "").replace(/<\/?mark>/g, ""),
+        rank: Number(r.rank ?? 0),
+        label,
+      });
+    }
+  }
+
+  // Dedupe by section_id (fallback to document_id + snippet), keep best rank
+  const bestByKey = new Map<string, DocExcerpt>();
+  for (const ex of all) {
+    const key = ex.section_id ?? `${ex.document_id}:${ex.snippet.slice(0, 40)}`;
+    const prev = bestByKey.get(key);
+    if (!prev || ex.rank > prev.rank) bestByKey.set(key, ex);
+  }
+  const sorted = Array.from(bestByKey.values()).sort((a, b) => b.rank - a.rank).slice(0, 8);
+
+  const MAX_CHARS = 12000;
+  const lines: string[] = [];
+  const citations: DocCitation[] = [];
+  let used = 0;
+  for (const ex of sorted) {
+    const entry = `[${ex.label}]\n${ex.snippet.trim()}`;
+    if (used + entry.length > MAX_CHARS) break;
+    lines.push(entry);
+    used += entry.length + 2;
+    citations.push({
+      kind: "document",
+      label: `[${ex.label}]`,
+      ref_id: ex.section_id ?? ex.document_id,
+      document_id: ex.document_id,
+      section_id: ex.section_id,
+      page: ex.page_number,
+    });
+  }
+
+  if (!lines.length) return { block: "", citations: [] };
+  const block = `# Document excerpts (${lines.length} of ${all.length} matches)\nThese are verbatim passages from the uploaded solicitation documents. Use these as primary evidence and cite with the bracketed label.\n\n${lines.join("\n\n")}`;
+  return { block, citations };
+}
+
+
 function contextToString(ctx: Awaited<ReturnType<typeof buildContext>>): string {
   const s = ctx.sol;
   const parts: string[] = [];
