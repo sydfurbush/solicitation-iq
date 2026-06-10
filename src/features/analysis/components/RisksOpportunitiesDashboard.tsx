@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Loader2, Sparkles, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,7 +22,6 @@ import {
   useUpdateRisk,
   useDeleteRisk,
   useMarkRiskMitigated,
-  useIdentifyRisksOpportunities,
   type RiskRow,
 } from "@/features/risks/hooks/useRisks";
 import {
@@ -65,7 +64,7 @@ export function RisksOpportunitiesDashboard({ solicitationId, view = "combined" 
   const updateOpp = useUpdateOpportunity(solicitationId);
   const deleteOpp = useDeleteOpportunity(solicitationId);
 
-  const identify = useIdentifyRisksOpportunities(solicitationId);
+  
 
   const [riskDialog, setRiskDialog] = useState<{ open: boolean; editing?: RiskRow }>({ open: false });
   const [oppDialog, setOppDialog] = useState<{ open: boolean; editing?: OpportunityRow }>({ open: false });
@@ -94,21 +93,6 @@ export function RisksOpportunitiesDashboard({ solicitationId, view = "combined" 
 
   const mitigatedCount = risks.filter((r) => r.is_mitigated).length;
 
-  const handleIdentify = async (regenerate: boolean) => {
-    try {
-      const data = await identify.mutateAsync({ regenerate });
-      toast({
-        title: regenerate ? "Re-analyzed" : "Analysis complete",
-        description: `${data?.risks_count ?? 0} risks · ${data?.opportunities_count ?? 0} opportunities`,
-      });
-    } catch (e) {
-      toast({
-        title: "AI analysis failed",
-        description: e instanceof Error ? e.message : String(e),
-        variant: "destructive",
-      });
-    }
-  };
 
   const submitRisk = async (values: Parameters<typeof createRisk.mutate>[0]) => {
     try {
@@ -207,19 +191,6 @@ export function RisksOpportunitiesDashboard({ solicitationId, view = "combined" 
               {mitigatedCount}<span className="text-base font-normal text-muted-foreground">/{risks.length}</span>
             </div>
             <p className="text-xs text-muted-foreground">risks mitigated</p>
-            <Button
-              size="sm"
-              className="mt-auto"
-              onClick={() => handleIdentify(risks.length > 0 || opportunities.length > 0)}
-              disabled={identify.isPending}
-            >
-              {identify.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
-              )}
-              {risks.length || opportunities.length ? "Re-analyze" : "Identify risks & opportunities"}
-            </Button>
           </CardContent>
         </Card>
       </div>

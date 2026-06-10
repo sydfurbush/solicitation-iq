@@ -125,3 +125,41 @@ export function useIdentifyRisksOpportunities(solicitationId: string | undefined
     },
   });
 }
+
+export type RisksOpportunitiesJob = {
+  status?: "processing" | "completed" | "failed" | string;
+  error_message?: string;
+  started_at?: string;
+  completed_at?: string;
+  risks_count?: number;
+  opportunities_count?: number;
+};
+
+export function useRisksOpportunitiesJobStatus(solicitationId: string | undefined) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["risks-opportunities-job", solicitationId],
+    enabled: !!solicitationId,
+    refetchInterval: (query) => {
+      const job = query.state.data as RisksOpportunitiesJob | null;
+      return job?.status === "processing" ? 3000 : false;
+    },
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("solicitations")
+        .select("metadata")
+        .eq("id", solicitationId!)
+        .maybeSingle();
+      if (error) throw error;
+      const job =
+        (data?.metadata as { risks_opportunities_job?: RisksOpportunitiesJob } | null)
+          ?.risks_opportunities_job ?? null;
+      // If job just completed, refresh dependent queries
+      if (job?.status === "completed" && solicitationId) {
+        qc.invalidateQueries({ queryKey: key(solicitationId) });
+        qc.invalidateQueries({ queryKey: ["opportunities", solicitationId] });
+      }
+      return job;
+    },
+  });
+}
