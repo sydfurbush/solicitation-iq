@@ -241,6 +241,7 @@ export type Database = {
           created_by: string | null
           file_name: string
           id: string
+          kind: string
           message_id: string | null
           mime_type: string | null
           size_bytes: number | null
@@ -252,6 +253,7 @@ export type Database = {
           created_by?: string | null
           file_name: string
           id?: string
+          kind?: string
           message_id?: string | null
           mime_type?: string | null
           size_bytes?: number | null
@@ -263,6 +265,7 @@ export type Database = {
           created_by?: string | null
           file_name?: string
           id?: string
+          kind?: string
           message_id?: string | null
           mime_type?: string | null
           size_bytes?: number | null
