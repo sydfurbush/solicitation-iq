@@ -784,6 +784,7 @@ function WorkspaceNavMenu({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onPick("assistant")}>AI Assistant</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("writing-queue")}>Writing Queue</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("reports")}>Reports</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("comparison")}>Comparison</DropdownMenuItem>
