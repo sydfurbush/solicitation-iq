@@ -12,7 +12,7 @@ export interface ModelChoice {
 // Single source of truth — change values here to retune any function.
 export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "analyze-solicitation": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
-  "identify-risks-opportunities": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 12000 },
+  "identify-risks-opportunities": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 12000 },
   "generate-questions": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 32000 },
   "generate-report": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 },
   "compare-solicitations": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
