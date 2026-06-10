@@ -1,57 +1,38 @@
-## Problem
-
-On the Risks & Opportunities step, the "Identify risks & opportunities" / "Re-analyze" button only appears in two places:
-
-1. The full empty state (only when there are zero risks AND zero opportunities).
-2. Buried inside the small "Mitigation" stats card down in `RisksOpportunitiesDashboard`, below the Competitive Position panel and the Risk/Opportunity action panels.
-
-Because the previous run partially completed (6 risks + 6 opportunities exist), the empty state never renders and the only re-run control is invisible above the fold. The header area the user circled has no action button at all.
-
-We also have a background job (`solicitations.metadata.risks_opportunities_job`) that tracks `processing | completed | failed`. The UI currently ignores that state, so a stuck/failed prior run gives no signal.
+# Plan: Enhance "Full Analysis" report with Competitive Position + Mitigation/Action Plans
 
 ## Goal
+Make the **Full Analysis** report the single deliverable that surfaces the same Risk & Opportunity intelligence the in-app dashboard shows — including the win-probability indicator, strengths/weaknesses, prioritized mitigation plan, and impact-ranked opportunity action plan.
 
-Always show a clearly placed "Identify risks & opportunities" / "Re-analyze" button in the header of this step, and reflect the background-job status so users can tell whether a run is in-flight or failed.
+## Scope
+Prompt-only change. No new report type, no schema or edge-function changes. Existing data already passed to `generate-report` (risks with `severity` / `is_mitigated` / `mitigation_strategy`, opportunities with `impact_score` / `recommended_approach` / `client_capability_match`) is sufficient — we just instruct the model to render it.
 
 ## Changes
 
-### 1. Add action button in the header — `src/pages/SolicitationRisksOpportunities.tsx`
+**File:** `src/features/reports/templates/prompts.ts`
 
-In the header row (next to the Combined / Risks / Opportunities tabs):
+Update `FULL_ANALYSIS_PROMPT` so the three relevant sections are expanded with explicit subsections:
 
-- Add a primary action button:
-  - Label: "Identify risks & opportunities" when there are no results, otherwise "Re-analyze".
-  - Click handler: existing `handleIdentify` (passes `regenerate: hasAny`).
-  - Disabled while `identify.isPending` is true OR a background job is currently `processing`.
-  - Shows spinner + label "Analyzing…" when pending/processing.
-- Add a small status hint to the right of the title:
-  - `processing` → muted text "Analyzing in background…" with a small spinner.
-  - `failed` → small destructive-tone badge "Last run failed — click Re-analyze" (with tooltip = the stored `error_message`).
-  - `completed` / no job → nothing.
+- **Section 5. Risk Assessment** — add:
+  - Risk landscape table (count by severity, Open vs Mitigated split)
+  - Critical/high risk detail with citation + current mitigation note + status
+  - **Risk Mitigation Plan** subsection: prioritized action list for remaining Open risks (owner-ready language, ordered by severity)
 
-### 2. Read background-job status
+- **Section 6. Opportunities Analysis** — add:
+  - High-impact opportunities ranked by `impact_score`
+  - **Opportunity Action Plan** subsection: top 5 opportunities as a numbered list with `recommended_approach` and `client_capability_match`
 
-Add a lightweight hook (inside the same page file or a tiny new file under `src/features/risks/hooks/`):
+- **Section 7. Competitive Landscape** — add **Competitive Position Summary** subsection:
+  - Win-probability indicator (qualitative band: Strong / Balanced / Reassess) derived from average opportunity impact minus unmitigated risk severity
+  - Strengths (top 3 opportunities by impact)
+  - Weaknesses (top 3 unmitigated risks by severity)
+  - Recommended positioning (1 short paragraph)
 
-- `useRisksOpportunitiesJobStatus(solicitationId)` — selects `metadata` from `solicitations`, returns `{ status, error_message }` from `metadata.risks_opportunities_job`.
-- Use a `refetchInterval` of ~3s while `status === "processing"`, otherwise `false`.
-- When the status transitions to `completed`, invalidate the `risks` and `opportunities` query keys so the lists refresh even if the page was opened mid-run.
-
-### 3. De-duplicate the buried button — `src/features/analysis/components/RisksOpportunitiesDashboard.tsx`
-
-The Mitigation stats card currently hosts the re-analyze button. Once the header button exists, remove that duplicate button (keep the mitigated/total count). The dashboard already exposes `identify` for nothing else, so that prop usage can be dropped too.
-
-### 4. No edge-function or schema changes
-
-The background-job pattern from the previous step already writes `metadata.risks_opportunities_job`. We only consume it on the client.
+All claims continue to require `[Doc §Section p.X]` citations.
 
 ## Out of scope
+- No changes to `Executive Summary`, `Risk Assessment`, or `Opportunity Brief` prompts.
+- No UI changes to `ReportTypeSelector` — Full Analysis remains labeled as today.
+- No new database fields. The win-probability band is described qualitatively by the model from existing data, not computed numerically.
 
-- Reaping stale `processing` jobs server-side (not needed; the mutation poll already errors out after 10 minutes, and a manual re-run overwrites the metadata).
-- Redesigning the Competitive Position / mitigation cards.
-
-## Files touched
-
-- `src/pages/SolicitationRisksOpportunities.tsx` — header button + status hint, new hook usage.
-- `src/features/risks/hooks/useRisks.ts` (or a new small file) — `useRisksOpportunitiesJobStatus` hook.
-- `src/features/analysis/components/RisksOpportunitiesDashboard.tsx` — remove the duplicate button in the Mitigation card.
+## Verification
+After the change, generate a Full Analysis report on the current solicitation (`b4b67f93-...`) and confirm sections 5–7 contain the new subsections with citations.
