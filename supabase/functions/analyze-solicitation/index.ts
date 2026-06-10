@@ -23,12 +23,14 @@ You will receive excerpts from one or more solicitation documents and must produ
 REQUIREMENT EXTRACTION PRIORITY (read carefully):
 1. ALWAYS extract requirements from Section L (Instructions to Offerors), Section M (Evaluation), and any section titled "Proposal Submission", "Instructions to Offerors", "Evaluation", "Basis for Award", "Eligibility", "Minimum Requirements", or "BPA/IDIQ Award". These sections contain bid-eligibility GATES.
 2. Every must-submit rule, minimum-scope rule (e.g. "must propose on X and at least one other Y"), page limit, proposal volume requirement, format gate, and pass/fail criterion is a CRITICAL requirement and MUST appear in key_requirements with category="submission" and priority="critical". Do not omit these in favor of technical/staffing items.
-3. Then extract technical, staffing, management, and compliance requirements.
-4. Return up to 25 key_requirements, ranked by importance (submission/eligibility gates first, then critical compliance, then technical/staffing).
-5. If a field cannot be determined from the documents, use null or an empty array.
-6. Confidence score is 0.0-1.0 reflecting how complete the source material is.
+3. You MUST extract every personnel security clearance (Top Secret, TS/SCI, Secret, Public Trust, etc.), U.S. citizenship requirement, and required certification (CISSP, Security+, PMP, ITIL, etc.) — even if mentioned only ONCE across all documents and even if buried in a Description-of-Work/PWS subsection or attachment. Use category="personnel_security" and priority="critical". Sections tagged *CRITICAL KEYWORD: ...* in the prompt MUST each produce at least one requirement citing that section.
+4. Then extract technical, staffing, management, and compliance requirements.
+5. Return up to 25 key_requirements, ranked by importance (submission/eligibility gates first, then personnel security, then critical compliance, then technical/staffing).
+6. If a field cannot be determined from the documents, use null or an empty array.
+7. Confidence score is 0.0-1.0 reflecting how complete the source material is.
 
 Output ONLY the JSON object, no prose.`;
+
 
 const ANALYSIS_SCHEMA = {
   name: "solicitation_analysis",
