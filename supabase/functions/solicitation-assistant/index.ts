@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { aiErrorResponse, callAiTool } from "../_shared/aiClient.ts";
+import { embedQuery } from "../_shared/embeddings.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,7 +51,7 @@ const TOOL_SCHEMA = {
   },
 };
 
-async function buildContext(supa: ReturnType<typeof createClient>, solicitationId: string) {
+async function buildContext(supa: any, solicitationId: string) {
   const [{ data: sol }, { data: risks }, { data: opps }, { data: reqs }, { data: qs }, { data: docs }, { data: gaps }] = await Promise.all([
     supa.from("solicitations").select("title,solicitation_number,issuing_agency,proposal_due_date,current_phase,ai_summary,incumbent_name,client_id").eq("id", solicitationId).maybeSingle(),
     supa.from("risks").select("id,title,description,severity,mitigation_strategy,is_mitigated,source_citation").eq("solicitation_id", solicitationId).limit(40),
@@ -118,14 +120,15 @@ function buildSearchTerms(message: string): string[] {
 }
 
 async function retrieveDocumentExcerpts(
-  supa: ReturnType<typeof createClient>,
+  supa: any,
   solicitationId: string,
   message: string,
 ): Promise<{ block: string; citations: DocCitation[] }> {
   const queries = buildSearchTerms(message);
   if (!queries.length) return { block: "", citations: [] };
 
-  const all: DocExcerpt[] = [];
+  // ---- Lane A: FTS via search_document_content (one or more keyword queries)
+  const ftsResults: DocExcerpt[] = [];
   for (const q of queries) {
     const { data, error } = await supa.rpc("search_document_content", {
       p_solicitation_id: solicitationId,
@@ -139,7 +142,7 @@ async function retrieveDocumentExcerpts(
       const sectionLabel = r.section_title ? `§${String(r.section_title).slice(0, 60)} ` : "";
       const pageLabel = r.page_number ? `p.${r.page_number}` : "";
       const label = `Doc: ${r.document_name}${sectionLabel || pageLabel ? ` ${sectionLabel}${pageLabel}`.trim() : ""}`.trim();
-      all.push({
+      ftsResults.push({
         document_id: r.document_id,
         document_name: r.document_name,
         section_id: r.section_id ?? null,
@@ -152,20 +155,69 @@ async function retrieveDocumentExcerpts(
     }
   }
 
-  // Dedupe by section_id (fallback to document_id + snippet), keep best rank
-  const bestByKey = new Map<string, DocExcerpt>();
-  for (const ex of all) {
-    const key = ex.section_id ?? `${ex.document_id}:${ex.snippet.slice(0, 40)}`;
-    const prev = bestByKey.get(key);
-    if (!prev || ex.rank > prev.rank) bestByKey.set(key, ex);
+  // ---- Lane B: vector search via match_document_chunks
+  const vectorResults: DocExcerpt[] = [];
+  try {
+    const queryVec = await embedQuery(message);
+    if (queryVec) {
+      const { data, error } = await supa.rpc("match_document_chunks", {
+        p_solicitation_id: solicitationId,
+        p_query_embedding: queryVec as unknown as string,
+        p_match_count: 8,
+        p_min_similarity: 0.25,
+      });
+      if (error) {
+        console.warn("[solicitation-assistant] match_document_chunks failed:", error.message);
+      } else {
+        for (const r of (data ?? []) as any[]) {
+          const sectionLabel = r.section_title ? `§${String(r.section_title).slice(0, 60)} ` : "";
+          const pageLabel = r.page_number ? `p.${r.page_number}` : "";
+          const label = `Doc: ${r.document_name}${sectionLabel || pageLabel ? ` ${sectionLabel}${pageLabel}`.trim() : ""}`.trim();
+          vectorResults.push({
+            document_id: r.document_id,
+            document_name: r.document_name,
+            section_id: r.section_id ?? null,
+            section_title: r.section_title ?? null,
+            page_number: r.page_number ?? null,
+            snippet: String(r.content ?? "").slice(0, 600),
+            rank: Number(r.similarity ?? 0),
+            label,
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[solicitation-assistant] vector retrieval failed:", e instanceof Error ? e.message : e);
   }
-  const sorted = Array.from(bestByKey.values()).sort((a, b) => b.rank - a.rank).slice(0, 8);
+
+  // ---- Reciprocal-rank fusion across both lanes
+  const RRF_K = 60;
+  const scores = new Map<string, { ex: DocExcerpt; score: number }>();
+  const fuse = (list: DocExcerpt[]) => {
+    list
+      .slice()
+      .sort((a, b) => b.rank - a.rank)
+      .forEach((ex, idx) => {
+        const key = ex.section_id ?? `${ex.document_id}:${ex.snippet.slice(0, 40)}`;
+        const prev = scores.get(key);
+        const add = 1 / (RRF_K + idx + 1);
+        if (prev) prev.score += add;
+        else scores.set(key, { ex, score: add });
+      });
+  };
+  fuse(ftsResults);
+  fuse(vectorResults);
+
+  const merged = Array.from(scores.values())
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map((x) => x.ex);
 
   const MAX_CHARS = 12000;
   const lines: string[] = [];
   const citations: DocCitation[] = [];
   let used = 0;
-  for (const ex of sorted) {
+  for (const ex of merged) {
     const entry = `[${ex.label}]\n${ex.snippet.trim()}`;
     if (used + entry.length > MAX_CHARS) break;
     lines.push(entry);
@@ -181,7 +233,9 @@ async function retrieveDocumentExcerpts(
   }
 
   if (!lines.length) return { block: "", citations: [] };
-  const block = `# Document excerpts (${lines.length} of ${all.length} matches)\nThese are verbatim passages from the uploaded solicitation documents. Use these as primary evidence and cite with the bracketed label.\n\n${lines.join("\n\n")}`;
+  const totalHits = ftsResults.length + vectorResults.length;
+  const block = `# Document excerpts (${lines.length} of ${totalHits} matches, hybrid keyword + semantic)\nThese are verbatim passages from the uploaded solicitation documents. Use these as primary evidence and cite with the bracketed label.\n\n${lines.join("\n\n")}`;
+
   return { block, citations };
 }
 

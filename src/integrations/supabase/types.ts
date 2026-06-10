@@ -1365,6 +1365,70 @@ export type Database = {
           },
         ]
       }
+      document_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          embedding: string | null
+          id: string
+          metadata: Json
+          page_number: number | null
+          section_id: string | null
+          solicitation_id: string
+          token_estimate: number | null
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          created_at?: string
+          document_id: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json
+          page_number?: number | null
+          section_id?: string | null
+          solicitation_id: string
+          token_estimate?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json
+          page_number?: number | null
+          section_id?: string | null
+          solicitation_id?: string
+          token_estimate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "document_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_reviews: {
         Row: {
           document_id: string
@@ -3891,6 +3955,25 @@ export type Database = {
           source_type: string
           source_url: string
           tags: string[]
+        }[]
+      }
+      match_document_chunks: {
+        Args: {
+          p_match_count?: number
+          p_min_similarity?: number
+          p_query_embedding: string
+          p_solicitation_id: string
+        }
+        Returns: {
+          chunk_id: string
+          chunk_index: number
+          content: string
+          document_id: string
+          document_name: string
+          page_number: number
+          section_id: string
+          section_title: string
+          similarity: number
         }[]
       }
       reap_stale_question_runs: {

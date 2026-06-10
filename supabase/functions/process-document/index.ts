@@ -290,6 +290,28 @@ Deno.serve(async (req) => {
         .eq("id", documentId);
     }
 
+    // Fire embed-document (best-effort; failure leaves keyword/FTS search working)
+    try {
+      const res = await fetch(
+        `${Deno.env.get("SUPABASE_URL")}/functions/v1/embed-document`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ documentId }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.text();
+        console.warn("embed-document returned non-2xx:", res.status, body.slice(0, 300));
+      }
+    } catch (e) {
+      console.warn("embed-document trigger failed:", e instanceof Error ? e.message : e);
+    }
+
+
     return new Response(
       JSON.stringify({ ok: true, sections: sections.length, pages, chars: text.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
