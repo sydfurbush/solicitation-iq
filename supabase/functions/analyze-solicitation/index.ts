@@ -140,7 +140,19 @@ function buildKnownFactsBlock(sol: Record<string, any> | null): string {
 
 const PRIORITY_SECTION_NUMBER_RX = /^(L|M|4|5)(\b|\.|$)/i;
 const PRIORITY_SECTION_TITLE_RX =
-  /instructions to offerors|proposal submission|proposal preparation|evaluation factors?|basis for award|eligibility|minimum requirement|bpa award|idiq award|submission requirement|how to submit/i;
+  /instructions to offerors|proposal submission|proposal preparation|evaluation factors?|basis for award|eligibility|minimum requirement|bpa award|idiq award|submission requirement|how to submit|required credentials|qualifications?|key personnel|personnel requirement|security requirement|clearance/i;
+
+// Critical keywords — single mentions of these MUST surface as requirements.
+// Grouped by intent for clearer prompt tagging and post-extraction validation.
+const CRITICAL_KEYWORDS: Array<{ label: string; rx: RegExp }> = [
+  { label: "Top Secret / TS/SCI clearance", rx: /\b(top\s*secret|TS\s*\/\s*SCI|TS\/SCI)\b/i },
+  { label: "Secret clearance", rx: /\b(secret\s+clearance|secret\s+security\s+clearance)\b/i },
+  { label: "Public Trust clearance", rx: /\bpublic\s+trust\b/i },
+  { label: "Security clearance (generic)", rx: /\b(security\s+clearance|cleared\s+personnel|active\s+clearance)\b/i },
+  { label: "U.S. citizenship", rx: /\b(U\.?\s*S\.?\s*citizen(ship)?|United\s+States\s+citizen|US\s+citizenship)\b/i },
+  { label: "Required credentials/certifications", rx: /\b(required\s+credentials?|CISSP|Security\s*\+|CompTIA|PMP\b|ITIL\b|CCNA|CCNP|CEH\b)\b/i },
+  { label: "Key personnel", rx: /\bkey\s+personnel\b/i },
+];
 
 function isPrioritySection(s: { section_number: string | null; section_title: string | null }) {
   const n = (s.section_number ?? "").trim();
@@ -150,27 +162,48 @@ function isPrioritySection(s: { section_number: string | null; section_title: st
   return false;
 }
 
+function criticalKeywordHits(content: string): string[] {
+  if (!content) return [];
+  const hits: string[] = [];
+  for (const k of CRITICAL_KEYWORDS) {
+    if (k.rx.test(content)) hits.push(k.label);
+  }
+  return hits;
+}
+
+type PromptSection = {
+  section_number: string | null;
+  section_title: string | null;
+  content: string;
+  page_start: number | null;
+  _criticalHits?: string[];
+};
+
 function buildUserPrompt(
   knownFacts: string,
-  documents: Array<{ name: string; sections: Array<{ section_number: string | null; section_title: string | null; content: string; page_start: number | null }>; entities: Array<{ entity_type: string; entity_value: string }> }>,
+  documents: Array<{ name: string; sections: PromptSection[]; entities: Array<{ entity_type: string; entity_value: string }> }>,
 ) {
   const TOTAL_CHAR_BUDGET = 180_000;
   const perDocBudget = Math.max(8_000, Math.floor(TOTAL_CHAR_BUDGET / Math.max(1, documents.length)));
 
   const docBlocks = documents.map((d) => {
-    // Reorder: priority sections first (L/M/4/5/Instructions/Evaluation/etc.), then the rest in order.
-    const priority = d.sections.filter(isPrioritySection);
-    const others = d.sections.filter((s) => !isPrioritySection(s));
-    const ordered = [...priority, ...others];
+    // Priority order: critical-keyword sections first, then standard priority (L/M/etc.), then the rest.
+    const critical = d.sections.filter((s) => (s._criticalHits?.length ?? 0) > 0);
+    const priority = d.sections.filter((s) => (s._criticalHits?.length ?? 0) === 0 && isPrioritySection(s));
+    const others = d.sections.filter((s) => (s._criticalHits?.length ?? 0) === 0 && !isPrioritySection(s));
+    const ordered = [...critical, ...priority, ...others];
 
     let remaining = perDocBudget;
     const parts: string[] = [];
     for (const s of ordered) {
       if (remaining <= 0) break;
-      const isPriority = isPrioritySection(s);
+      const isCritical = (s._criticalHits?.length ?? 0) > 0;
+      const isPriority = isCritical || isPrioritySection(s);
       const maxSlice = isPriority ? 8_000 : 4_000;
       const slice = s.content.slice(0, Math.min(maxSlice, remaining));
-      const tag = isPriority ? " *PRIORITY*" : "";
+      const tag = isCritical
+        ? ` *CRITICAL KEYWORD: ${s._criticalHits!.join(", ")}*`
+        : isPriority ? " *PRIORITY*" : "";
       parts.push(`[Section ${s.section_number ?? "?"} - ${s.section_title ?? "Untitled"} | p.${s.page_start ?? "?"}${tag}]\n${slice}`);
       remaining -= slice.length;
     }
@@ -180,8 +213,9 @@ function buildUserPrompt(
       : "";
     return `=== DOCUMENT: ${d.name} ===\n${sectionText}${entityText}`;
   });
-  return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\nSections flagged *PRIORITY* contain Instructions to Offerors, Evaluation, Eligibility, or Submission rules — extract every must-submit/minimum-scope/page-limit/pass-fail rule from them as critical "submission" requirements.\n\n${docBlocks.join("\n\n")}`;
+  return `${knownFacts}Analyze the following solicitation documents and produce the JSON analysis.\n\nSections flagged *PRIORITY* contain Instructions to Offerors, Evaluation, Eligibility, or Submission rules — extract every must-submit/minimum-scope/page-limit/pass-fail rule from them as critical "submission" requirements.\n\nSections flagged *CRITICAL KEYWORD: ...* contain a single-mention bid-eligibility item (clearance, citizenship, required certification, key personnel) that MUST be surfaced as a "personnel_security" or "compliance" critical requirement citing that exact section.\n\n${docBlocks.join("\n\n")}`;
 }
+
 
 const SET_ASIDE_TERMS: Record<string, RegExp> = {
   "8(a)": /\b8\s*\(\s*a\s*\)/i,
