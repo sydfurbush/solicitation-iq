@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatSupabaseError } from "@/lib/supabase/formatError";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {

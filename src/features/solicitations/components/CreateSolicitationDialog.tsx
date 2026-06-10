@@ -1,4 +1,5 @@
 import { ReactNode, useState } from "react";
+import { formatSupabaseError } from "@/lib/supabase/formatError";
 import { Loader2, Sparkles } from "lucide-react";
 import {
   Dialog,
