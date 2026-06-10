@@ -76,9 +76,10 @@ Deno.serve(async (req) => {
 });
 
 async function embedDocument(
-  supa: ReturnType<typeof createClient>,
+  supa: any,
   documentId: string,
 ): Promise<
+
   | { chunks: number; embedded: number; embeddings_available: boolean }
   | { error: string; status?: number }
 > {
