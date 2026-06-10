@@ -18,6 +18,10 @@ export function ReportCard({ report, solicitationId, onView }: Props) {
   const publish = usePublishReport(solicitationId);
   const content = report.content as unknown as ReportContent;
   const meta = REPORT_TYPE_BY_ID[(report.report_type ?? "executive_summary") as ReportType];
+  const genMeta = (report.metadata ?? null) as { generation_status?: string; error_message?: string } | null;
+  const status = genMeta?.generation_status;
+  const isProcessing = status === "processing";
+  const isFailed = status === "failed";
 
   const handleDownload = async (fmt: "pdf" | "docx") => {
     try {
@@ -40,6 +44,16 @@ export function ReportCard({ report, solicitationId, onView }: Props) {
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <Badge variant="outline" className="text-[10px]">{meta?.title ?? report.report_type}</Badge>
               <Badge variant="secondary" className="text-[10px]">v{report.version ?? 1}</Badge>
+              {isProcessing && (
+                <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/30 gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Generating
+                </Badge>
+              )}
+              {isFailed && (
+                <Badge className="text-[10px] bg-destructive/15 text-destructive border-destructive/30 gap-1">
+                  <AlertTriangle className="h-3 w-3" /> Failed
+                </Badge>
+              )}
               {report.is_published && <Badge className="text-[10px] bg-emerald-500/15 text-emerald-700 border-emerald-500/30">Published</Badge>}
               {report.client_accessible && <Badge className="text-[10px] bg-blue-500/15 text-blue-700 border-blue-500/30">Client</Badge>}
               <LensSnapshotBadge snapshot={content?.lens ?? null} compact />
@@ -49,18 +63,23 @@ export function ReportCard({ report, solicitationId, onView }: Props) {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Generated {report.generated_at ? format(new Date(report.generated_at), "PPp") : "—"}
+          {isProcessing
+            ? "Generation in progress — this can take a couple of minutes."
+            : isFailed
+              ? (genMeta?.error_message ?? "Generation failed. You can delete this and try again.")
+              : `Generated ${report.generated_at ? format(new Date(report.generated_at), "PPp") : "—"}`}
         </p>
 
         <div className="flex gap-1 flex-wrap pt-1">
-          <Button size="sm" variant="outline" onClick={onView}><Eye className="h-3.5 w-3.5 mr-1" /> View</Button>
-          <Button size="sm" variant="outline" onClick={() => handleDownload("pdf")}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
-          <Button size="sm" variant="outline" onClick={() => handleDownload("docx")}><FileType className="h-3.5 w-3.5 mr-1" /> Word</Button>
+          <Button size="sm" variant="outline" onClick={onView} disabled={isProcessing || isFailed}><Eye className="h-3.5 w-3.5 mr-1" /> View</Button>
+          <Button size="sm" variant="outline" onClick={() => handleDownload("pdf")} disabled={isProcessing || isFailed}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+          <Button size="sm" variant="outline" onClick={() => handleDownload("docx")} disabled={isProcessing || isFailed}><FileType className="h-3.5 w-3.5 mr-1" /> Word</Button>
           <Button
             size="sm"
             variant="outline"
             onClick={() => publish.mutate({ reportId: report.id, publish: !report.is_published })}
             title={report.is_published ? "Unpublish" : "Publish"}
+            disabled={isProcessing || isFailed}
           >
             <Send className="h-3.5 w-3.5" />
           </Button>
@@ -69,6 +88,7 @@ export function ReportCard({ report, solicitationId, onView }: Props) {
             variant="outline"
             onClick={() => publish.mutate({ reportId: report.id, publish: !!report.is_published, clientAccessible: !report.client_accessible })}
             title="Toggle client access"
+            disabled={isProcessing || isFailed}
           >
             <Globe className="h-3.5 w-3.5" />
           </Button>
