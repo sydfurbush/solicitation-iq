@@ -235,6 +235,211 @@ export type Database = {
           },
         ]
       }
+      assistant_attachments: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          file_name: string
+          id: string
+          message_id: string | null
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          thread_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          file_name: string
+          id?: string
+          message_id?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          thread_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          file_name?: string
+          id?: string
+          message_id?: string | null
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_attachments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_attachments_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_messages: {
+        Row: {
+          citations: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          parts: Json
+          role: string
+          thread_id: string
+        }
+        Insert: {
+          citations?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          parts?: Json
+          role: string
+          thread_id: string
+        }
+        Update: {
+          citations?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          parts?: Json
+          role?: string
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_messages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_presets: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          label: string
+          organization_id: string | null
+          owner_id: string | null
+          prompt: string
+          scope: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          label: string
+          organization_id?: string | null
+          owner_id?: string | null
+          prompt: string
+          scope: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          label?: string
+          organization_id?: string | null
+          owner_id?: string | null
+          prompt?: string
+          scope?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_presets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_presets_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_threads: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          last_message_at: string
+          pinned: boolean
+          solicitation_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_message_at?: string
+          pinned?: boolean
+          solicitation_id: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_message_at?: string
+          pinned?: boolean
+          solicitation_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_threads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_threads_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buyer_format_profiles: {
         Row: {
           created_at: string
