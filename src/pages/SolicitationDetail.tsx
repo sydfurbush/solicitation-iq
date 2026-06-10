@@ -60,6 +60,8 @@ import SolicitationOutline from "./SolicitationOutline";
 import SolicitationWinThemes from "./SolicitationWinThemes";
 import { ExhibitsTab } from "@/features/exhibits/components/ExhibitsTab";
 import SolicitationWritingQueue from "./SolicitationWritingQueue";
+import SolicitationAssistant from "./SolicitationAssistant";
+import { AssistantLauncher } from "@/features/assistant/components/AssistantLauncher";
 import { Phase5Workspace } from "@/features/drafting/components/Phase5Workspace";
 import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
