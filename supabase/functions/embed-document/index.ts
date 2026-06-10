@@ -23,16 +23,67 @@ const EMBED_BATCH = 32;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  let documentId: string | undefined;
   try {
     const body = await req.json().catch(() => ({}));
-    documentId = body.documentId;
+    const supa = createClient(SUPABASE_URL, SERVICE_KEY);
+
+    // Backfill mode: process every parsed document in a solicitation
+    if (body.solicitationId && !body.documentId) {
+      const { data: docs, error } = await supa
+        .from("documents")
+        .select("id")
+        .eq("solicitation_id", body.solicitationId)
+        .in("status", ["parsed", "analyzed"])
+        .is("deleted_at", null);
+      if (error) throw error;
+
+      const results: any[] = [];
+      for (const d of docs ?? []) {
+        const r = await embedDocument(supa, d.id);
+        results.push({ documentId: d.id, ...r });
+      }
+      return new Response(JSON.stringify({ ok: true, documents: results.length, results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const documentId: string | undefined = body.documentId;
     if (!documentId) {
-      return new Response(JSON.stringify({ error: "documentId is required" }), {
+      return new Response(JSON.stringify({ error: "documentId or solicitationId is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const result = await embedDocument(supa, documentId);
+    if ("error" in result) {
+      return new Response(JSON.stringify(result), {
+        status: result.status ?? 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    return new Response(JSON.stringify({ ok: true, ...result }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("[embed-document] failed:", message);
+    return new Response(JSON.stringify({ error: message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
+
+async function embedDocument(
+  supa: ReturnType<typeof createClient>,
+  documentId: string,
+): Promise<
+  | { chunks: number; embedded: number; embeddings_available: boolean }
+  | { error: string; status?: number }
+> {
+  try {
+
 
     const supa = createClient(SUPABASE_URL, SERVICE_KEY);
 
