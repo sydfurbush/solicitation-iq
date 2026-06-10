@@ -42,18 +42,31 @@ const LOVABLE_MODELS = [
 ];
 
 export function AIModelsTab() {
+  const { user } = useAuthContext();
+  const { data: orgId } = useQuery({
+    queryKey: ["my-org-id", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("users").select("organization_id").eq("id", user!.id).maybeSingle();
+      return data?.organization_id ?? null;
+    },
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ["ai-model-settings"],
+    queryKey: ["ai-model-settings", orgId],
+    enabled: !!orgId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("ai_model_settings")
-        .select("function_name, provider, model, max_tokens");
+        .select("function_name, provider, model, max_tokens")
+        .eq("organization_id", orgId!);
       if (error) throw error;
       return (data ?? []) as Row[];
     },
   });
 
-  if (isLoading) return <div className="text-muted-foreground">Loading…</div>;
+  if (isLoading || !orgId) return <div className="text-muted-foreground">Loading…</div>;
 
   const byName = new Map<string, Row>((data ?? []).map((r) => [r.function_name, r]));
 
@@ -67,7 +80,7 @@ export function AIModelsTab() {
       </CardHeader>
       <CardContent className="space-y-6">
         {FUNCTIONS.map((fn) => (
-          <FunctionRow key={fn.name} meta={fn} current={byName.get(fn.name) ?? null} />
+          <FunctionRow key={fn.name} meta={fn} current={byName.get(fn.name) ?? null} orgId={orgId} />
         ))}
       </CardContent>
     </Card>
@@ -77,9 +90,11 @@ export function AIModelsTab() {
 function FunctionRow({
   meta,
   current,
+  orgId,
 }: {
   meta: { name: string; label: string; description: string; defaultMax: number };
   current: Row | null;
+  orgId: string;
 }) {
   const qc = useQueryClient();
   const { user } = useAuthContext();
@@ -101,6 +116,7 @@ function FunctionRow({
   const save = useMutation({
     mutationFn: async () => {
       const payload = {
+        organization_id: orgId,
         function_name: meta.name,
         provider,
         model,
@@ -110,7 +126,7 @@ function FunctionRow({
       };
       const { error } = await supabase
         .from("ai_model_settings")
-        .upsert(payload, { onConflict: "function_name" });
+        .upsert(payload, { onConflict: "organization_id,function_name" });
       if (error) throw error;
     },
     onSuccess: () => {
