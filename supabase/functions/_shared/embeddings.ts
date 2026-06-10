@@ -26,7 +26,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
       "Content-Type": "application/json",
       "Lovable-API-Key": apiKey,
     },
-    body: JSON.stringify({ model: MODEL, input: texts }),
+    body: JSON.stringify({ model: MODEL, input: texts, dimensions: EMBEDDING_DIMS }),
   });
 
   if (!res.ok) {
