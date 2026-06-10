@@ -55,19 +55,41 @@ export function AnalysisDashboard({ solicitationId, insights, onRerun, isRerunni
         </div>
       </div>
 
-      {(insights.metadata?.validation_warnings?.length ?? 0) > 0 && (
-        <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle>Possible inconsistency with known fields</AlertTitle>
-          <AlertDescription>
-            The AI summary mentioned terms that conflict with structured solicitation data:{" "}
-            {insights.metadata!.validation_warnings!
-              .map((w) => `${w.field} expected "${w.expected}", found "${w.found}"`)
-              .join("; ")}
-            . Review and edit the summary if needed.
-          </AlertDescription>
-        </Alert>
-      )}
+      {(insights.metadata?.validation_warnings?.length ?? 0) > 0 && (() => {
+        const warnings = insights.metadata!.validation_warnings!;
+        const coverage = warnings.filter((w) => w.field === "coverage");
+        const others = warnings.filter((w) => w.field !== "coverage");
+        return (
+          <div className="space-y-2">
+            {coverage.length > 0 && (
+              <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTitle>Possible coverage gaps</AlertTitle>
+                <AlertDescription>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {coverage.map((w, i) => (
+                      <li key={i}>{w.message}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
+            {others.length > 0 && (
+              <Alert variant="default" className="border-amber-500/50 bg-amber-500/5">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <AlertTitle>Possible inconsistency with known fields</AlertTitle>
+                <AlertDescription>
+                  The AI summary mentioned terms that conflict with structured solicitation data:{" "}
+                  {others
+                    .map((w) => w.message ?? `${w.field} expected "${w.expected}", found "${w.found}"`)
+                    .join("; ")}
+                  . Review and edit the summary if needed.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+        );
+      })()}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ExecutiveSummaryCard solicitationId={solicitationId} summary={insights.ai_summary} />
