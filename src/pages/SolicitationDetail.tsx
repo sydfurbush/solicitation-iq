@@ -1,8 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   Clock,
   ExternalLink,
@@ -10,6 +11,7 @@ import {
   HelpCircle,
   Lightbulb,
   ShieldAlert,
+  Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -193,6 +195,18 @@ export default function SolicitationDetail() {
     setSearchParams(next);
   };
 
+  // Track the last non-assistant tab so the collapse button can return there.
+  const previousTabRef = useRef<string>("phase-1");
+  useEffect(() => {
+    if (tab && tab !== "assistant") previousTabRef.current = tab;
+  }, [tab]);
+
+  const exitAssistant = () => {
+    const next = new URLSearchParams();
+    next.set("tab", previousTabRef.current || "phase-1");
+    setSearchParams(next);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -218,6 +232,32 @@ export default function SolicitationDetail() {
   const status = (s.status ?? "intake") as SolicitationStatus;
   const currentPhase: PhaseType = (s.current_phase ?? "phase_1_initial") as PhaseType;
   const currentPhaseIdx = PHASES.indexOf(currentPhase);
+
+  // Full-bleed assistant mode: takes over the page content area with a collapse trigger.
+  if (tab === "assistant") {
+    return (
+      <div className="flex flex-col h-[calc(100vh-8rem)] min-h-[520px] border rounded-lg overflow-hidden bg-card">
+        <div className="flex items-center justify-between gap-3 border-b bg-background px-4 py-2.5 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-8 w-8 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-semibold truncate">AI Assistant</div>
+              <div className="text-xs text-muted-foreground truncate">{s.title}</div>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={exitAssistant} className="gap-1.5">
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Exit assistant</span>
+          </Button>
+        </div>
+        <div className="flex-1 min-h-0">
+          <SolicitationAssistant solicitationId={s.id} />
+        </div>
+      </div>
+    );
+  }
 
   const handleStatusChange = async (next: SolicitationStatus) => {
     try {

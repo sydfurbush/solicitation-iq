@@ -34,7 +34,7 @@ export default function SolicitationAssistant({ solicitationId }: { solicitation
   );
 
   return (
-    <div className="grid grid-cols-[260px_1fr] border rounded-lg overflow-hidden h-[calc(100vh-260px)] min-h-[520px] bg-card">
+    <div className="grid grid-cols-[260px_1fr] overflow-hidden h-full min-h-0 bg-card">
       <div className="border-r bg-muted/30 min-h-0">
         <ThreadList solicitationId={solicitationId} activeThreadId={threadId} onSelect={setThread} />
       </div>
