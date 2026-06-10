@@ -60,6 +60,8 @@ import SolicitationOutline from "./SolicitationOutline";
 import SolicitationWinThemes from "./SolicitationWinThemes";
 import { ExhibitsTab } from "@/features/exhibits/components/ExhibitsTab";
 import SolicitationWritingQueue from "./SolicitationWritingQueue";
+import SolicitationAssistant from "./SolicitationAssistant";
+import { AssistantLauncher } from "@/features/assistant/components/AssistantLauncher";
 import { Phase5Workspace } from "@/features/drafting/components/Phase5Workspace";
 import { PHASE_TAB } from "@/features/solicitations/hooks/usePhaseProgression";
 import { AnnotationsSidebar } from "@/features/annotations/components/AnnotationsSidebar";
@@ -98,12 +100,13 @@ const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   "win-themes": { tab: "phase-4" },
 };
 
-type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity";
+type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity" | "assistant";
 const WORKSPACE_LABELS: Record<WorkspaceKey, string> = {
   "writing-queue": "Writing Queue",
   reports: "Reports",
   comparison: "Comparison",
   activity: "Activity",
+  assistant: "AI Assistant",
 };
 
 function ParentChildLinks({ solId, parentId }: { solId: string; parentId: string | null }) {
@@ -497,7 +500,7 @@ export default function SolicitationDetail() {
           </PhaseNavBtn>
 
           <WorkspaceNavMenu
-            active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity"}
+            active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity" || tab === "assistant"}
             currentKey={(tab as WorkspaceKey) || undefined}
             onPick={(k) => goTab(k)}
           />
@@ -598,7 +601,10 @@ export default function SolicitationDetail() {
         {tab === "reports" && <SolicitationReports solicitationId={s.id} />}
         {tab === "comparison" && <SolicitationComparison solicitationId={s.id} />}
         {tab === "activity" && <SolicitationActivity solicitationId={s.id} />}
+        {tab === "assistant" && <SolicitationAssistant solicitationId={s.id} />}
       </div>
+
+      <AssistantLauncher solicitationId={s.id} />
     </div>
   );
 }
@@ -778,6 +784,7 @@ function WorkspaceNavMenu({
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onPick("assistant")}>AI Assistant</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("writing-queue")}>Writing Queue</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("reports")}>Reports</DropdownMenuItem>
           <DropdownMenuItem onClick={() => onPick("comparison")}>Comparison</DropdownMenuItem>
