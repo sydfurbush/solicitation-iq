@@ -63,6 +63,7 @@ import { PinEntityPopover } from "./PinEntityPopover";
 import { AssistantAnalyticsButton } from "./AssistantAnalyticsButton";
 import { InlineActionButtons } from "./InlineActionButtons";
 import { MermaidBlock } from "./MermaidBlock";
+import { OrgChartBlock, looksLikeOrgChart } from "./OrgChartBlock";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
@@ -489,12 +490,18 @@ function MessageRow({
                   <a {...props} target="_blank" rel="noopener noreferrer" />
                 ),
                 pre: ({ node, children, ...props }: any) => {
-                  // If child is a fenced mermaid code block, let the code
-                  // renderer handle it (return children directly so we don't
-                  // double-wrap in <pre>).
+                  // Let mermaid + org-chart code blocks be rendered by the
+                  // code component (return children directly to avoid double
+                  // wrapping in <pre>).
                   const child: any = Array.isArray(children) ? children[0] : children;
                   const childClass: string = child?.props?.className ?? "";
+                  const childText: string = Array.isArray(child?.props?.children)
+                    ? child.props.children.join("")
+                    : String(child?.props?.children ?? "");
                   if (/language-mermaid/.test(childClass)) {
+                    return <>{children}</>;
+                  }
+                  if (looksLikeOrgChart(childText)) {
                     return <>{children}</>;
                   }
                   return (
@@ -507,12 +514,18 @@ function MessageRow({
                   );
                 },
                 code: ({ node, className, children, ...props }: any) => {
-                  const codeText = String(children ?? "");
+                  const codeText = String(
+                    Array.isArray(children) ? children.join("") : children ?? "",
+                  );
                   if (/language-mermaid/.test(className ?? "")) {
                     return <MermaidBlock code={codeText.replace(/\n$/, "")} />;
                   }
-                  // Inline code keeps default styling; block code inherits the
-                  // pre wrapper above and should not wrap.
+                  // Detect ASCII org charts (with or without a language tag)
+                  // and route them through the dedicated renderer.
+                  const isBlock = /language-/.test(className ?? "") || codeText.includes("\n");
+                  if (isBlock && looksLikeOrgChart(codeText)) {
+                    return <OrgChartBlock code={codeText.replace(/\n$/, "")} />;
+                  }
                   return (
                     <code className={className} {...props}>
                       {children}
