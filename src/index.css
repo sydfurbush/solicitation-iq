@@ -51,14 +51,6 @@
     --phase-4: 152 69% 42%;
     --phase-5: 340 82% 52%;
 
-    /* Workspace (archive-style) */
-    --rail: 214 100% 14%;            /* #002147 */
-    --rail-foreground: 0 0% 100%;
-    --rail-muted: 215 20% 65%;
-    --rail-accent: 217 91% 60%;
-    --canvas: 210 40% 98%;           /* #F8FAFC */
-    --ink: 214 100% 14%;
-
     /* Drafting status colors */
     --status-none: 215 16% 65%;
     --status-ai: 221 83% 53%;

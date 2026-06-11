@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -10,17 +10,9 @@ import {
   FileText,
   HelpCircle,
   Lightbulb,
-  Menu,
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/use-mobile";
-import {
-  PhaseRail,
-  MobilePhaseBar,
-  useRailCollapsed,
-} from "@/features/solicitations/components/workspace/PhaseRail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -149,8 +141,8 @@ export default function SolicitationDetail() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const rawTab = searchParams.get("tab");
+  const tab = rawTab ?? "workflow";
   const step = searchParams.get("step");
-  const tab = rawTab ?? "phase-1";
 
   const { data: s, isLoading } = useSolicitation(solicitationId);
   const { data: client } = useClient(s?.client_id ?? undefined);
@@ -196,21 +188,6 @@ export default function SolicitationDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawTab]);
 
-  // Default-tab: when no ?tab=, jump into focus mode on the loaded solicitation's current phase.
-  useEffect(() => {
-    if (rawTab) return;
-    if (!s?.current_phase) return;
-    const next = new URLSearchParams(searchParams);
-    next.set("tab", PHASE_TAB[s.current_phase as PhaseType]);
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawTab, s?.current_phase]);
-
-  // Mobile phase-rail sheet state
-  const isMobile = useIsMobile();
-  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const { collapsed: railCollapsed, toggle: toggleRail } = useRailCollapsed();
-
   const goTab = (t: string, st?: string) => {
     const next = new URLSearchParams();
     next.set("tab", t);
@@ -255,8 +232,6 @@ export default function SolicitationDetail() {
   const status = (s.status ?? "intake") as SolicitationStatus;
   const currentPhase: PhaseType = (s.current_phase ?? "phase_1_initial") as PhaseType;
   const currentPhaseIdx = PHASES.indexOf(currentPhase);
-
-
 
   // Full-bleed assistant mode: takes over the page content area with a collapse trigger.
   if (tab === "assistant") {
@@ -377,122 +352,73 @@ export default function SolicitationDetail() {
     );
   };
 
-  // Phase headline copy for the focused canvas
-  const phaseHeadline: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
-    "phase-1": {
-      eyebrow: "Phase 01 · Initial",
-      title: "Initial Workspace",
-      subtitle: "Establish the foundation of the solicitation — ingest documents, run analysis, raise clarifying questions, and identify risks.",
-    },
-    "phase-2": {
-      eyebrow: "Phase 02 · Deep Dive",
-      title: "Requirements & Analysis",
-      subtitle: "Build the RTM, analyze each section against your capabilities, and surface capability gaps and teaming options.",
-    },
-    "phase-3": {
-      eyebrow: "Phase 03 · Outline",
-      title: "Proposal Outline",
-      subtitle: "Shape the proposal outline and align exhibits, attachments, and section ownership.",
-    },
-    "phase-4": {
-      eyebrow: "Phase 04 · Win Themes",
-      title: "Win Themes",
-      subtitle: "Crystallize the differentiators that will frame every section of the proposal.",
-    },
-    "phase-5": {
-      eyebrow: "Phase 05 · Drafting",
-      title: "Drafting & Compile",
-      subtitle: "Draft, review compliance, and compile the final proposal package.",
-    },
-    "workflow": {
-      eyebrow: "Workspace",
-      title: "Workspace overview",
-      subtitle: "All phases at a glance. Pick a phase from the rail to enter focus mode.",
-    },
-  };
-
-  const workspaceHeadline: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
-    "writing-queue": { eyebrow: "Workspace", title: "Writing Queue", subtitle: "Assignments queued for the drafting team." },
-    "reports": { eyebrow: "Workspace", title: "Reports", subtitle: "Published reports for this solicitation." },
-    "comparison": { eyebrow: "Workspace", title: "Comparison", subtitle: "Compare against prior solicitations and revisions." },
-    "activity": { eyebrow: "Workspace", title: "Activity", subtitle: "Recent events on this solicitation." },
-  };
-
-  const headline = phaseHeadline[tab] ?? workspaceHeadline[tab];
-
   return (
-    <div className="-my-6 -mx-4 md:-mx-8 flex flex-col h-[calc(100vh-3.5rem)] bg-canvas">
-      {/* TOP BAR */}
-      <header className="h-16 border-b border-border bg-background px-4 md:px-6 flex items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          {isMobile && (
-            <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Open phase navigator">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-80 border-r-0 bg-rail">
-                <PhaseRail
-                  currentPhase={currentPhase}
-                  activeTab={tab}
-                  activeStep={step}
-                  onSelect={(t, st) => {
-                    goTab(t, st);
-                    setMobileSheetOpen(false);
-                  }}
-                  proposalDueDate={s.proposal_due_date}
-                  daysLeft={days}
-                />
-              </SheetContent>
-            </Sheet>
-          )}
+    <div className="space-y-6">
+      <nav className="flex items-center text-sm text-muted-foreground">
+        <Link to="/solicitations" className="hover:text-foreground">
+          Solicitations
+        </Link>
+        <ChevronRight className="h-4 w-4 mx-1" />
+        <span className="text-foreground font-medium truncate max-w-[60ch]">{s.title}</span>
+      </nav>
 
-          <nav className="hidden lg:flex items-center text-xs font-medium text-muted-foreground gap-2 shrink-0">
-            <Link to="/solicitations" className="hover:text-foreground">Solicitations</Link>
-            <ChevronRight className="h-3 w-3" />
-            {s.client?.id ? (
-              <Link to={`/clients/${s.client.id}`} className="hover:text-foreground truncate max-w-[14ch]">
-                {s.client.name}
-              </Link>
-            ) : (
-              <span>—</span>
-            )}
-          </nav>
-          <div className="hidden lg:block h-4 w-px bg-border mx-1" />
-
-          <div className="flex items-center gap-2 min-w-0">
-            <Avatar className="h-6 w-6 shrink-0 hidden sm:flex">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row lg:items-start gap-4 justify-between">
+        <div className="space-y-2 min-w-0">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Avatar className="h-5 w-5">
               {s.client?.logo_url ? <AvatarImage src={s.client.logo_url} alt={s.client.name} /> : null}
-              <AvatarFallback className="bg-rail/10 text-rail text-[9px]">
+              <AvatarFallback className="bg-primary/10 text-primary text-[9px]">
                 {(s.client?.name ?? "?").slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <h1 className="font-semibold text-ink text-sm md:text-base truncate max-w-[28ch] md:max-w-[44ch]" title={s.title}>
-              {s.title}
-            </h1>
+            {s.client?.id ? (
+              <Link to={`/clients/${s.client.id}`} className="hover:text-foreground">
+                {s.client.name}
+              </Link>
+            ) : (
+              <span>Unknown client</span>
+            )}
             {s.solicitation_number && (
-              <Badge variant="secondary" className="font-mono text-[10px] hidden md:inline-flex shrink-0">
+              <Badge variant="secondary" className="font-mono text-[10px]">
                 {s.solicitation_number}
               </Badge>
             )}
-            <StageBadge
-              stage={(s as { stage?: string }).stage}
-              label={(s as { stage_label?: string | null }).stage_label}
+            <StageBadge stage={(s as { stage?: string }).stage} label={(s as { stage_label?: string | null }).stage_label} />
+            <ParentChildLinks
+              solId={s.id}
+              parentId={(s as { parent_solicitation_id?: string | null }).parent_solicitation_id ?? null}
             />
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            {s.issuing_agency && (
+              <p className="text-sm text-muted-foreground">{s.issuing_agency}</p>
+            )}
+            {(s as { sam_url?: string | null }).sam_url && (
+              <a
+                href={(s as { sam_url: string }).sam_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View on SAM.gov
+              </a>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className="hidden md:flex"><TeamPresence solicitationId={s.id} /></div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <TeamPresence solicitationId={s.id} />
           <AnnotationsSidebar solicitationId={s.id} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="hidden sm:inline-flex">
+              <Button variant="outline" size="sm">
                 <Badge variant="outline" className={cn("mr-1 capitalize", STATUS_CLASSES[status])}>
                   {STATUS_LABELS[status]}
                 </Badge>
-                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                Change
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -517,197 +443,205 @@ export default function SolicitationDetail() {
             onDelete={handleDelete}
           />
         </div>
-      </header>
+      </div>
 
-      {/* MOBILE PHASE BAR */}
-      {isMobile && tab.startsWith("phase-") && (
-        <MobilePhaseBar
-          currentPhase={currentPhase}
-          activeTab={tab}
-          activeStep={step}
-          onSelect={goTab}
-          onOpenSheet={() => setMobileSheetOpen(true)}
-        />
-      )}
+      {/* Phase strip + countdown */}
+      <Card>
+        <CardContent className="p-5 flex flex-col lg:flex-row gap-6 lg:items-center">
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wide">Phase</p>
+            <PhaseIndicator
+              current={s.current_phase}
+              status={s.status}
+              onPhaseClick={(p: PhaseType) => goTab(PHASE_TAB[p])}
+            />
+          </div>
+          <div className="lg:border-l lg:pl-6">
+            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">Proposal due</p>
+            {s.proposal_due_date ? (
+              <div
+                className={cn(
+                  "flex items-center gap-2",
+                  urgency === "danger" || urgency === "overdue"
+                    ? "text-destructive"
+                    : urgency === "warning"
+                      ? "text-amber-600 dark:text-amber-500"
+                      : "",
+                )}
+              >
+                <Clock className="h-4 w-4" />
+                <div>
+                  <p className="font-semibold">{format(new Date(s.proposal_due_date), "PPP")}</p>
+                  {days !== null && (
+                    <p className="text-xs">
+                      {days < 0 ? `${Math.abs(days)} days overdue` : `${days} days left`}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No due date set</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* BODY */}
-      <div className="flex-1 flex overflow-hidden">
-        {!isMobile && (
-          <PhaseRail
+      {/* Slim top nav */}
+      <div className="border-b">
+        <div className="flex flex-wrap items-center gap-1">
+          <NavBtn active={tab === "workflow"} onClick={() => goTab("workflow")}>
+            Workflow
+          </NavBtn>
+
+          {/* Phase 1 with sub-step menu */}
+          <div className="inline-flex items-center">
+            <PhaseNavMenu
+              label={phaseLabelByKey["phase-1"]}
+              active={tab === "phase-1"}
+              steps={PHASE_1_STEPS}
+              activeStep={tab === "phase-1" ? (step ?? "overview") : undefined}
+              onPick={(k) => goTab("phase-1", k)}
+              onOpen={() => goTab("phase-1", "overview")}
+              phase="phase_1_initial"
+            />
+            <PhaseHelpPanel phase="phase_1_initial" />
+          </div>
+
+          {/* Phase 2 with sub-step menu */}
+          <div className="inline-flex items-center">
+            <PhaseNavMenu
+              label={phaseLabelByKey["phase-2"]}
+              active={tab === "phase-2"}
+              steps={PHASE_2_STEPS}
+              activeStep={tab === "phase-2" ? (step ?? "rtm") : undefined}
+              onPick={(k) => goTab("phase-2", k)}
+              onOpen={() => goTab("phase-2", "rtm")}
+              phase="phase_2_deep_dive"
+            />
+            <PhaseHelpPanel phase="phase_2_deep_dive" />
+          </div>
+          <div className="inline-flex items-center">
+            <PhaseNavMenu
+              label={phaseLabelByKey["phase-3"]}
+              active={tab === "phase-3"}
+              steps={PHASE_3_STEPS}
+              activeStep={tab === "phase-3" ? (step ?? "outline") : undefined}
+              onPick={(k) => goTab("phase-3", k)}
+              onOpen={() => goTab("phase-3", "outline")}
+              phase="phase_3_outline"
+            />
+            <PhaseHelpPanel phase="phase_3_outline" />
+          </div>
+          <PhaseNavBtn phase="phase_4_win_themes" active={tab === "phase-4"} onClick={() => goTab("phase-4")}>
+            {phaseLabelByKey["phase-4"]}
+          </PhaseNavBtn>
+          <PhaseNavBtn phase="phase_5_drafting" active={tab === "phase-5"} onClick={() => goTab("phase-5")}>
+            {phaseLabelByKey["phase-5"]}
+          </PhaseNavBtn>
+
+          <WorkspaceNavMenu
+            active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity" || tab === "assistant"}
+            currentKey={(tab as WorkspaceKey) || undefined}
+            onPick={(k) => goTab(k)}
+          />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div>
+        {tab === "workflow" && (
+          <PhaseHub
             currentPhase={currentPhase}
-            activeTab={tab}
-            activeStep={step}
-            onSelect={goTab}
-            proposalDueDate={s.proposal_due_date}
-            daysLeft={days}
-            collapsed={railCollapsed}
-            onToggleCollapsed={toggleRail}
-            counts={{
-              documents: s.documents_count,
-              questions: s.questions_count,
-              risks: (s.risks_count ?? 0) + (s.opportunities_count ?? 0),
+            phaseStatusByPhase={{}}
+            buildSteps={buildHubSteps}
+            onOpenPhase={(p) => goTab(PHASE_TAB[p])}
+            onWorkspace={(k) => goTab(k)}
+            solicitationId={s.id}
+            solicitation={{
+              title: s.title,
+              solicitation_number: s.solicitation_number,
+              issuing_agency: s.issuing_agency,
+              client: { name: clientName },
             }}
           />
         )}
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-4 md:px-10 py-6 md:py-10 animate-in fade-in slide-in-from-bottom-2 duration-300" key={tab}>
-            {headline && (
-              <header className="mb-8 md:mb-10">
-                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-rail-accent">
-                  {headline.eyebrow}
-                </span>
-                <h2 className="font-display text-3xl md:text-4xl text-ink mt-2 leading-tight">
-                  {headline.title}
-                </h2>
-                <p className="text-muted-foreground text-base mt-3 max-w-2xl leading-relaxed">
-                  {headline.subtitle}
-                </p>
-                {s.proposal_due_date && (
-                  <div className={cn(
-                    "mt-4 inline-flex items-center gap-2 text-xs",
-                    urgency === "danger" || urgency === "overdue" ? "text-destructive" :
-                    urgency === "warning" ? "text-amber-600 dark:text-amber-500" :
-                    "text-muted-foreground"
-                  )}>
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>Proposal due {format(new Date(s.proposal_due_date), "PPP")}</span>
-                    {days !== null && (
-                      <span className="font-semibold">
-                        · {days < 0 ? `${Math.abs(days)} days overdue` : `${days} days left`}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </header>
+        {tab === "phase-1" && renderPhase1()}
+
+        {tab === "phase-2" && (
+          <PhaseShell
+            solicitationId={s.id}
+            phase="phase_2_deep_dive"
+            currentPhase={currentPhase}
+            subSteps={PHASE_2_STEPS}
+            activeStep={step ?? "rtm"}
+            onStepChange={(k) => goTab("phase-2", k)}
+          >
+            <SolicitationDeepDive
+              solicitationId={s.id}
+              clientId={s.client_id}
+              currentPhase={currentPhase}
+              solicitationTitle={s.title}
+              clientName={clientName}
+              step={step ?? "rtm"}
+              onStepChange={(k) => goTab("phase-2", k)}
+            />
+          </PhaseShell>
+        )}
+
+        {tab === "phase-3" && (
+          <PhaseShell
+            solicitationId={s.id}
+            phase="phase_3_outline"
+            currentPhase={currentPhase}
+            subSteps={PHASE_3_STEPS}
+            activeStep={step ?? "outline"}
+            onStepChange={(k) => goTab("phase-3", k)}
+          >
+            {(step ?? "outline") === "exhibits" ? (
+              <ExhibitsTab solicitationId={s.id} />
+            ) : (
+              <SolicitationOutline
+                solicitationId={s.id}
+                currentPhase={currentPhase}
+                solicitationTitle={s.title}
+                solicitationNumber={s.solicitation_number}
+                clientName={clientName}
+              />
             )}
+          </PhaseShell>
+        )}
 
-            <div>
-              {tab === "workflow" && (
-                <PhaseHub
-                  currentPhase={currentPhase}
-                  phaseStatusByPhase={{}}
-                  buildSteps={buildHubSteps}
-                  onOpenPhase={(p) => goTab(PHASE_TAB[p])}
-                  onWorkspace={(k) => goTab(k)}
-                  solicitationId={s.id}
-                  solicitation={{
-                    title: s.title,
-                    solicitation_number: s.solicitation_number,
-                    issuing_agency: s.issuing_agency,
-                    client: { name: clientName },
-                  }}
-                />
-              )}
 
-              {tab === "phase-1" && renderPhase1()}
+        {tab === "phase-4" && (
+          <PhaseShell solicitationId={s.id} phase="phase_4_win_themes" currentPhase={currentPhase}>
+            <SolicitationWinThemes
+              solicitationId={s.id}
+              currentPhase={currentPhase}
+              solicitationTitle={s.title}
+              clientName={clientName}
+            />
+          </PhaseShell>
+        )}
 
-              {tab === "phase-2" && (
-                <PhaseShell
-                  solicitationId={s.id}
-                  phase="phase_2_deep_dive"
-                  currentPhase={currentPhase}
-                  subSteps={PHASE_2_STEPS}
-                  activeStep={step ?? "rtm"}
-                  onStepChange={(k) => goTab("phase-2", k)}
-                >
-                  <SolicitationDeepDive
-                    solicitationId={s.id}
-                    clientId={s.client_id}
-                    currentPhase={currentPhase}
-                    solicitationTitle={s.title}
-                    clientName={clientName}
-                    step={step ?? "rtm"}
-                    onStepChange={(k) => goTab("phase-2", k)}
-                  />
-                </PhaseShell>
-              )}
+        {tab === "phase-5" && (
+          <PhaseShell solicitationId={s.id} phase="phase_5_drafting" currentPhase={currentPhase}>
+            <Phase5Workspace solicitationId={s.id} />
+          </PhaseShell>
+        )}
 
-              {tab === "phase-3" && (
-                <PhaseShell
-                  solicitationId={s.id}
-                  phase="phase_3_outline"
-                  currentPhase={currentPhase}
-                  subSteps={PHASE_3_STEPS}
-                  activeStep={step ?? "outline"}
-                  onStepChange={(k) => goTab("phase-3", k)}
-                >
-                  {(step ?? "outline") === "exhibits" ? (
-                    <ExhibitsTab solicitationId={s.id} />
-                  ) : (
-                    <SolicitationOutline
-                      solicitationId={s.id}
-                      currentPhase={currentPhase}
-                      solicitationTitle={s.title}
-                      solicitationNumber={s.solicitation_number}
-                      clientName={clientName}
-                    />
-                  )}
-                </PhaseShell>
-              )}
-
-              {tab === "phase-4" && (
-                <PhaseShell solicitationId={s.id} phase="phase_4_win_themes" currentPhase={currentPhase}>
-                  <SolicitationWinThemes
-                    solicitationId={s.id}
-                    currentPhase={currentPhase}
-                    solicitationTitle={s.title}
-                    clientName={clientName}
-                  />
-                </PhaseShell>
-              )}
-
-              {tab === "phase-5" && (
-                <PhaseShell solicitationId={s.id} phase="phase_5_drafting" currentPhase={currentPhase}>
-                  <Phase5Workspace solicitationId={s.id} />
-                </PhaseShell>
-              )}
-
-              {tab === "writing-queue" && (
-                <SolicitationWritingQueue
-                  solicitationId={s.id}
-                  currentPhase={currentPhase}
-                  solicitationTitle={s.title}
-                  clientName={clientName}
-                />
-              )}
-              {tab === "reports" && <SolicitationReports solicitationId={s.id} />}
-              {tab === "comparison" && <SolicitationComparison solicitationId={s.id} />}
-              {tab === "activity" && <SolicitationActivity solicitationId={s.id} />}
-            </div>
-
-            {/* Phase transition footer */}
-            {tab.startsWith("phase-") && (
-              <div className="mt-12 pt-6 border-t border-border flex items-center justify-between gap-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={tab === "phase-1"}
-                  onClick={() => {
-                    const idx = parseInt(tab.split("-")[1], 10);
-                    if (idx > 1) goTab(`phase-${idx - 1}`);
-                  }}
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1" />
-                  Previous phase
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  disabled={tab === "phase-5"}
-                  onClick={() => {
-                    const idx = parseInt(tab.split("-")[1], 10);
-                    if (idx < 5) goTab(`phase-${idx + 1}`);
-                  }}
-                  className="bg-rail hover:bg-rail/90 text-rail-foreground"
-                >
-                  Next phase
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
-              </div>
-            )}
-          </div>
-        </main>
+        {tab === "writing-queue" && (
+          <SolicitationWritingQueue
+            solicitationId={s.id}
+            currentPhase={currentPhase}
+            solicitationTitle={s.title}
+            clientName={clientName}
+          />
+        )}
+        {tab === "reports" && <SolicitationReports solicitationId={s.id} />}
+        {tab === "comparison" && <SolicitationComparison solicitationId={s.id} />}
+        {tab === "activity" && <SolicitationActivity solicitationId={s.id} />}
+        {tab === "assistant" && <SolicitationAssistant solicitationId={s.id} />}
       </div>
 
       <AssistantLauncher solicitationId={s.id} />
