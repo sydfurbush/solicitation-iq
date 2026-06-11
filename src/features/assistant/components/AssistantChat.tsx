@@ -205,6 +205,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         <PlainModeToggle value={plainMode} onChange={onPlainChange} disabled={!thread || sending} />
         <div className="ml-auto flex items-center gap-1">
           <ExportThreadButton thread={thread} messages={messages} />
+          <AssistantAnalyticsButton />
           <Button
             type="button"
             variant="ghost"
