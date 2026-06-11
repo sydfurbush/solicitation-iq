@@ -10,17 +10,39 @@ export function HelpSection({ title, children }: { title: string; children: Reac
   );
 }
 
-export function HelpSteps({ items }: { items: { title: string; body: string }[] }) {
+export function HelpSteps({
+  items,
+  accentClass,
+}: {
+  items: { title: string; body: string; result?: string }[];
+  accentClass?: string;
+}) {
   return (
     <ol className="space-y-3">
       {items.map((s, i) => (
-        <li key={i} className="flex gap-3">
-          <span className="flex-none mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+        <li
+          key={i}
+          className="flex gap-3 rounded-md border border-border/60 bg-muted/20 p-3"
+        >
+          <span
+            className={cn(
+              "flex-none mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold",
+              accentClass ?? "bg-muted text-foreground",
+            )}
+          >
             {i + 1}
           </span>
-          <div>
-            <p className="text-sm font-medium">{s.title}</p>
-            <p className="text-sm text-muted-foreground">{s.body}</p>
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-sm font-semibold leading-tight">{s.title}</p>
+            <p className="text-sm text-muted-foreground leading-relaxed">{s.body}</p>
+            {s.result && (
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground/80">
+                <span className="text-foreground/70">Result: </span>
+                <span className="normal-case font-normal tracking-normal">
+                  {s.result}
+                </span>
+              </p>
+            )}
           </div>
         </li>
       ))}
