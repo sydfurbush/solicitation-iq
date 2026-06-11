@@ -24,33 +24,43 @@ import { useAssistantAnalytics } from "../hooks/useAssistantAnalytics";
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  solicitationId?: string;
 };
 
-export function AnalyticsDashboard({ open, onOpenChange }: Props) {
+export function AnalyticsDashboard({ open, onOpenChange, solicitationId }: Props) {
   const [days, setDays] = useState(30);
-  const { data, isLoading } = useAssistantAnalytics(days);
+  const { data, isLoading } = useAssistantAnalytics(
+    solicitationId ? { solicitationId } : days,
+  );
+  const scoped = !!solicitationId;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Assistant analytics</SheetTitle>
-          <SheetDescription>Usage across your organization.</SheetDescription>
+          <SheetTitle>{scoped ? "Assistant analytics — this solicitation" : "Assistant analytics"}</SheetTitle>
+          <SheetDescription>
+            {scoped
+              ? "Token, cost, and model usage across all users for this solicitation."
+              : "Usage across your organization."}
+          </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-4 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Window</span>
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-8 w-32 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Last 7 days</SelectItem>
-              <SelectItem value="30">Last 30 days</SelectItem>
-              <SelectItem value="90">Last 90 days</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {!scoped && (
+          <div className="mt-4 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Window</span>
+            <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
+              <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {isLoading || !data ? (
           <div className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
