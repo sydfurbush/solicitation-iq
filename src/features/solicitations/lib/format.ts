@@ -6,7 +6,6 @@ export const STATUS_LABELS: Record<SolicitationStatus, string> = {
   phase_1_complete: "Phase 1 complete",
   phase_2_active: "Phase 2 active",
   phase_3_active: "Phase 3 active",
-  phase_4_active: "Phase 4 active",
   complete: "Complete",
   archived: "Archived",
 };
@@ -18,7 +17,6 @@ export const STATUS_CLASSES: Record<SolicitationStatus, string> = {
   phase_1_complete: "bg-green-500/15 text-green-600 dark:text-green-400 border-transparent",
   phase_2_active: "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-transparent",
   phase_3_active: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-transparent",
-  phase_4_active: "bg-pink-500/15 text-pink-600 dark:text-pink-400 border-transparent",
   complete: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-transparent",
   archived: "bg-slate-500/15 text-slate-600 dark:text-slate-400 border-transparent",
 };

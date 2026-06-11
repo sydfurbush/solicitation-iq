@@ -4341,12 +4341,7 @@ export type Database = {
         | "differentiation"
         | "incumbent_weakness"
         | "evaluation_advantage"
-      phase_type:
-        | "phase_1_initial"
-        | "phase_2_deep_dive"
-        | "phase_3_outline"
-        | "phase_4_win_themes"
-        | "phase_5_drafting"
+      phase_type: "phase_1_initial" | "phase_2_deep_dive" | "phase_3_outline"
       question_category:
         | "clarification"
         | "strategic"
@@ -4373,7 +4368,6 @@ export type Database = {
         | "phase_1_complete"
         | "phase_2_active"
         | "phase_3_active"
-        | "phase_4_active"
         | "complete"
         | "archived"
       teaming_agreement_status: "none" | "nda" | "ta" | "loi" | "subcontract"
@@ -4591,13 +4585,7 @@ export const Constants = {
         "incumbent_weakness",
         "evaluation_advantage",
       ],
-      phase_type: [
-        "phase_1_initial",
-        "phase_2_deep_dive",
-        "phase_3_outline",
-        "phase_4_win_themes",
-        "phase_5_drafting",
-      ],
+      phase_type: ["phase_1_initial", "phase_2_deep_dive", "phase_3_outline"],
       question_category: [
         "clarification",
         "strategic",
@@ -4626,7 +4614,6 @@ export const Constants = {
         "phase_1_complete",
         "phase_2_active",
         "phase_3_active",
-        "phase_4_active",
         "complete",
         "archived",
       ],

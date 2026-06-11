@@ -11,9 +11,7 @@ import type { PhaseType } from "@/lib/validators/solicitation";
 const PHASE_LABELS: Record<string, string> = {
   phase_1_initial: "Initial",
   phase_2_deep_dive: "Deep Dive",
-  phase_3_outline: "Outline",
-  phase_4_win_themes: "Win Themes",
-  phase_5_drafting: "Drafting",
+  phase_3_outline: "Proposal Development",
 };
 
 interface ApprovalEvent {

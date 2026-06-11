@@ -5,41 +5,31 @@ import { PHASES, type PhaseType } from "@/lib/validators/solicitation";
 const PHASE_LABELS: Record<PhaseType, string> = {
   phase_1_initial: "Initial",
   phase_2_deep_dive: "Deep Dive",
-  phase_3_outline: "Outline",
-  phase_4_win_themes: "Win Themes",
-  phase_5_drafting: "Drafting",
+  phase_3_outline: "Proposal Development",
 };
 
 const PHASE_BG: Record<PhaseType, string> = {
   phase_1_initial: "bg-[hsl(var(--phase-1))] border-[hsl(var(--phase-1))]",
   phase_2_deep_dive: "bg-[hsl(var(--phase-2))] border-[hsl(var(--phase-2))]",
   phase_3_outline: "bg-[hsl(var(--phase-3))] border-[hsl(var(--phase-3))]",
-  phase_4_win_themes: "bg-[hsl(var(--phase-4))] border-[hsl(var(--phase-4))]",
-  phase_5_drafting: "bg-[hsl(var(--phase-5))] border-[hsl(var(--phase-5))]",
 };
 
 const PHASE_RING: Record<PhaseType, string> = {
   phase_1_initial: "ring-[hsl(var(--phase-1)/0.35)]",
   phase_2_deep_dive: "ring-[hsl(var(--phase-2)/0.35)]",
   phase_3_outline: "ring-[hsl(var(--phase-3)/0.35)]",
-  phase_4_win_themes: "ring-[hsl(var(--phase-4)/0.35)]",
-  phase_5_drafting: "ring-[hsl(var(--phase-5)/0.35)]",
 };
 
 const PHASE_TEXT: Record<PhaseType, string> = {
   phase_1_initial: "text-[hsl(var(--phase-1))]",
   phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
   phase_3_outline: "text-[hsl(var(--phase-3))]",
-  phase_4_win_themes: "text-[hsl(var(--phase-4))]",
-  phase_5_drafting: "text-[hsl(var(--phase-5))]",
 };
 
 const PHASE_CONNECTOR: Record<PhaseType, string> = {
   phase_1_initial: "bg-[hsl(var(--phase-1))]",
   phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
   phase_3_outline: "bg-[hsl(var(--phase-3))]",
-  phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
-  phase_5_drafting: "bg-[hsl(var(--phase-5))]",
 };
 
 interface Props {

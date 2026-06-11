@@ -99,11 +99,8 @@ function fmtDateTime() {
 
 const PHASE_LABELS: Record<string, string> = {
   phase_1_initial: "Phase 1 — Initial",
-  phase_2_outline: "Phase 2 — Outline",
-  phase_3_deep_dive: "Phase 3 — Deep Dive",
-  phase_4_win_themes: "Phase 4 — Win Themes",
-  phase_5_drafting: "Phase 5 — Drafting",
-  phase_5_complete: "Phase 5 — Complete",
+  phase_2_deep_dive: "Phase 2 — Deep Dive",
+  phase_3_outline: "Phase 3 — Proposal Development",
 };
 
 function phaseLabel(p?: string) {
