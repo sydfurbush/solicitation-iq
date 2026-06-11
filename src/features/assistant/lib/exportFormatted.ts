@@ -433,7 +433,7 @@ function collectRuns(node: Node, style: RunStyle = {}): (TextRun | ExternalHyper
   return runs;
 }
 
-function blockFromElement(el: HTMLElement): (Paragraph | Table)[] {
+export function blockFromElement(el: HTMLElement): (Paragraph | Table)[] {
   const tag = el.tagName.toUpperCase();
 
   if (
