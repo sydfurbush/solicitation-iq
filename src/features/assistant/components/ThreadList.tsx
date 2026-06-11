@@ -57,6 +57,7 @@ import {
   type AssistantFolder,
 } from "../hooks/useAssistantFolders";
 import { useAssistantHistorySearch } from "../hooks/useAssistantHistorySearch";
+import { formatThreadTitle } from "../lib/formatThreadTitle";
 
 type Props = {
   solicitationId: string;
