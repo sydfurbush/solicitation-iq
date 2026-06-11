@@ -240,7 +240,7 @@ export function ThreadList({
               {t.pinned && !opts?.inTrash && (
                 <Pin className="h-3 w-3 shrink-0 text-muted-foreground" />
               )}
-              <span className="truncate">{t.title || "Untitled"}</span>
+              <span className="truncate">{formatThreadTitle(t.title) || "Untitled"}</span>
             </div>
           )}
           <div className="text-[10px] text-muted-foreground mt-0.5">
