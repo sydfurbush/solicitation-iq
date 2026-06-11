@@ -39,10 +39,12 @@ export function SlashCommandPopover({ value, anchor, onPick }: Props) {
         const cmd = filtered[active];
         if (cmd) {
           e.preventDefault();
+          e.stopPropagation();
           onPick(cmd);
         }
+      } else if (e.key === "Escape") {
+        // Allow textarea to keep focus; do nothing — typing a space dismisses popover naturally.
       }
-    };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
   }, [open, filtered, active, onPick, trimmed]);
