@@ -879,7 +879,10 @@ export async function downloadAssistantDocx(
   const blob = await Packer.toBlob(doc);
   const filename = `assistant-thread-${slugify(thread.title)}.docx`;
   saveAs(blob, filename);
+  (window as any).__docxImages = [];
+  cleanup();
 }
+
 
 function prettyPersona(p: string): string {
   const m: Record<string, string> = {
