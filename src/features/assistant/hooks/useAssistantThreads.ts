@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { PersonaKey } from "../lib/personas";
 
+export type PinnedEntityKind = "risk" | "opportunity" | "requirement" | "document";
+export type PinnedEntity = { kind: PinnedEntityKind; id: string; label: string };
+export type PinnedEntityPayload = { entities: PinnedEntity[] } | null;
+
 export type AssistantThread = {
   id: string;
   solicitation_id: string;
@@ -11,7 +15,7 @@ export type AssistantThread = {
   plain_mode: boolean;
   pinned_client_id: string | null;
   pinned_solicitation_id: string | null;
-  pinned_entity: Record<string, unknown> | null;
+  pinned_entity: PinnedEntityPayload;
   pinned_knowledge_ids: string[];
   last_message_at: string;
   created_at: string;
