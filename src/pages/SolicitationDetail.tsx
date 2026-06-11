@@ -88,6 +88,10 @@ const PHASE_2_STEPS = [
 const PHASE_3_STEPS = [
   { key: "outline", label: "Proposal outline" },
   { key: "exhibits", label: "Exhibits & Attachments" },
+  { key: "themes", label: "Win themes" },
+  { key: "draft", label: "Draft" },
+  { key: "compliance", label: "Compliance matrix" },
+  { key: "compile", label: "Compile & package" },
 ];
 
 // Maps any legacy ?tab= value (or pre-redesign deep links) to the new shape.
@@ -98,8 +102,13 @@ const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   questions: { tab: "phase-1", step: "questions" },
   risks: { tab: "phase-1", step: "risks" },
   "deep-dive": { tab: "phase-2" },
-  outline: { tab: "phase-3" },
-  "win-themes": { tab: "phase-4" },
+  outline: { tab: "phase-3", step: "outline" },
+  "win-themes": { tab: "phase-3", step: "themes" },
+  "phase-4": { tab: "phase-3", step: "themes" },
+  "phase-5": { tab: "phase-3", step: "draft" },
+  drafting: { tab: "phase-3", step: "draft" },
+  compliance: { tab: "phase-3", step: "compliance" },
+  compile: { tab: "phase-3", step: "compile" },
 };
 
 type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity" | "assistant";
@@ -308,20 +317,21 @@ export default function SolicitationDetail() {
     }
     if (phase === "phase_3_outline") {
       return [
-        { key: "outline", label: "Proposal outline", state: stepState(true), onClick: () => goTab("phase-3") },
+        { key: "outline", label: "Proposal outline", state: stepState(true), onClick: () => goTab("phase-3", "outline") },
+        { key: "exhibits", label: "Exhibits & Attachments", state: stepState(), onClick: () => goTab("phase-3", "exhibits") },
+        { key: "themes", label: "Win themes", state: stepState(), onClick: () => goTab("phase-3", "themes") },
+        { key: "draft", label: "Draft", state: stepState(), onClick: () => goTab("phase-3", "draft") },
+        { key: "compliance", label: "Compliance matrix", state: stepState(), onClick: () => goTab("phase-3", "compliance") },
+        { key: "compile", label: "Compile & package", state: stepState(), onClick: () => goTab("phase-3", "compile") },
       ];
     }
-    return [
-      { key: "themes", label: "Win themes", state: stepState(true), onClick: () => goTab("phase-4") },
-    ];
+    return [];
   };
 
   const phaseLabelByKey: Record<string, string> = {
     "phase-1": "Phase 1 · Initial",
     "phase-2": "Phase 2 · Deep Dive",
-    "phase-3": "Phase 3 · Outline",
-    "phase-4": "Phase 4 · Win Themes",
-    "phase-5": "Phase 5 · Drafting",
+    "phase-3": "Phase 3 · Proposal Development",
   };
 
   const renderPhase1 = () => {
@@ -532,12 +542,6 @@ export default function SolicitationDetail() {
             />
             <PhaseHelpPanel phase="phase_3_outline" />
           </div>
-          <PhaseNavBtn phase="phase_4_win_themes" active={tab === "phase-4"} onClick={() => goTab("phase-4")}>
-            {phaseLabelByKey["phase-4"]}
-          </PhaseNavBtn>
-          <PhaseNavBtn phase="phase_5_drafting" active={tab === "phase-5"} onClick={() => goTab("phase-5")}>
-            {phaseLabelByKey["phase-5"]}
-          </PhaseNavBtn>
 
           <WorkspaceNavMenu
             active={tab === "writing-queue" || tab === "reports" || tab === "comparison" || tab === "activity" || tab === "assistant"}
@@ -598,37 +602,33 @@ export default function SolicitationDetail() {
             activeStep={step ?? "outline"}
             onStepChange={(k) => goTab("phase-3", k)}
           >
-            {(step ?? "outline") === "exhibits" ? (
-              <ExhibitsTab solicitationId={s.id} />
-            ) : (
-              <SolicitationOutline
-                solicitationId={s.id}
-                currentPhase={currentPhase}
-                solicitationTitle={s.title}
-                solicitationNumber={s.solicitation_number}
-                clientName={clientName}
-              />
-            )}
+            {(() => {
+              const sub = step ?? "outline";
+              if (sub === "exhibits") return <ExhibitsTab solicitationId={s.id} />;
+              if (sub === "themes")
+                return (
+                  <SolicitationWinThemes
+                    solicitationId={s.id}
+                    currentPhase={currentPhase}
+                    solicitationTitle={s.title}
+                    clientName={clientName}
+                  />
+                );
+              if (sub === "draft" || sub === "compliance" || sub === "compile")
+                return <Phase5Workspace solicitationId={s.id} />;
+              return (
+                <SolicitationOutline
+                  solicitationId={s.id}
+                  currentPhase={currentPhase}
+                  solicitationTitle={s.title}
+                  solicitationNumber={s.solicitation_number}
+                  clientName={clientName}
+                />
+              );
+            })()}
           </PhaseShell>
         )}
 
-
-        {tab === "phase-4" && (
-          <PhaseShell solicitationId={s.id} phase="phase_4_win_themes" currentPhase={currentPhase}>
-            <SolicitationWinThemes
-              solicitationId={s.id}
-              currentPhase={currentPhase}
-              solicitationTitle={s.title}
-              clientName={clientName}
-            />
-          </PhaseShell>
-        )}
-
-        {tab === "phase-5" && (
-          <PhaseShell solicitationId={s.id} phase="phase_5_drafting" currentPhase={currentPhase}>
-            <Phase5Workspace solicitationId={s.id} />
-          </PhaseShell>
-        )}
 
         {tab === "writing-queue" && (
           <SolicitationWritingQueue
@@ -692,15 +692,11 @@ function PhaseNavBtn({
     phase_1_initial: "bg-[hsl(var(--phase-1))]",
     phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
     phase_3_outline: "bg-[hsl(var(--phase-3))]",
-    phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
-    phase_5_drafting: "bg-[hsl(var(--phase-5))]",
   };
   const colorText: Record<PhaseType, string> = {
     phase_1_initial: "text-[hsl(var(--phase-1))]",
     phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
     phase_3_outline: "text-[hsl(var(--phase-3))]",
-    phase_4_win_themes: "text-[hsl(var(--phase-4))]",
-    phase_5_drafting: "text-[hsl(var(--phase-5))]",
   };
   return (
     <div className="inline-flex items-center">
@@ -744,15 +740,11 @@ function PhaseNavMenu({
     phase_1_initial: "bg-[hsl(var(--phase-1))]",
     phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
     phase_3_outline: "bg-[hsl(var(--phase-3))]",
-    phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
-    phase_5_drafting: "bg-[hsl(var(--phase-5))]",
   };
   const colorText: Record<PhaseType, string> = {
     phase_1_initial: "text-[hsl(var(--phase-1))]",
     phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
     phase_3_outline: "text-[hsl(var(--phase-3))]",
-    phase_4_win_themes: "text-[hsl(var(--phase-4))]",
-    phase_5_drafting: "text-[hsl(var(--phase-5))]",
   };
   return (
     <DropdownMenu>
