@@ -116,8 +116,16 @@ export function AssistantChat({
 
 
   useEffect(() => {
-    taRef.current?.focus();
+    const t = setTimeout(() => taRef.current?.focus(), 0);
+    return () => clearTimeout(t);
   }, [threadId]);
+
+  // Re-focus the composer when a blank/new chat finishes loading.
+  useEffect(() => {
+    if (!isLoading && messages.length === 0) {
+      taRef.current?.focus();
+    }
+  }, [isLoading, messages.length]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const jumpMsgId = searchParams.get("msg");
@@ -355,6 +363,7 @@ export function AssistantChat({
               anchor={
                 <Textarea
                   ref={taRef}
+                  autoFocus
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
