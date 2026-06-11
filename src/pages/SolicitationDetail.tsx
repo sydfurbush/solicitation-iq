@@ -150,6 +150,7 @@ export default function SolicitationDetail() {
 
   const rawTab = searchParams.get("tab");
   const step = searchParams.get("step");
+  const tab = rawTab ?? "phase-1";
 
   const { data: s, isLoading } = useSolicitation(solicitationId);
   const { data: client } = useClient(s?.client_id ?? undefined);
