@@ -435,9 +435,6 @@ export default function SolicitationDetail() {
       {/* Slim top nav */}
       <div className="border-b">
         <div className="flex flex-wrap items-center gap-1">
-          <NavBtn active={tab === "workflow"} onClick={() => goTab("workflow")}>
-            Workflow
-          </NavBtn>
 
           {/* Phase 1 with sub-step menu */}
           <div className="inline-flex items-center">
