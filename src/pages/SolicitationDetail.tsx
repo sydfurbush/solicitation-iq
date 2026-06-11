@@ -290,42 +290,6 @@ export default function SolicitationDetail() {
     }
   };
 
-  // Build hub step lists (light guidance: state derived from current phase position only)
-  const buildHubSteps = (phase: PhaseType): HubStep[] => {
-    const idx = PHASES.indexOf(phase);
-    const phaseDone = idx < currentPhaseIdx;
-    const phaseActive = idx === currentPhaseIdx;
-    const stepState = (active = false): HubStep["state"] =>
-      phaseDone ? "done" : phaseActive && active ? "active" : phaseActive ? "todo" : "todo";
-
-    if (phase === "phase_1_initial") {
-      return [
-        { key: "overview", label: "Overview", state: stepState(true), onClick: () => goTab("phase-1", "overview") },
-        { key: "documents", label: "Documents", count: s.documents_count, state: stepState(), onClick: () => goTab("phase-1", "documents") },
-        { key: "analysis", label: "Analysis", state: stepState(), onClick: () => goTab("phase-1", "analysis") },
-        { key: "questions", label: "Questions", count: s.questions_count, state: stepState(), onClick: () => goTab("phase-1", "questions") },
-        { key: "risks", label: "Risks & Opportunities", count: (s.risks_count ?? 0) + (s.opportunities_count ?? 0), state: stepState(), onClick: () => goTab("phase-1", "risks") },
-      ];
-    }
-    if (phase === "phase_2_deep_dive") {
-      return [
-        { key: "rtm", label: "Requirements (RTM)", state: stepState(true), onClick: () => goTab("phase-2") },
-        { key: "sections", label: "Section analysis", state: stepState(), onClick: () => goTab("phase-2") },
-        { key: "gaps", label: "Capability gaps", state: stepState(), onClick: () => goTab("phase-2") },
-      ];
-    }
-    if (phase === "phase_3_outline") {
-      return [
-        { key: "outline", label: "Proposal outline", state: stepState(true), onClick: () => goTab("phase-3", "outline") },
-        { key: "exhibits", label: "Exhibits & Attachments", state: stepState(), onClick: () => goTab("phase-3", "exhibits") },
-        { key: "themes", label: "Win themes", state: stepState(), onClick: () => goTab("phase-3", "themes") },
-        { key: "draft", label: "Draft", state: stepState(), onClick: () => goTab("phase-3", "draft") },
-        { key: "compliance", label: "Compliance matrix", state: stepState(), onClick: () => goTab("phase-3", "compliance") },
-        { key: "compile", label: "Compile & package", state: stepState(), onClick: () => goTab("phase-3", "compile") },
-      ];
-    }
-    return [];
-  };
 
   const phaseLabelByKey: Record<string, string> = {
     "phase-1": "Phase 1 · Initial",
