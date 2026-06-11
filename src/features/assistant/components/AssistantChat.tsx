@@ -470,11 +470,14 @@ function MessageRow({
         ) : (
           <div>
             <AssistantMessageBody text={text} />
-            <InlineActionButtons
-              messageId={m.id}
-              solicitationId={solicitationId}
-              citations={m.citations as any[]}
-            />
+            <div className="flex items-center gap-1 flex-wrap">
+              <InlineActionButtons
+                messageId={m.id}
+                solicitationId={solicitationId}
+                citations={m.citations as any[]}
+              />
+              <MessageSaveAsWordButton message={m} thread={thread} />
+            </div>
             {Array.isArray(m.citations) && m.citations.length > 0 && (() => {
               const visible = (m.citations as any[]).filter(
                 (c) => c?.kind !== "suggested_knowledge" && c?.kind !== "suggested_action" && c?.label,
