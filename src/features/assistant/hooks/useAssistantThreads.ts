@@ -20,6 +20,9 @@ export type AssistantThread = {
   last_message_at: string;
   created_at: string;
   created_by: string | null;
+  folder_id: string | null;
+  tags: string[];
+  deleted_at: string | null;
 };
 
 export type AssistantMessage = {
