@@ -82,7 +82,36 @@ export function AnalyticsDashboard({ open, onOpenChange, solicitationId }: Props
                 value={(data.totalTokensIn + data.totalTokensOut).toLocaleString()}
                 sub={`${data.totalTokensIn.toLocaleString()} in · ${data.totalTokensOut.toLocaleString()} out`}
               />
+              <Stat
+                label="Estimated cost"
+                value={formatUsd(data.estimatedCostUsd)}
+                sub={data.hasUnknownPricing ? "* some models unpriced" : "based on token usage"}
+              />
+              <Stat
+                label="Models used"
+                value={String(data.byModel.length)}
+                sub={data.byModel[0]?.model ?? "—"}
+              />
             </div>
+
+            <Section title="By model">
+              {data.byModel.length === 0 ? (
+                <Empty />
+              ) : (
+                <ul className="text-sm divide-y rounded-md border">
+                  {data.byModel.map((m) => (
+                    <li key={m.model} className="flex items-center justify-between gap-2 px-3 py-2">
+                      <span className="truncate font-mono text-xs">{m.model}</span>
+                      <span className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+                        <span>{m.requests} req</span>
+                        <span>{m.tokens.toLocaleString()} tok</span>
+                        <span>{m.unknownPricing ? "—" : formatUsd(m.costUsd)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
 
             <Section title="Requests per day">
               <ResponsiveContainer width="100%" height={180}>
