@@ -407,7 +407,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   );
 }
 
-function MessageRow({ m }: { m: AssistantMessage }) {
+function MessageRow({ m, threadId }: { m: AssistantMessage; threadId: string }) {
   const text = (m.parts ?? []).map((p) => (p.type === "text" ? p.text ?? "" : "")).join("\n");
   const isUser = m.role === "user";
   return (
@@ -415,12 +415,17 @@ function MessageRow({ m }: { m: AssistantMessage }) {
       <div
         className={
           isUser
-            ? "max-w-[85%] rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm whitespace-pre-wrap"
+            ? "max-w-[85%] flex flex-col items-end"
             : "max-w-[92%] text-sm"
         }
       >
         {isUser ? (
-          text
+          <>
+            <MessageAttachments threadId={threadId} messageId={m.id} />
+            <div className="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm whitespace-pre-wrap">
+              {text}
+            </div>
+          </>
         ) : (
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown>{text}</ReactMarkdown>
