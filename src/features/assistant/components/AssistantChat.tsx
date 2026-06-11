@@ -255,7 +255,7 @@ export function AssistantChat({
         <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
           <ExportThreadButton thread={thread} messages={messages} />
-          <AssistantAnalyticsButton />
+          <AssistantAnalyticsButton solicitationId={solicitationId} />
         </div>
       </div>
 
