@@ -457,8 +457,8 @@ function MessageRow({
             </div>
           </>
         ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{text}</ReactMarkdown>
+          <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border [&_table]:border-border [&_table]:rounded-md [&_table]:my-3 [&_thead]:bg-muted [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border-b [&_th]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:border-b [&_td]:border-border [&_tr:last-child_td]:border-b-0 [&_td]:align-top">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeAssistantMarkdown(text)}</ReactMarkdown>
             <InlineActionButtons
               messageId={m.id}
               solicitationId={solicitationId}
