@@ -377,48 +377,6 @@ export default function SolicitationDetail() {
     );
   };
 
-  // Phase headline copy for the focused canvas
-  const phaseHeadline: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
-    "phase-1": {
-      eyebrow: "Phase 01 · Initial",
-      title: "Initial Workspace",
-      subtitle: "Establish the foundation of the solicitation — ingest documents, run analysis, raise clarifying questions, and identify risks.",
-    },
-    "phase-2": {
-      eyebrow: "Phase 02 · Deep Dive",
-      title: "Requirements & Analysis",
-      subtitle: "Build the RTM, analyze each section against your capabilities, and surface capability gaps and teaming options.",
-    },
-    "phase-3": {
-      eyebrow: "Phase 03 · Outline",
-      title: "Proposal Outline",
-      subtitle: "Shape the proposal outline and align exhibits, attachments, and section ownership.",
-    },
-    "phase-4": {
-      eyebrow: "Phase 04 · Win Themes",
-      title: "Win Themes",
-      subtitle: "Crystallize the differentiators that will frame every section of the proposal.",
-    },
-    "phase-5": {
-      eyebrow: "Phase 05 · Drafting",
-      title: "Drafting & Compile",
-      subtitle: "Draft, review compliance, and compile the final proposal package.",
-    },
-    "workflow": {
-      eyebrow: "Workspace",
-      title: "Workspace overview",
-      subtitle: "All phases at a glance. Pick a phase from the rail to enter focus mode.",
-    },
-  };
-
-  const workspaceHeadline: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
-    "writing-queue": { eyebrow: "Workspace", title: "Writing Queue", subtitle: "Assignments queued for the drafting team." },
-    "reports": { eyebrow: "Workspace", title: "Reports", subtitle: "Published reports for this solicitation." },
-    "comparison": { eyebrow: "Workspace", title: "Comparison", subtitle: "Compare against prior solicitations and revisions." },
-    "activity": { eyebrow: "Workspace", title: "Activity", subtitle: "Recent events on this solicitation." },
-  };
-
-  const headline = phaseHeadline[tab] ?? workspaceHeadline[tab];
 
   return (
     <div className="-my-6 -mx-4 md:-mx-8 flex flex-col h-[calc(100vh-3.5rem)] bg-canvas">
