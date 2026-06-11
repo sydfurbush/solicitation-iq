@@ -1,19 +1,26 @@
-# Fix unformatted assistant tables
+## Goal
+Make org charts in assistant responses render as readable structured charts instead of cramped ASCII/code-block text like the screenshot.
 
-The "Top Opportunities" output is a GitHub-Flavored-Markdown table, but `AssistantChat.tsx` renders assistant messages with `<ReactMarkdown>` without the `remark-gfm` plugin. Without GFM, ReactMarkdown treats `|` as plain text and flows everything as one paragraph — exactly what the screenshot shows. `remark-gfm` is already in `package.json`.
+## Plan
+1. **Add org-chart detection in assistant markdown rendering**
+   - Detect code blocks or paragraphs that look like ASCII org charts: box-drawing/table-like content with vertical pipes, dashed borders, connector lines, or role hierarchy labels.
+   - Keep normal code blocks unchanged so technical snippets still render as code.
 
-## Changes
+2. **Render detected org charts with a dedicated visual component**
+   - Convert the org chart text into a scrollable hierarchy layout with role cards, reporting lines, and consistent spacing.
+   - Use semantic design tokens for borders, muted surfaces, foreground text, and accents.
+   - Preserve the original content if parsing is imperfect by showing a clean monospace fallback inside a better scroll container.
 
-**`src/features/assistant/components/AssistantChat.tsx`**
-1. Import `remarkGfm` from `remark-gfm`.
-2. Pass `remarkPlugins={[remarkGfm]}` to the assistant `<ReactMarkdown>` (line 460). This enables tables, task lists, strikethrough, and autolinks.
-3. Normalize single-line tables before rendering: if the text contains a table-looking run where rows are separated only by `| |` (no newline), insert a newline between rows so GFM can parse it. Cheap regex on the message text inside the assistant branch; user messages are untouched.
-4. Add table styling so rows/headers/borders look right inside the existing `prose prose-sm` container — add a `not-prose`-free wrapper class and a small CSS rule (Tailwind `[&_table]:...` arbitrary variants) for borders, header background, cell padding, and horizontal scroll on overflow.
+3. **Improve fallback formatting for ASCII diagrams**
+   - Add targeted styling for diagram-like code blocks: larger readable line height, stable monospace sizing, wider min-width, horizontal scrolling, and no clipped content.
+   - Avoid applying these changes to all markdown code snippets.
 
-No other files, no backend, no schema changes.
+4. **Validate against the screenshot case**
+   - Confirm the assistant message no longer appears as a cramped gray block.
+   - Confirm horizontal scrolling works on smaller screens and the message box remains aligned with existing chat styling.
 
-## Out of scope
-
-- Changing the assistant's prompt to prefer tables/markdown.
-- Restyling user message bubbles.
-- Export/Copy formatting (Markdown export already preserves tables).
+## Technical details
+- Primary file: `src/features/assistant/components/AssistantChat.tsx`.
+- Add a small `OrgChartBlock` helper/component near the existing `MessageRow` markdown renderer.
+- Override the `ReactMarkdown` `code` component to route detected org-chart code blocks to `OrgChartBlock`.
+- Keep `remark-gfm` and existing table/task-list styling intact.
