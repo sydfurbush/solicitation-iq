@@ -510,35 +510,6 @@ export default function SolicitationDetail() {
 
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto px-4 md:px-10 py-6 md:py-10 animate-in fade-in slide-in-from-bottom-2 duration-300" key={tab}>
-            {headline && (
-              <header className="mb-8 md:mb-10">
-                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-rail-accent">
-                  {headline.eyebrow}
-                </span>
-                <h2 className="font-display text-3xl md:text-4xl text-ink mt-2 leading-tight">
-                  {headline.title}
-                </h2>
-                <p className="text-muted-foreground text-base mt-3 max-w-2xl leading-relaxed">
-                  {headline.subtitle}
-                </p>
-                {s.proposal_due_date && (
-                  <div className={cn(
-                    "mt-4 inline-flex items-center gap-2 text-xs",
-                    urgency === "danger" || urgency === "overdue" ? "text-destructive" :
-                    urgency === "warning" ? "text-amber-600 dark:text-amber-500" :
-                    "text-muted-foreground"
-                  )}>
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>Proposal due {format(new Date(s.proposal_due_date), "PPP")}</span>
-                    {days !== null && (
-                      <span className="font-semibold">
-                        · {days < 0 ? `${Math.abs(days)} days overdue` : `${days} days left`}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </header>
-            )}
 
             <div>
               {tab === "workflow" && (
