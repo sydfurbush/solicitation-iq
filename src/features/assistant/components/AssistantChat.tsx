@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { BookOpen, Brain, ChevronDown, ChevronUp, Loader2, Mic, Radar, Send, Settings2, Square } from "lucide-react";
+import { BookOpen, Brain, ChevronDown, ChevronUp, Loader2, Mic, Send, Settings2, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,14 +21,14 @@ import {
 import { useAssistantTranscribe, MicrophoneError } from "../hooks/useAssistantTranscribe";
 import { parseSlashCommand, type PersonaKey } from "../lib/personas";
 import { PersonaSelector } from "./PersonaSelector";
-import { PlainModeToggle } from "./PlainModeToggle";
+
 import { SlashCommandPopover } from "./SlashCommandPopover";
 import { StarterCards } from "./StarterCards";
 import { MemoryPanel } from "./MemoryPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { PinnedKnowledgeChips } from "./PinnedKnowledgeChips";
-import { RiskRadar } from "./RiskRadar";
+
 import { SuggestedKnowledgeBanner, type KnowledgeSuggestion } from "./SuggestedKnowledgeBanner";
 import { PhotoAttachmentButton } from "./PhotoAttachmentButton";
 import { AttachmentChips } from "./AttachmentChips";
@@ -62,10 +62,6 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [showRadar, setShowRadar] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(`assistant_show_radar_v1:${threadId}`) === "1";
-  });
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -96,20 +92,6 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, send.isPending]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setShowRadar(window.localStorage.getItem(`assistant_show_radar_v1:${threadId}`) === "1");
-  }, [threadId]);
-
-  const toggleRadar = () => {
-    setShowRadar((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(`assistant_show_radar_v1:${threadId}`, next ? "1" : "0");
-      } catch {}
-      return next;
-    });
-  };
 
   useEffect(() => {
     taRef.current?.focus();
@@ -241,21 +223,9 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
     <div className="flex flex-col h-full min-h-0">
       <div className="border-b px-3 py-2 flex items-center gap-2 bg-background">
         <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
-        <PlainModeToggle value={plainMode} onChange={onPlainChange} disabled={!thread || sending} />
         <div className="ml-auto flex items-center gap-1">
           <ExportThreadButton thread={thread} messages={messages} />
           <AssistantAnalyticsButton />
-          <Button
-            type="button"
-            variant={showRadar ? "secondary" : "ghost"}
-            size="sm"
-            className="h-8 px-2 text-xs gap-1.5"
-            onClick={toggleRadar}
-            title="Risk Radar — show or hide critical risks for this solicitation"
-            aria-pressed={showRadar}
-          >
-            <Radar className="h-3.5 w-3.5" /> Risk Radar
-          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -321,9 +291,6 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
 
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {showRadar && (
-          <RiskRadar solicitationId={solicitationId} onDiscuss={(p) => submit(p)} compact={compact} />
-        )}
         {(() => {
           const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
           if (!lastAssistant) return null;
