@@ -132,7 +132,34 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
       <div className="border-b px-3 py-2 flex items-center gap-2 bg-background">
         <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
         <PlainModeToggle value={plainMode} onChange={onPlainChange} disabled={!thread || sending} />
+        <div className="ml-auto flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs gap-1.5"
+            onClick={() => setMemoryOpen(true)}
+            title="Memory — durable facts the assistant remembers"
+          >
+            <Brain className="h-3.5 w-3.5" /> Memory
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={() => setPrefsOpen(true)}
+            title="Preferences"
+            aria-label="Preferences"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
+
+      <MemoryPanel open={memoryOpen} onOpenChange={setMemoryOpen} />
+      <PreferencesPanel open={prefsOpen} onOpenChange={setPrefsOpen} />
+
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
         {isLoading ? (
