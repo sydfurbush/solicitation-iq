@@ -478,13 +478,38 @@ export default function SolicitationDetail() {
 
       {/* MOBILE PHASE BAR */}
       {isMobile && tab.startsWith("phase-") && (
-        <MobilePhaseBar
-          currentPhase={currentPhase}
-          activeTab={tab}
-          activeStep={step}
-          onSelect={goTab}
-          onOpenSheet={() => setMobileSheetOpen(true)}
-        />
+        <>
+          <MobilePhaseBar
+            currentPhase={currentPhase}
+            activeTab={tab}
+            activeStep={step}
+            onSelect={goTab}
+            onOpenSheet={() => setMobileSheetOpen(true)}
+            onOpenWorkspaces={() => setWorkspaceSheetOpen(true)}
+            counts={{
+              documents: s.documents_count,
+              questions: s.questions_count,
+              risks: (s.risks_count ?? 0) + (s.opportunities_count ?? 0),
+            }}
+          />
+          <Sheet open={workspaceSheetOpen} onOpenChange={setWorkspaceSheetOpen}>
+            <SheetContent side="bottom" className="rounded-t-xl max-h-[80vh] overflow-y-auto p-4">
+              <MobileWorkspaceSheet
+                activeTab={tab}
+                activeStep={step}
+                onSelect={(t, st) => {
+                  goTab(t, st);
+                  setWorkspaceSheetOpen(false);
+                }}
+                counts={{
+                  documents: s.documents_count,
+                  questions: s.questions_count,
+                  risks: (s.risks_count ?? 0) + (s.opportunities_count ?? 0),
+                }}
+              />
+            </SheetContent>
+          </Sheet>
+        </>
       )}
 
       {/* BODY */}
