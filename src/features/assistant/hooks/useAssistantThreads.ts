@@ -112,11 +112,16 @@ export function useUpdateThread() {
       patch,
     }: {
       id: string;
-      patch: Partial<Pick<AssistantThread, "title" | "pinned" | "persona" | "plain_mode" | "pinned_knowledge_ids">>;
+      patch: Partial<
+        Pick<
+          AssistantThread,
+          "title" | "pinned" | "persona" | "plain_mode" | "pinned_knowledge_ids" | "pinned_entity"
+        >
+      >;
     }) => {
       const { data, error } = await supabase
         .from("assistant_threads")
-        .update(patch)
+        .update(patch as any)
         .eq("id", id)
         .select()
         .single();
