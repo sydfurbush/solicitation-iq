@@ -768,6 +768,35 @@ Deno.serve(async (req) => {
       if (seenSuggestionIds.size >= 3) break;
     }
 
+    // Validate suggested_actions and cap at 3
+    const ALLOWED_ACTIONS = new Set(["create_risk", "create_opportunity", "create_requirement"]);
+    const ALLOWED_SEV = new Set(["low", "medium", "high", "critical"]);
+    const rawActions = Array.isArray((result as any).suggested_actions) ? (result as any).suggested_actions : [];
+    let actionCount = 0;
+    for (const a of rawActions) {
+      const kind = typeof a?.kind === "string" ? a.kind : "";
+      const title = typeof a?.title === "string" ? a.title.trim().slice(0, 200) : "";
+      if (!ALLOWED_ACTIONS.has(kind) || !title) continue;
+      const description = typeof a?.description === "string" ? a.description.trim().slice(0, 2000) : "";
+      const severity = ALLOWED_SEV.has(a?.severity) ? a.severity : undefined;
+      const label =
+        kind === "create_risk" ? `Create risk: ${title}` :
+        kind === "create_opportunity" ? `Create opportunity: ${title}` :
+        `Add requirement: ${title}`;
+      mergedCitations.push({
+        kind: "suggested_action",
+        action: kind,
+        label,
+        title,
+        description,
+        ...(severity ? { severity } : {}),
+      } as any);
+      actionCount += 1;
+      if (actionCount >= 3) break;
+    }
+
+
+
 
     const { data: assistantMsg } = await supa.from("assistant_messages").insert({
       thread_id: threadId,
