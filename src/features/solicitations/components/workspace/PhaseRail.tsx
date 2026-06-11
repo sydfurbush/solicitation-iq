@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowRight, ChevronRight, Clock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PHASES, type PhaseType } from "@/lib/validators/solicitation";
 import { format } from "date-fns";
