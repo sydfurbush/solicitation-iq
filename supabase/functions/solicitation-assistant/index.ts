@@ -685,6 +685,27 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Validate suggested knowledge against the available list and cap at 3
+    const validIds = new Set(availableKnowledge.map((d) => d.id));
+    const titleById = new Map(availableKnowledge.map((d) => [d.id, d.title]));
+    const rawSuggestions = Array.isArray(result.suggested_knowledge) ? result.suggested_knowledge : [];
+    const seenSuggestionIds = new Set<string>();
+    for (const s of rawSuggestions) {
+      const id = typeof s?.document_id === "string" ? s.document_id : "";
+      if (!id || !validIds.has(id) || seenSuggestionIds.has(id)) continue;
+      seenSuggestionIds.add(id);
+      mergedCitations.push({
+        kind: "suggested_knowledge",
+        label: `Suggest pin: ${titleById.get(id) ?? "knowledge"}`,
+        ref_id: id,
+        document_id: id,
+        title: titleById.get(id) ?? String(s.title ?? "Knowledge"),
+        why: String(s.why ?? "").slice(0, 240),
+      } as any);
+      if (seenSuggestionIds.size >= 3) break;
+    }
+
+
     const { data: assistantMsg } = await supa.from("assistant_messages").insert({
       thread_id: threadId,
       role: "assistant",
