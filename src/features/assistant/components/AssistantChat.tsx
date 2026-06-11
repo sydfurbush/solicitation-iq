@@ -324,7 +324,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
             compact={compact}
           />
         ) : (
-          messages.map((m) => <MessageRow key={m.id} m={m} threadId={threadId} />)
+          messages.map((m) => <MessageRow key={m.id} m={m} threadId={threadId} solicitationId={solicitationId} />)
         )}
         {sending && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
