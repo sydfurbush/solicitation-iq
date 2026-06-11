@@ -455,46 +455,19 @@ export default function SolicitationDetail() {
         </div>
       </div>
 
-      {/* Phase strip + countdown */}
-      <Card>
-        <CardContent className="p-5 flex flex-col lg:flex-row gap-6 lg:items-center">
-          <div className="flex-1">
-            <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wide">Phase</p>
-            <PhaseIndicator
-              current={s.current_phase}
-              status={s.status}
-              onPhaseClick={(p: PhaseType) => goTab(PHASE_TAB[p])}
-            />
-          </div>
-          <div className="lg:border-l lg:pl-6">
-            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">Proposal due</p>
-            {s.proposal_due_date ? (
-              <div
-                className={cn(
-                  "flex items-center gap-2",
-                  urgency === "danger" || urgency === "overdue"
-                    ? "text-destructive"
-                    : urgency === "warning"
-                      ? "text-amber-600 dark:text-amber-500"
-                      : "",
-                )}
-              >
-                <Clock className="h-4 w-4" />
-                <div>
-                  <p className="font-semibold">{format(new Date(s.proposal_due_date), "PPP")}</p>
-                  {days !== null && (
-                    <p className="text-xs">
-                      {days < 0 ? `${Math.abs(days)} days overdue` : `${days} days left`}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No due date set</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Unified progress header */}
+      <ProgressHeader
+        solicitationId={s.id}
+        currentPhase={currentPhase}
+        status={s.status}
+        proposalDueDate={s.proposal_due_date}
+        phase3Steps={PHASE_3_STEPS}
+        activeTab={tab}
+        activeStep={step}
+        onPhaseClick={(p: PhaseType) => goTab(PHASE_TAB[p])}
+        onSubStepClick={(k) => goTab("phase-3", k)}
+      />
+
 
       {/* Slim top nav */}
       <div className="border-b">
