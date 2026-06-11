@@ -17,6 +17,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   PhaseRail,
   MobilePhaseBar,
+  MobileWorkspaceSheet,
   useRailCollapsed,
 } from "@/features/solicitations/components/workspace/PhaseRail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -206,6 +207,7 @@ export default function SolicitationDetail() {
   // Mobile phase-rail sheet state
   const isMobile = useIsMobile();
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [workspaceSheetOpen, setWorkspaceSheetOpen] = useState(false);
   const { collapsed: railCollapsed, toggle: toggleRail } = useRailCollapsed();
 
   const goTab = (t: string, st?: string) => {
@@ -476,13 +478,38 @@ export default function SolicitationDetail() {
 
       {/* MOBILE PHASE BAR */}
       {isMobile && tab.startsWith("phase-") && (
-        <MobilePhaseBar
-          currentPhase={currentPhase}
-          activeTab={tab}
-          activeStep={step}
-          onSelect={goTab}
-          onOpenSheet={() => setMobileSheetOpen(true)}
-        />
+        <>
+          <MobilePhaseBar
+            currentPhase={currentPhase}
+            activeTab={tab}
+            activeStep={step}
+            onSelect={goTab}
+            onOpenSheet={() => setMobileSheetOpen(true)}
+            onOpenWorkspaces={() => setWorkspaceSheetOpen(true)}
+            counts={{
+              documents: s.documents_count,
+              questions: s.questions_count,
+              risks: (s.risks_count ?? 0) + (s.opportunities_count ?? 0),
+            }}
+          />
+          <Sheet open={workspaceSheetOpen} onOpenChange={setWorkspaceSheetOpen}>
+            <SheetContent side="bottom" className="rounded-t-xl max-h-[80vh] overflow-y-auto p-4">
+              <MobileWorkspaceSheet
+                activeTab={tab}
+                activeStep={step}
+                onSelect={(t, st) => {
+                  goTab(t, st);
+                  setWorkspaceSheetOpen(false);
+                }}
+                counts={{
+                  documents: s.documents_count,
+                  questions: s.questions_count,
+                  risks: (s.risks_count ?? 0) + (s.opportunities_count ?? 0),
+                }}
+              />
+            </SheetContent>
+          </Sheet>
+        </>
       )}
 
       {/* BODY */}
