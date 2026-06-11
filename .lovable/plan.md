@@ -1,40 +1,57 @@
-
 ## Goal
 
-Reclaim vertical space at the top of `SolicitationDetail` so the active phase/step workspace is the focal point. Remove the duplicate solicitation title and the standalone Phase strip card; consolidate progress into the existing Workflow surface.
+The Phase 3 reference card (opened from the BookOpen icon next to "Phase 3 · Outline") currently only documents the Outline sub-step. Phase 3 now spans six sub-steps: **Outline → Exhibits → Win Themes → Draft → Compliance → Compile**. Update the card so it documents the whole phase, incorporating the previously-separate Phase 4 (Win Themes) and Phase 5 (Drafting & Submission) content.
 
-## Changes (UI only, `src/pages/SolicitationDetail.tsx`)
+## File touched
 
-1. **Remove the redundant title (H1).**
-   - The breadcrumb already shows the solicitation title (line 372). Drop the `<h1>{s.title}</h1>` at line 403.
-   - Keep client + solicitation number + stage badges row (line 378-402) and the agency/SAM.gov row (line 404-419) as the compact identity strip.
+- `src/features/solicitations/help/phase3.tsx` — rewrite content
+- `src/features/solicitations/help/phase4.tsx` — delete (now orphaned)
+- `src/features/solicitations/help/phase5.tsx` — delete (now orphaned)
 
-2. **Remove the Phase strip + countdown Card** (lines 458-497).
-   - Move the "Proposal due" countdown inline into the header's right-side action cluster (next to status dropdown) as a small chip — preserves the urgency color cue without a full card row.
-   - Delete `PhaseIndicator` usage here; phase progression now lives only in Workflow.
+No changes to `PhaseHelpPanel.tsx` (it already only references `phase3Doc`), no route, type, or workflow changes.
 
-3. **Make Workflow the visible default + progress home.**
-   - `PhaseHub` (Workflow tab) already renders all three phases with sub-steps, states, and approvals — this becomes the single progress UI.
-   - Keep the slim top nav (Workflow | Phase 1 | Phase 2 | Phase 3 | Workspace) as the navigation; selecting a phase still opens its workspace directly.
+## New phase3.tsx structure
 
-4. **Result**: ~140px reclaimed above the workspace; phase identity/color still surfaced through the colored Phase nav buttons and the per-phase `PhaseShell` header inside each phase view.
+**Title:** `Phase 3 · Proposal Development`
+**Summary:** "Build the proposal end-to-end — outline, exhibits, win themes, drafting, compliance, and final compile — aligned to Section L and the RTM."
 
-## Options for the countdown placement
+**Sections:**
 
-Pick one before I build:
+1. **Purpose** — Phase 3 turns Phase 1/2 intelligence into the submitted proposal: skeleton, strategy, drafts, compliance proof, and final compiled package.
 
-- **A. Inline chip in header actions (recommended).** A compact `Clock + "12 days left"` chip next to the status dropdown. Smallest footprint, keeps urgency color.
-- **B. Inline next to the H2/breadcrumb on the right.** Same chip, right-aligned at breadcrumb row.
-- **C. Move it into the Workflow card header only.** Cleanest header, but countdown is hidden when on a phase tab.
+2. **How it works** — Six sequenced sub-steps share the same RTM, Section L/M references, and Client Knowledge Library. Each sub-step has its own workspace; advancement is gated by approvals.
+
+3. **Step-by-step** (HelpSteps, 6 items):
+   - **Outline** — Generate hierarchical outline from Section L + RTM with page-count guidance; edit, reorder, assign owners.
+   - **Exhibits** — Identify and stage required exhibits (resumes, past performance, certifications, attachments) per section.
+   - **Win Themes** — Generate 3–5 validated themes with discriminators, proof points, and competitor ghosting; map each theme to outline sections (from old Phase 4).
+   - **Draft** — Writers draft each section with AI assist (Draft / Tighten / Expand / Rewrite to Theme); inline citations from the Knowledge Library; run pink/red/gold reviews (from old Phase 5).
+   - **Compliance** — Live compliance matrix confirms every "shall" has a response; export to Word/Excel.
+   - **Compile** — Assemble all volumes, front/back matter, apply buyer format profile, run pre-flight, and package the submission .zip.
+
+4. **Outcome** (HelpBullets):
+   - Compliance-aligned outline + exhibit plan ready for writers.
+   - 3–5 validated win themes mapped section-by-section.
+   - Drafted, reviewed sections at "final" across every volume.
+   - 100% requirement coverage in the compliance matrix.
+   - Compiled .docx per volume + combined .pdf in the buyer format.
+   - Submission .zip with naming, redline/clean copies, transmittal letter.
+
+5. **Why it matters** — A great Phase 1/2 means nothing if Phase 3 ships out-of-compliance or off-message. This phase is the deliverable.
+
+6. **Client participation** (HelpCallout, tone="client") — Client approves the outline + page allocations, validates every win theme discriminator/proof point, owns gold-team review, and signs off the compiled package before submission is unlocked.
+
+7. **Tips** (HelpBullets):
+   - Lock the outline before kicking off writers — late structural changes are expensive.
+   - Limit to 3–5 win themes; pair every discriminator with a proof point.
+   - Resolve every comment before promoting a section to final.
+   - Re-run the compliance matrix after every major edit; do not wait until pre-flight.
+   - Apply the buyer format profile early — page limits drive how aggressively to tighten.
+
+## Cleanup
+
+Delete `phase4.tsx` and `phase5.tsx` — no remaining imports.
 
 ## Out of scope
 
-- No changes to `PhaseHub`, `PhaseShell`, `PhaseIndicator`, or any phase content.
-- No route/tab key changes, no backend changes.
-- `PortalSolicitationDetail` unchanged.
-
-## Technical notes
-
-- File touched: `src/pages/SolicitationDetail.tsx` only.
-- Imports to drop if unused after edit: `PhaseIndicator`, possibly `Card`/`CardContent` (verify other usages before removing).
-- `days`, `urgency`, `daysUntil`, `dueUrgency` stay; reused by the new chip.
+No changes to sub-step keys, `PhaseHub`, workflow UI, approvals, or any business logic.
