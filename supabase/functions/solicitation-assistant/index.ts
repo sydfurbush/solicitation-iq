@@ -257,6 +257,118 @@ async function retrieveDocumentExcerpts(
   return { block, citations };
 }
 
+type KnowledgeCitation = {
+  kind: "knowledge";
+  label: string;
+  ref_id: string;
+  document_id: string;
+  chunk_id: string | null;
+};
+
+async function retrievePinnedKnowledge(
+  supa: any,
+  clientId: string | null,
+  pinnedIds: string[],
+  message: string,
+): Promise<{ block: string; citations: KnowledgeCitation[] }> {
+  if (!clientId || !pinnedIds.length) return { block: "", citations: [] };
+
+  type Hit = {
+    chunk_id: string | null;
+    document_id: string;
+    document_title: string;
+    chunk_index: number | null;
+    content: string;
+    similarity?: number;
+  };
+  let hits: Hit[] = [];
+
+  // Try semantic match first, scoped to the client's corpus, then filter to pinned IDs.
+  try {
+    const queryVec = await embedQuery(message);
+    if (queryVec) {
+      const { data, error } = await supa.rpc("match_client_knowledge", {
+        p_client_id: clientId,
+        p_query_embedding: queryVec as unknown as string,
+        p_match_count: 20,
+        p_min_similarity: 0.2,
+      });
+      if (error) {
+        console.warn("[solicitation-assistant] match_client_knowledge failed:", error.message);
+      } else {
+        hits = ((data ?? []) as any[])
+          .filter((r) => pinnedIds.includes(r.document_id))
+          .map((r) => ({
+            chunk_id: r.chunk_id ?? null,
+            document_id: r.document_id,
+            document_title: r.document_title,
+            chunk_index: r.chunk_index ?? null,
+            content: String(r.content ?? ""),
+            similarity: Number(r.similarity ?? 0),
+          }))
+          .slice(0, 6);
+      }
+    }
+  } catch (e) {
+    console.warn("[solicitation-assistant] knowledge vector retrieval failed:", e instanceof Error ? e.message : e);
+  }
+
+  // Fallback: pull the first 2 chunks of each pinned doc by chunk_index.
+  if (!hits.length) {
+    const { data, error } = await supa
+      .from("client_knowledge_chunks")
+      .select("id,document_id,chunk_index,content,client_knowledge_documents!inner(title)")
+      .eq("client_id", clientId)
+      .in("document_id", pinnedIds)
+      .order("chunk_index", { ascending: true })
+      .limit(12);
+    if (error) {
+      console.warn("[solicitation-assistant] knowledge fallback failed:", error.message);
+    } else {
+      const perDoc = new Map<string, number>();
+      for (const r of (data ?? []) as any[]) {
+        const n = perDoc.get(r.document_id) ?? 0;
+        if (n >= 2) continue;
+        perDoc.set(r.document_id, n + 1);
+        hits.push({
+          chunk_id: r.id,
+          document_id: r.document_id,
+          document_title: r.client_knowledge_documents?.title ?? "Knowledge",
+          chunk_index: r.chunk_index ?? null,
+          content: String(r.content ?? ""),
+        });
+      }
+      hits = hits.slice(0, 6);
+    }
+  }
+
+  if (!hits.length) return { block: "", citations: [] };
+
+  const MAX_TOTAL = 3500;
+  const lines: string[] = [];
+  const citations: KnowledgeCitation[] = [];
+  let used = 0;
+  for (const h of hits) {
+    const label = `Knowledge: ${h.document_title}${h.chunk_index != null ? ` › chunk ${h.chunk_index}` : ""}`;
+    const snippet = h.content.trim().slice(0, 800);
+    const entry = `[${label}]\n${snippet}`;
+    if (used + entry.length > MAX_TOTAL) break;
+    lines.push(entry);
+    used += entry.length + 2;
+    citations.push({
+      kind: "knowledge",
+      label: `[${label}]`,
+      ref_id: h.chunk_id ?? h.document_id,
+      document_id: h.document_id,
+      chunk_id: h.chunk_id,
+    });
+  }
+
+  const block = `## Pinned knowledge\nThe user has pinned these client knowledge documents to this thread. Use them as authoritative when they answer the question, and cite them with the bracketed label.\n\n${lines.join("\n\n")}`;
+  return { block, citations };
+}
+
+
 
 function contextToString(ctx: Awaited<ReturnType<typeof buildContext>>): string {
   const s = ctx.sol;
