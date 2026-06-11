@@ -201,7 +201,7 @@ export function ProgressHeader({
 
         {/* Approvals + advance */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-t pt-4">
-          <PhaseApprovalStrip byPhase={byPhase} currentPhase={currentPhase} />
+          <PhaseApprovalStrip byPhase={byPhase} variant="compact" />
           <AdvancePhaseButton solicitationId={solicitationId} currentPhase={currentPhase} />
         </div>
       </CardContent>
