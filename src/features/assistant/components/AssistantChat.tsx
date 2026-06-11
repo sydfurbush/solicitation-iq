@@ -516,12 +516,40 @@ function MessageRow({
               );
               if (!visible.length) return null;
               return (
-                <div className="not-prose mt-2 flex flex-wrap gap-1">
-                  {visible.map((c: any, i: number) => (
-                    <Badge key={i} variant="secondary" className="text-[10px] font-normal">
-                      {c.label}
-                    </Badge>
-                  ))}
+                <div className="not-prose mt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] text-muted-foreground gap-1"
+                    onClick={() => {
+                      const next = !citationsOpen;
+                      setCitationsOpen(next);
+                      try {
+                        window.localStorage.setItem(
+                          "assistant_citations_default_v1",
+                          next ? "open" : "closed",
+                        );
+                      } catch {}
+                    }}
+                    aria-expanded={citationsOpen}
+                  >
+                    {citationsOpen ? (
+                      <ChevronUp className="h-3 w-3" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3" />
+                    )}
+                    {citationsOpen ? "Hide" : "Show"} citations ({visible.length})
+                  </Button>
+                  {citationsOpen && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {visible.map((c: any, i: number) => (
+                        <Badge key={i} variant="secondary" className="text-[10px] font-normal">
+                          {c.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })()}
