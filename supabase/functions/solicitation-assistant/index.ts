@@ -430,6 +430,9 @@ Deno.serve(async (req) => {
     const slash = body.slash && typeof body.slash === "object"
       ? { handler: String(body.slash.handler ?? ""), rest: String(body.slash.rest ?? "") }
       : null;
+    const pinnedKnowledgeIds: string[] = Array.isArray(body.pinnedKnowledgeIds)
+      ? body.pinnedKnowledgeIds.filter((x: unknown): x is string => typeof x === "string").slice(0, 25)
+      : [];
 
     if (!solicitationId || !threadId || !message) {
       return new Response(JSON.stringify({ error: "solicitationId, threadId, and message are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
