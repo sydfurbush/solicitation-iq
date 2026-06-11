@@ -28,7 +28,7 @@ import { MemoryPanel } from "./MemoryPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { PinnedKnowledgeChips } from "./PinnedKnowledgeChips";
-import { RiskRadar } from "./RiskRadar";
+
 import { SuggestedKnowledgeBanner, type KnowledgeSuggestion } from "./SuggestedKnowledgeBanner";
 import { PhotoAttachmentButton } from "./PhotoAttachmentButton";
 import { AttachmentChips } from "./AttachmentChips";
