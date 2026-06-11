@@ -62,6 +62,7 @@ import { PinnedEntityChips } from "./PinnedEntityChips";
 import { PinEntityPopover } from "./PinEntityPopover";
 import { AssistantAnalyticsButton } from "./AssistantAnalyticsButton";
 import { InlineActionButtons } from "./InlineActionButtons";
+import { MermaidBlock } from "./MermaidBlock";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
@@ -487,10 +488,37 @@ function MessageRow({
                 a: ({ node, ...props }) => (
                   <a {...props} target="_blank" rel="noopener noreferrer" />
                 ),
-                pre: ({ node, ...props }) => <pre {...props} />,
-                code: ({ node, className, children, ...props }: any) => (
-                  <code className={className} {...props}>{children}</code>
-                ),
+                pre: ({ node, children, ...props }: any) => {
+                  // If child is a fenced mermaid code block, let the code
+                  // renderer handle it (return children directly so we don't
+                  // double-wrap in <pre>).
+                  const child: any = Array.isArray(children) ? children[0] : children;
+                  const childClass: string = child?.props?.className ?? "";
+                  if (/language-mermaid/.test(childClass)) {
+                    return <>{children}</>;
+                  }
+                  return (
+                    <pre
+                      {...props}
+                      className="not-prose my-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-[0.8rem] leading-relaxed whitespace-pre font-mono"
+                    >
+                      {children}
+                    </pre>
+                  );
+                },
+                code: ({ node, className, children, ...props }: any) => {
+                  const codeText = String(children ?? "");
+                  if (/language-mermaid/.test(className ?? "")) {
+                    return <MermaidBlock code={codeText.replace(/\n$/, "")} />;
+                  }
+                  // Inline code keeps default styling; block code inherits the
+                  // pre wrapper above and should not wrap.
+                  return (
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  );
+                },
                 input: ({ node, ...props }: any) => {
                   if (props.type === "checkbox") {
                     return <input {...props} disabled readOnly />;

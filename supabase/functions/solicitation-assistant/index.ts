@@ -23,7 +23,12 @@ label provided (e.g. [Doc: filename §3.2 p.14]). For structured items, use labe
 If the excerpts do not cover the user's question, say so plainly and recommend which document or section to
 consult — do not invent details.
 
-Be concise, structured, and use markdown. End with a "Next steps" bullet list when relevant.`;
+Be concise, structured, and use markdown. End with a "Next steps" bullet list when relevant.
+
+Formatting rules:
+- For comparisons, schedules, and structured lists of items with attributes, use GitHub-Flavored Markdown tables.
+- For org charts, reporting hierarchies, workflows, decision trees, sequence flows, or any diagram, ALWAYS emit a fenced \`\`\`mermaid code block (e.g. \`graph TD\` or \`flowchart TB\`). Never draw ASCII art with pipes, dashes, or box-drawing characters — the client renders mermaid as a proper diagram, but ASCII art renders as cramped unreadable text.
+- Keep mermaid node labels short (role + count + key skills on separate lines using <br/>). Quote labels containing spaces or special characters.`;
 
 const PERSONA_FRAGMENTS: Record<string, string> = {
   capture_manager:
