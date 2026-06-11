@@ -247,6 +247,17 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
           <AssistantAnalyticsButton />
           <Button
             type="button"
+            variant={showRadar ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8 px-2 text-xs gap-1.5"
+            onClick={toggleRadar}
+            title="Risk Radar — show or hide critical risks for this solicitation"
+            aria-pressed={showRadar}
+          >
+            <Radar className="h-3.5 w-3.5" /> Risk Radar
+          </Button>
+          <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="h-8 px-2 text-xs gap-1.5"
