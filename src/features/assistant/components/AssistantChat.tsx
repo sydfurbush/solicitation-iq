@@ -62,6 +62,10 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showRadar, setShowRadar] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(`assistant_show_radar_v1:${threadId}`) === "1";
+  });
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
