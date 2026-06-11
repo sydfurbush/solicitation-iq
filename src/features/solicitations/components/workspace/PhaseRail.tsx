@@ -172,8 +172,20 @@ export function PhaseRail({
                   </span>
                 </button>
 
+                {isActive && (
+                  <div className="ml-[34px] mt-3 mb-1">
+                    <button
+                      onClick={() => onSelect(tab, p.defaultStep)}
+                      className="w-full flex items-center justify-between gap-2 h-8 px-3 rounded-sm bg-rail-accent text-white text-xs font-semibold uppercase tracking-wider hover:brightness-110 transition"
+                    >
+                      <span>Open Workspace</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
                 {isActive && p.steps.length > 0 && (
-                  <div className="ml-[34px] mt-2 pt-2 pl-4 border-l border-white/10 space-y-3">
+                  <div className="ml-[34px] mt-2 pt-2 pl-4 border-l border-white/10 space-y-1">
                     {p.steps.map((s) => {
                       const sActive = (activeStep ?? p.defaultStep) === s.key;
                       const count = counts?.[s.key];
@@ -182,9 +194,9 @@ export function PhaseRail({
                           key={s.key}
                           onClick={() => onSelect(tab, s.key)}
                           className={cn(
-                            "w-full flex items-center justify-between text-left text-sm transition-colors relative",
+                            "w-full flex items-center justify-between text-left text-sm transition-colors relative cursor-pointer rounded-sm px-2 -mx-2 py-1.5 hover:bg-white/5",
                             sActive
-                              ? "text-white font-medium before:absolute before:-left-[17px] before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-1.5 before:bg-rail-accent before:rounded-full"
+                              ? "text-white font-medium before:absolute before:-left-[19px] before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-1.5 before:bg-rail-accent before:rounded-full"
                               : "text-rail-muted hover:text-white",
                           )}
                         >
