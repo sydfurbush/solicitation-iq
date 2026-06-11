@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Pin,
   PinOff,
@@ -16,6 +16,8 @@ import {
   ChevronDown,
   ChevronRight,
   RotateCcw,
+  MoreHorizontal,
+  Pencil,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
