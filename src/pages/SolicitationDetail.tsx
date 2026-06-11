@@ -88,6 +88,10 @@ const PHASE_2_STEPS = [
 const PHASE_3_STEPS = [
   { key: "outline", label: "Proposal outline" },
   { key: "exhibits", label: "Exhibits & Attachments" },
+  { key: "themes", label: "Win themes" },
+  { key: "draft", label: "Draft" },
+  { key: "compliance", label: "Compliance matrix" },
+  { key: "compile", label: "Compile & package" },
 ];
 
 // Maps any legacy ?tab= value (or pre-redesign deep links) to the new shape.
@@ -98,8 +102,13 @@ const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   questions: { tab: "phase-1", step: "questions" },
   risks: { tab: "phase-1", step: "risks" },
   "deep-dive": { tab: "phase-2" },
-  outline: { tab: "phase-3" },
-  "win-themes": { tab: "phase-4" },
+  outline: { tab: "phase-3", step: "outline" },
+  "win-themes": { tab: "phase-3", step: "themes" },
+  "phase-4": { tab: "phase-3", step: "themes" },
+  "phase-5": { tab: "phase-3", step: "draft" },
+  drafting: { tab: "phase-3", step: "draft" },
+  compliance: { tab: "phase-3", step: "compliance" },
+  compile: { tab: "phase-3", step: "compile" },
 };
 
 type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity" | "assistant";
