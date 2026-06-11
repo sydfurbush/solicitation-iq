@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { BookOpen, Brain, Loader2, Mic, Send, Settings2, Square } from "lucide-react";
+import { BookOpen, Brain, ChevronDown, ChevronUp, Loader2, Mic, Radar, Send, Settings2, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,6 +62,10 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showRadar, setShowRadar] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(`assistant_show_radar_v1:${threadId}`) === "1";
+  });
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -91,6 +95,21 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, send.isPending]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setShowRadar(window.localStorage.getItem(`assistant_show_radar_v1:${threadId}`) === "1");
+  }, [threadId]);
+
+  const toggleRadar = () => {
+    setShowRadar((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(`assistant_show_radar_v1:${threadId}`, next ? "1" : "0");
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     taRef.current?.focus();
@@ -228,6 +247,17 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
           <AssistantAnalyticsButton />
           <Button
             type="button"
+            variant={showRadar ? "secondary" : "ghost"}
+            size="sm"
+            className="h-8 px-2 text-xs gap-1.5"
+            onClick={toggleRadar}
+            title="Risk Radar — show or hide critical risks for this solicitation"
+            aria-pressed={showRadar}
+          >
+            <Radar className="h-3.5 w-3.5" /> Risk Radar
+          </Button>
+          <Button
+            type="button"
             variant="ghost"
             size="sm"
             className="h-8 px-2 text-xs gap-1.5"
@@ -291,7 +321,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
 
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {messages.length > 0 && (
+        {showRadar && (
           <RiskRadar solicitationId={solicitationId} onDiscuss={(p) => submit(p)} compact={compact} />
         )}
         {(() => {
@@ -452,6 +482,10 @@ function MessageRow({
 }) {
   const text = (m.parts ?? []).map((p) => (p.type === "text" ? p.text ?? "" : "")).join("\n");
   const isUser = m.role === "user";
+  const [citationsOpen, setCitationsOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("assistant_citations_default_v1") === "open";
+  });
   return (
     <div id={`assistant-msg-${m.id}`} className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
@@ -482,12 +516,40 @@ function MessageRow({
               );
               if (!visible.length) return null;
               return (
-                <div className="not-prose mt-2 flex flex-wrap gap-1">
-                  {visible.map((c: any, i: number) => (
-                    <Badge key={i} variant="secondary" className="text-[10px] font-normal">
-                      {c.label}
-                    </Badge>
-                  ))}
+                <div className="not-prose mt-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-[11px] text-muted-foreground gap-1"
+                    onClick={() => {
+                      const next = !citationsOpen;
+                      setCitationsOpen(next);
+                      try {
+                        window.localStorage.setItem(
+                          "assistant_citations_default_v1",
+                          next ? "open" : "closed",
+                        );
+                      } catch {}
+                    }}
+                    aria-expanded={citationsOpen}
+                  >
+                    {citationsOpen ? (
+                      <ChevronUp className="h-3 w-3" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3" />
+                    )}
+                    {citationsOpen ? "Hide" : "Show"} citations ({visible.length})
+                  </Button>
+                  {citationsOpen && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {visible.map((c: any, i: number) => (
+                        <Badge key={i} variant="secondary" className="text-[10px] font-normal">
+                          {c.label}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })()}
