@@ -575,13 +575,22 @@ Deno.serve(async (req) => {
     ]);
     const ctxStr = contextToString(ctx);
 
+    // Pinned knowledge retrieval (scoped to the solicitation's client)
+    const knowledge = await retrievePinnedKnowledge(
+      supa,
+      (ctx.sol as any)?.client_id ?? null,
+      pinnedKnowledgeIds,
+      message,
+    );
+
     const conversation = (history ?? []).map((m: any) => {
       const text = (m.parts ?? []).map((p: any) => (p.type === "text" ? p.text : "")).join("\n");
       return `${m.role.toUpperCase()}: ${text}`;
     }).join("\n\n");
 
     const excerptBlock = excerpts.block ? `${excerpts.block}\n\n` : "";
-    const userPrompt = `## Context for this solicitation\n\n${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
+    const knowledgeBlock = knowledge.block ? `${knowledge.block}\n\n` : "";
+    const userPrompt = `## Context for this solicitation\n\n${knowledgeBlock}${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
 
     // Compose system prompt with persona + optional plain-mode fragment + memory + tone
     const personaFragment = PERSONA_FRAGMENTS[effectivePersona] ?? PERSONA_FRAGMENTS.capture_manager;
