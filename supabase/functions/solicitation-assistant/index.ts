@@ -660,7 +660,20 @@ Deno.serve(async (req) => {
     const photosBlock = attachmentInfos.length > 0
       ? `## Attached photos\nThe user attached ${attachmentInfos.length} photo${attachmentInfos.length === 1 ? "" : "s"} with this message (provided as images alongside the text). Treat them as real evidence from the user. Filenames:\n${attachmentInfos.map((a, i) => `- [Photo ${i + 1}] ${a.file_name}`).join("\n")}\n\n`
       : "";
-    const userPrompt = `## Context for this solicitation\n\n${photosBlock}${knowledgeBlock}${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
+
+    // Pinned focus entities — the user has scoped this thread to specific records.
+    const pinnedEntities: Array<{ kind: string; id: string; label: string }> = Array.isArray(
+      (thread as any)?.pinned_entity?.entities,
+    )
+      ? ((thread as any).pinned_entity.entities as any[])
+          .filter((e) => e && typeof e.id === "string" && typeof e.kind === "string" && typeof e.label === "string")
+          .slice(0, 5)
+      : [];
+    const focusBlock = pinnedEntities.length > 0
+      ? `## Focus\nThe user has pinned these items as the focus of this conversation. Prefer to ground your answer in them and cite them by their existing labels.\n${pinnedEntities.map((e) => `- [${e.kind}] ${e.label}`).join("\n")}\n\n`
+      : "";
+
+    const userPrompt = `## Context for this solicitation\n\n${focusBlock}${photosBlock}${knowledgeBlock}${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
 
     // Compose system prompt with persona + optional plain-mode fragment + memory + tone
     const personaFragment = PERSONA_FRAGMENTS[effectivePersona] ?? PERSONA_FRAGMENTS.capture_manager;
