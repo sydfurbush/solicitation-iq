@@ -282,7 +282,14 @@ async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<{ out
       );
     }
     try {
-      return JSON.parse(toolCall.function.arguments);
+      const output = JSON.parse(toolCall.function.arguments);
+      return {
+        output,
+        usage: {
+          tokensIn: Number(usage?.prompt_tokens ?? 0),
+          tokensOut: Number(usage?.completion_tokens ?? 0),
+        },
+      };
     } catch (e) {
       console.error(`[aiClient] failed to parse tool args (likely truncated). finish=${finish} chars=${argLen}`);
       throw e;
