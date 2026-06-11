@@ -91,7 +91,14 @@ async function loadOverride(functionName: string): Promise<ModelChoice | null> {
   }
 }
 
-export async function callAiTool(args: CallAiArgs): Promise<Record<string, unknown>> {
+export interface AiCallResult {
+  output: Record<string, unknown>;
+  usage: { tokensIn: number; tokensOut: number };
+  model: string;
+  provider: Provider;
+}
+
+export async function callAiToolWithUsage(args: CallAiArgs): Promise<AiCallResult> {
   const fallback = MODEL_CONFIG[args.functionName];
   const override = args.modelOverride ? null : await loadOverride(args.functionName);
   const choice = args.modelOverride ?? override ?? fallback;
@@ -101,8 +108,15 @@ export async function callAiTool(args: CallAiArgs): Promise<Record<string, unkno
     `[aiClient] resolved ${args.functionName} -> provider=${choice.provider} model=${choice.model} maxTokens=${choice.maxTokens} source=${source}`
   );
 
-  if (choice.provider === "anthropic") return callAnthropic(choice, args);
-  return callLovable(choice, args);
+  const result = choice.provider === "anthropic"
+    ? await callAnthropic(choice, args)
+    : await callLovable(choice, args);
+  return { ...result, model: choice.model, provider: choice.provider };
+}
+
+export async function callAiTool(args: CallAiArgs): Promise<Record<string, unknown>> {
+  const r = await callAiToolWithUsage(args);
+  return r.output;
 }
 
 async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Record<string, unknown>> {
