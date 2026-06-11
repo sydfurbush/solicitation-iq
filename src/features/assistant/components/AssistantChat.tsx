@@ -291,7 +291,9 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
 
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        <RiskRadar solicitationId={solicitationId} onDiscuss={(p) => submit(p)} compact={compact} />
+        {messages.length > 0 && (
+          <RiskRadar solicitationId={solicitationId} onDiscuss={(p) => submit(p)} compact={compact} />
+        )}
         {(() => {
           const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
           if (!lastAssistant) return null;
