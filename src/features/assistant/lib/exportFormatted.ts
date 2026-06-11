@@ -162,7 +162,7 @@ async function renderTranscriptDom(
     root.unmount();
     host.remove();
   };
-  return { html, cleanup };
+  return { html, host, cleanup } as { html: string; host: HTMLElement; cleanup: () => void };
 }
 
 export async function renderTranscriptToHtml(
@@ -175,6 +175,82 @@ export async function renderTranscriptToHtml(
   const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${title}</title><style>${PRINT_CSS}</style></head><body>${bodyHtml}</body></html>`;
   return { html, bodyHtml };
 }
+
+/* ----------------------------- SVG → PNG ---------------------------------- */
+
+type DocxImage = { data: Uint8Array; width: number; height: number };
+
+async function rasterizeSvg(svg: SVGSVGElement): Promise<DocxImage | null> {
+  try {
+    // Determine natural width/height from attributes, viewBox, or bounding box.
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox?.baseVal;
+    let w = svg.width?.baseVal?.value || rect.width || (vb && vb.width) || 800;
+    let h = svg.height?.baseVal?.value || rect.height || (vb && vb.height) || 600;
+    if (!isFinite(w) || w <= 0) w = 800;
+    if (!isFinite(h) || h <= 0) h = Math.round(w * 0.6);
+
+    // Make sure the serialized SVG carries explicit dimensions and the
+    // xmlns attribute (some live DOM SVGs omit it).
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    if (!clone.getAttribute("width")) clone.setAttribute("width", String(w));
+    if (!clone.getAttribute("height")) clone.setAttribute("height", String(h));
+
+    const svgString = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    const loaded = new Promise<HTMLImageElement>((resolve, reject) => {
+      img.onload = () => resolve(img);
+      img.onerror = (e) => reject(e);
+    });
+    img.src = url;
+    await loaded;
+
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      URL.revokeObjectURL(url);
+      return null;
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+
+    const dataUrl = canvas.toDataURL("image/png");
+    const base64 = dataUrl.split(",")[1] ?? "";
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return { data: bytes, width: w, height: h };
+  } catch {
+    return null;
+  }
+}
+
+async function rasterizeAllSvgs(host: HTMLElement): Promise<void> {
+  const svgs = Array.from(host.querySelectorAll("svg"));
+  for (const svg of svgs) {
+    const img = await rasterizeSvg(svg as SVGSVGElement);
+    const placeholder = document.createElement("div");
+    if (img) {
+      const idx = (window as any).__docxImages.length;
+      (window as any).__docxImages.push(img);
+      placeholder.setAttribute("data-docx-image", String(idx));
+    } else {
+      placeholder.setAttribute("data-docx-image", "fallback");
+    }
+    svg.parentNode?.replaceChild(placeholder, svg);
+  }
+}
+
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
