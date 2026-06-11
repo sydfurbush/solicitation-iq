@@ -851,6 +851,9 @@ Deno.serve(async (req) => {
       thread_id: threadId,
       message_id: assistantMsg?.id ?? null,
       persona: effectivePersona,
+      model: aiModel,
+      tokens_in: aiUsage.tokensIn,
+      tokens_out: aiUsage.tokensOut,
       status: "ok",
       latency_ms: Date.now() - t0,
     });
