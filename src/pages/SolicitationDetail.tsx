@@ -317,20 +317,21 @@ export default function SolicitationDetail() {
     }
     if (phase === "phase_3_outline") {
       return [
-        { key: "outline", label: "Proposal outline", state: stepState(true), onClick: () => goTab("phase-3") },
+        { key: "outline", label: "Proposal outline", state: stepState(true), onClick: () => goTab("phase-3", "outline") },
+        { key: "exhibits", label: "Exhibits & Attachments", state: stepState(), onClick: () => goTab("phase-3", "exhibits") },
+        { key: "themes", label: "Win themes", state: stepState(), onClick: () => goTab("phase-3", "themes") },
+        { key: "draft", label: "Draft", state: stepState(), onClick: () => goTab("phase-3", "draft") },
+        { key: "compliance", label: "Compliance matrix", state: stepState(), onClick: () => goTab("phase-3", "compliance") },
+        { key: "compile", label: "Compile & package", state: stepState(), onClick: () => goTab("phase-3", "compile") },
       ];
     }
-    return [
-      { key: "themes", label: "Win themes", state: stepState(true), onClick: () => goTab("phase-4") },
-    ];
+    return [];
   };
 
   const phaseLabelByKey: Record<string, string> = {
     "phase-1": "Phase 1 · Initial",
     "phase-2": "Phase 2 · Deep Dive",
-    "phase-3": "Phase 3 · Outline",
-    "phase-4": "Phase 4 · Win Themes",
-    "phase-5": "Phase 5 · Drafting",
+    "phase-3": "Phase 3 · Proposal Development",
   };
 
   const renderPhase1 = () => {
