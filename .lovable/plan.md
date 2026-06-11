@@ -1,20 +1,35 @@
-## Hide Risk Radar on empty chats
+# Plan: Hide Risk Radar & Add Citation Toggle
 
-The Risk Radar currently renders at the top of every chat — including brand-new conversations where there's nothing else on screen, which makes it look like a forced selection instead of an in-conversation aid.
+## 1. Risk Radar — never auto-show
 
-### Change
+The current `messages.length > 0` gate still surfaces the radar as soon as a thread has any history, which the screenshot shows is unwanted. Change behavior so Risk Radar is fully opt-in.
 
-In `src/features/assistant/components/AssistantChat.tsx`, only mount `<RiskRadar />` when the thread already has at least one message. The empty state (Sparkle icon + "AI Assistant" + Suggested Starters) will be the only thing shown on a new chat.
+**Changes in `src/features/assistant/components/AssistantChat.tsx`:**
+- Remove the unconditional `<RiskRadar />` block (lines 293–296).
+- Add a small "Risk Radar" toggle button in the existing assistant toolbar (next to Knowledge / Memory / Analytics icons) using the `Radar` lucide icon.
+- Track `showRadar` in local component state, default `false`. Persist per-thread in `localStorage` (`assistant_show_radar_v1:<threadId>`) so toggling it on for a thread doesn't reset on remount.
+- Render `<RiskRadar />` only when `showRadar === true`.
+- The existing `onDiscuss` action remains unchanged.
 
-```tsx
-{messages.length > 0 && (
-  <RiskRadar solicitationId={solicitationId} onDiscuss={(p) => submit(p)} compact={compact} />
-)}
-```
+Result: New chats and existing chats both load with no radar. User clicks the new toolbar button to reveal it; clicks again to hide.
 
-Once the user sends their first message, the Risk Radar will appear above the message list as before.
+## 2. Per-message Citations Toggle
 
-### Out of scope
+Currently each assistant message renders its citations row inline by default. Add a user-controlled toggle so citations stay collapsed unless requested.
 
-- No changes to RiskRadar's internal behavior, collapsed/expanded state, or the "Discuss" action.
-- No changes to other empty-state surfaces (Suggested Knowledge banner already only renders when there's an assistant reply).
+**Changes in `AssistantChat.tsx` (`MessageRow` component, around lines 477–500):**
+- Wrap the citations block in a collapsible region.
+- Replace the always-visible citation badges with a small footer control beneath the message body:
+  - A ghost button labeled `Show citations (N)` / `Hide citations (N)` with a chevron icon.
+  - Only render the button when `visible.length > 0` (matches existing filter that excludes `suggested_action` / `suggested_knowledge`).
+- Track `expanded` via `useState(false)` per `MessageRow` so each message has its own toggle.
+- Persist the user's preferred default in `localStorage` (`assistant_citations_default_v1`, values `"open" | "closed"`, default `"closed"`). The first toggle in a session updates the default so subsequent messages honor it.
+- The existing `InlineActionButtons` and the `citations` prop passed to `MessageBubble` (used for inline `[n]` reference numbering inside the message body) are not affected — only the badge list under the bubble is gated.
+
+## Out of scope
+- No edge function / backend changes.
+- No changes to `RiskRadar.tsx` internals.
+- No changes to `SuggestedKnowledgeBanner` or inline action buttons.
+
+## Files touched
+- `src/features/assistant/components/AssistantChat.tsx` (only)
