@@ -402,6 +402,16 @@ function collectRuns(node: Node, style: RunStyle = {}): (TextRun | ExternalHyper
     if (child.nodeType !== Node.ELEMENT_NODE) return;
     const el = child as HTMLElement;
     const tag = el.tagName.toUpperCase();
+    if (
+      tag === "STYLE" ||
+      tag === "SCRIPT" ||
+      tag === "NOSCRIPT" ||
+      tag === "TEMPLATE" ||
+      tag === "SVG" ||
+      tag === "BUTTON"
+    ) {
+      return;
+    }
     const next: RunStyle = { ...style };
     if (tag === "STRONG" || tag === "B") next.bold = true;
     if (tag === "EM" || tag === "I") next.italics = true;
