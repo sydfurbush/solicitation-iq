@@ -31,7 +31,7 @@ import {
   useUpdateSolicitationStatus,
 } from "@/features/solicitations/hooks/useSolicitations";
 import { useClient } from "@/features/clients/hooks/useClients";
-import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
+
 import { PhaseHub, type HubStep } from "@/features/solicitations/components/PhaseHub";
 import { PhaseShell } from "@/features/solicitations/components/PhaseShell";
 import { SolicitationActionsMenu } from "@/features/solicitations/components/SolicitationActionsMenu";
