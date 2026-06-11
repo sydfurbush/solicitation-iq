@@ -92,20 +92,6 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages.length, send.isPending]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setShowRadar(window.localStorage.getItem(`assistant_show_radar_v1:${threadId}`) === "1");
-  }, [threadId]);
-
-  const toggleRadar = () => {
-    setShowRadar((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(`assistant_show_radar_v1:${threadId}`, next ? "1" : "0");
-      } catch {}
-      return next;
-    });
-  };
 
   useEffect(() => {
     taRef.current?.focus();
