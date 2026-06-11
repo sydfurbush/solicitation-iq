@@ -692,15 +692,11 @@ function PhaseNavBtn({
     phase_1_initial: "bg-[hsl(var(--phase-1))]",
     phase_2_deep_dive: "bg-[hsl(var(--phase-2))]",
     phase_3_outline: "bg-[hsl(var(--phase-3))]",
-    phase_4_win_themes: "bg-[hsl(var(--phase-4))]",
-    phase_5_drafting: "bg-[hsl(var(--phase-5))]",
   };
   const colorText: Record<PhaseType, string> = {
     phase_1_initial: "text-[hsl(var(--phase-1))]",
     phase_2_deep_dive: "text-[hsl(var(--phase-2))]",
     phase_3_outline: "text-[hsl(var(--phase-3))]",
-    phase_4_win_themes: "text-[hsl(var(--phase-4))]",
-    phase_5_drafting: "text-[hsl(var(--phase-5))]",
   };
   return (
     <div className="inline-flex items-center">
