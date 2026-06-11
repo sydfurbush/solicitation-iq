@@ -86,12 +86,12 @@ const PHASE_2_STEPS = [
 ];
 
 const PHASE_3_STEPS = [
-  { key: "outline", label: "Proposal outline" },
-  { key: "exhibits", label: "Exhibits & Attachments" },
-  { key: "themes", label: "Win themes" },
+  { key: "outline", label: "Outline" },
+  { key: "exhibits", label: "Exhibits" },
+  { key: "themes", label: "Win Themes" },
   { key: "draft", label: "Draft" },
-  { key: "compliance", label: "Compliance matrix" },
-  { key: "compile", label: "Compile & package" },
+  { key: "compliance", label: "Compliance" },
+  { key: "compile", label: "Compile" },
 ];
 
 // Maps any legacy ?tab= value (or pre-redesign deep links) to the new shape.
