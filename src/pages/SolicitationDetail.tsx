@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { format } from "date-fns";
 import {
@@ -10,9 +10,17 @@ import {
   FileText,
   HelpCircle,
   Lightbulb,
+  Menu,
   ShieldAlert,
   Sparkles,
 } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  PhaseRail,
+  MobilePhaseBar,
+  useRailCollapsed,
+} from "@/features/solicitations/components/workspace/PhaseRail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
