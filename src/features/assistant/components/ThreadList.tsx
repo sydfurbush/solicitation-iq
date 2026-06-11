@@ -522,7 +522,7 @@ export function ThreadList({
                     ) : (
                       <MessageSquare className="h-3 w-3" />
                     )}
-                    <span className="truncate">{h.thread_title || "Untitled"}</span>
+                    <span className="truncate">{formatThreadTitle(h.thread_title) || "Untitled"}</span>
                     <span className="ml-auto shrink-0">
                       {formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}
                     </span>
