@@ -457,7 +457,7 @@ Deno.serve(async (req) => {
     const supa = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // Verify the user can access this thread (RLS-style check via userClient)
-    const { data: thread } = await userClient.from("assistant_threads").select("id,solicitation_id,persona,plain_mode").eq("id", threadId).maybeSingle();
+    const { data: thread } = await userClient.from("assistant_threads").select("id,solicitation_id,persona,plain_mode,pinned_entity").eq("id", threadId).maybeSingle();
     if (!thread || thread.solicitation_id !== solicitationId) {
       return new Response(JSON.stringify({ error: "thread not found or access denied" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
