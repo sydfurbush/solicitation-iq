@@ -320,7 +320,7 @@ export async function downloadAssistantPdf(
 
 /* --------------------------------- DOCX ----------------------------------- */
 
-const NUMBERING_CONFIG = {
+export const NUMBERING_CONFIG = {
   config: [
     {
       reference: "bullets",
