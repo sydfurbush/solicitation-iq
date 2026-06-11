@@ -596,6 +596,28 @@ Deno.serve(async (req) => {
       message,
     );
 
+    // Available (unpinned) knowledge docs for suggestions
+    const clientIdForKb = (ctx.sol as any)?.client_id ?? null;
+    let availableKnowledge: Array<{ id: string; title: string; tags: string[] }> = [];
+    if (clientIdForKb) {
+      const { data: kbRows } = await supa
+        .from("client_knowledge_documents")
+        .select("id,title,tags,status")
+        .eq("client_id", clientIdForKb)
+        .eq("status", "ready")
+        .order("updated_at", { ascending: false })
+        .limit(40);
+      availableKnowledge = ((kbRows ?? []) as any[])
+        .filter((r) => !pinnedKnowledgeIds.includes(r.id))
+        .slice(0, 25)
+        .map((r) => ({ id: r.id, title: r.title, tags: r.tags ?? [] }));
+    }
+    const availableKnowledgeBlock = availableKnowledge.length
+      ? `\n## Available knowledge documents (NOT yet pinned)\nYou MAY recommend up to 3 of these via "suggested_knowledge" when they would meaningfully improve your answer. Only use document_ids from this list verbatim. Skip when nothing fits.\n${availableKnowledge
+          .map((d) => `- id=${d.id} | "${d.title}"${d.tags.length ? ` | tags: ${d.tags.slice(0, 5).join(", ")}` : ""}`)
+          .join("\n")}`
+      : "";
+
     const conversation = (history ?? []).map((m: any) => {
       const text = (m.parts ?? []).map((p: any) => (p.type === "text" ? p.text : "")).join("\n");
       return `${m.role.toUpperCase()}: ${text}`;
@@ -619,6 +641,7 @@ Deno.serve(async (req) => {
       effectivePlain ? `\n## Plain mode\n${PLAIN_MODE_FRAGMENT}` : "",
       toneLine,
       memoryBlock,
+      availableKnowledgeBlock,
     ].filter(Boolean).join("\n");
 
     let result;
