@@ -39,6 +39,8 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   const send = useSendAssistantMessage();
   const updateThread = useUpdateThread();
   const [input, setInput] = useState("");
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
