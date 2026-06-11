@@ -196,6 +196,21 @@ export default function SolicitationDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawTab]);
 
+  // Default-tab: when no ?tab=, jump into focus mode on the loaded solicitation's current phase.
+  useEffect(() => {
+    if (rawTab) return;
+    if (!s?.current_phase) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", PHASE_TAB[s.current_phase as PhaseType]);
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawTab, s?.current_phase]);
+
+  // Mobile phase-rail sheet state
+  const isMobile = useIsMobile();
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const { collapsed: railCollapsed, toggle: toggleRail } = useRailCollapsed();
+
   const goTab = (t: string, st?: string) => {
     const next = new URLSearchParams();
     next.set("tab", t);
