@@ -234,7 +234,7 @@ export default function SolicitationDetail() {
 
   const status = (s.status ?? "intake") as SolicitationStatus;
   const currentPhase: PhaseType = (s.current_phase ?? "phase_1_initial") as PhaseType;
-  const currentPhaseIdx = PHASES.indexOf(currentPhase);
+  
 
   // Full-bleed assistant mode: takes over the page content area with a collapse trigger.
   if (tab === "assistant") {
