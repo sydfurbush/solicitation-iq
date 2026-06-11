@@ -45,9 +45,25 @@ type Props = {
   solicitationId: string;
   threadId: string;
   compact?: boolean;
+  memoryOpen?: boolean;
+  onMemoryOpenChange?: (v: boolean) => void;
+  prefsOpen?: boolean;
+  onPrefsOpenChange?: (v: boolean) => void;
+  knowledgeOpen?: boolean;
+  onKnowledgeOpenChange?: (v: boolean) => void;
 };
 
-export function AssistantChat({ solicitationId, threadId, compact }: Props) {
+export function AssistantChat({
+  solicitationId,
+  threadId,
+  compact,
+  memoryOpen: memoryOpenProp,
+  onMemoryOpenChange,
+  prefsOpen: prefsOpenProp,
+  onPrefsOpenChange,
+  knowledgeOpen: knowledgeOpenProp,
+  onKnowledgeOpenChange,
+}: Props) {
   const { data: messages = [], isLoading } = useAssistantMessages(threadId);
   const { data: presets = [] } = useAssistantPresets();
   const { data: threads = [] } = useAssistantThreads(solicitationId);
@@ -57,9 +73,15 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   const updateThread = useUpdateThread();
   const invalidateAttachments = useInvalidateAttachments();
   const [input, setInput] = useState("");
-  const [memoryOpen, setMemoryOpen] = useState(false);
-  const [prefsOpen, setPrefsOpen] = useState(false);
-  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [memoryOpenInternal, setMemoryOpenInternal] = useState(false);
+  const [prefsOpenInternal, setPrefsOpenInternal] = useState(false);
+  const [knowledgeOpenInternal, setKnowledgeOpenInternal] = useState(false);
+  const memoryOpen = memoryOpenProp ?? memoryOpenInternal;
+  const setMemoryOpen = onMemoryOpenChange ?? setMemoryOpenInternal;
+  const prefsOpen = prefsOpenProp ?? prefsOpenInternal;
+  const setPrefsOpen = onPrefsOpenChange ?? setPrefsOpenInternal;
+  const knowledgeOpen = knowledgeOpenProp ?? knowledgeOpenInternal;
+  const setKnowledgeOpen = onKnowledgeOpenChange ?? setKnowledgeOpenInternal;
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
