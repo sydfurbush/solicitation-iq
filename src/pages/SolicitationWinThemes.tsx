@@ -133,9 +133,6 @@ export default function SolicitationWinThemes({ solicitationId, currentPhase, so
           }
         </CardContent>
       </Card>
-      {currentPhase === "phase_4_win_themes" && (
-        <AdvancePhaseButton solicitationId={solicitationId} currentPhase="phase_4_win_themes" />
-      )}
     </div>
   );
 }
