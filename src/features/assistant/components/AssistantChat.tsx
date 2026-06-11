@@ -482,6 +482,10 @@ function MessageRow({
 }) {
   const text = (m.parts ?? []).map((p) => (p.type === "text" ? p.text ?? "" : "")).join("\n");
   const isUser = m.role === "user";
+  const [citationsOpen, setCitationsOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("assistant_citations_default_v1") === "open";
+  });
   return (
     <div id={`assistant-msg-${m.id}`} className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
