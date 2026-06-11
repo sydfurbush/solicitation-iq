@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Mic, Send, Square } from "lucide-react";
+import { Brain, Loader2, Mic, Send, Settings2, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,6 +20,8 @@ import { PersonaSelector } from "./PersonaSelector";
 import { PlainModeToggle } from "./PlainModeToggle";
 import { SlashCommandPopover } from "./SlashCommandPopover";
 import { StarterCards } from "./StarterCards";
+import { MemoryPanel } from "./MemoryPanel";
+import { PreferencesPanel } from "./PreferencesPanel";
 import { cn } from "@/lib/utils";
 
 type Props = {
