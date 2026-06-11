@@ -64,6 +64,19 @@ const TOOL_SCHEMA = {
         },
       },
       suggested_followups: { type: "array", items: { type: "string" } },
+      suggested_knowledge: {
+        type: "array",
+        description: "Up to 3 knowledge documents from the Available knowledge list that the user should pin for a better answer. Omit when nothing is relevant.",
+        items: {
+          type: "object",
+          properties: {
+            document_id: { type: "string" },
+            title: { type: "string" },
+            why: { type: "string", description: "One short sentence explaining why this doc is relevant." },
+          },
+          required: ["document_id", "title", "why"],
+        },
+      },
     },
     required: ["reply"],
   },
