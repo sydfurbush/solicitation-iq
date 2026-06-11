@@ -21,7 +21,7 @@ import {
 import { useAssistantTranscribe, MicrophoneError } from "../hooks/useAssistantTranscribe";
 import { parseSlashCommand, type PersonaKey } from "../lib/personas";
 import { PersonaSelector } from "./PersonaSelector";
-import { PlainModeToggle } from "./PlainModeToggle";
+
 import { SlashCommandPopover } from "./SlashCommandPopover";
 import { StarterCards } from "./StarterCards";
 import { MemoryPanel } from "./MemoryPanel";
