@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pin, PinOff, Plus, Trash2, Share2, Search } from "lucide-react";
+import { Pin, PinOff, Plus, Trash2, Share2, Search, MessageSquare, User } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,11 +12,12 @@ import {
   useUpdateThread,
   type AssistantThread,
 } from "../hooks/useAssistantThreads";
+import { useAssistantHistorySearch } from "../hooks/useAssistantHistorySearch";
 
 type Props = {
   solicitationId: string;
   activeThreadId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, messageId?: string) => void;
   shareBaseUrl?: string;
 };
 
@@ -26,6 +27,9 @@ export function ThreadList({ solicitationId, activeThreadId, onSelect, shareBase
   const del = useDeleteThread();
   const upd = useUpdateThread();
   const [q, setQ] = useState("");
+  const trimmed = q.trim();
+  const searchMode = trimmed.length >= 2;
+  const { data: hits = [], isFetching: searching } = useAssistantHistorySearch(solicitationId, trimmed);
 
   const filtered = threads.filter((t) => t.title.toLowerCase().includes(q.toLowerCase()));
 
