@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { aiErrorResponse, callAiTool } from "../_shared/aiClient.ts";
+import { aiErrorResponse, callAiToolWithUsage } from "../_shared/aiClient.ts";
 import { embedQuery } from "../_shared/embeddings.ts";
 
 
