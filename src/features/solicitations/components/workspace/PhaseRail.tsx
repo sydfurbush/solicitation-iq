@@ -256,30 +256,43 @@ interface MobileBarProps {
   activeStep: string | null;
   onSelect: (tab: string, step?: string) => void;
   onOpenSheet: () => void;
+  onOpenWorkspaces?: () => void;
+  counts?: Partial<Record<string, number>>;
 }
 
-export function MobilePhaseBar({ activeTab, activeStep, onSelect, onOpenSheet }: MobileBarProps) {
+export function MobilePhaseBar({ activeTab, activeStep, onSelect, onOpenSheet, onOpenWorkspaces }: MobileBarProps) {
   const phase = RAIL_PHASES.find((p) => TAB_BY_PHASE[p.phase] === activeTab) ?? RAIL_PHASES[0];
   const idx = RAIL_PHASES.indexOf(phase);
   const sub = activeStep ?? phase.defaultStep;
 
   return (
     <div className="bg-rail text-rail-foreground sticky top-0 z-20">
-      <button
-        onClick={onOpenSheet}
-        className="w-full flex items-center justify-between px-4 py-3 text-left"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-rail-accent text-[10px] font-bold shrink-0">
-            {String(idx + 1).padStart(2, "0")}
-          </span>
-          <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-widest text-rail-muted">Phase {idx + 1}</p>
-            <p className="text-sm font-semibold truncate">{phase.label}</p>
+      <div className="flex items-stretch">
+        <button
+          onClick={onOpenSheet}
+          className="flex-1 flex items-center justify-between px-4 py-3 text-left min-w-0"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-rail-accent text-[10px] font-bold shrink-0">
+              {String(idx + 1).padStart(2, "0")}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-widest text-rail-muted">Phase {idx + 1}</p>
+              <p className="text-sm font-semibold truncate">{phase.label}</p>
+            </div>
           </div>
-        </div>
-        <span className="text-xs text-rail-muted">Change ▾</span>
-      </button>
+          <span className="text-[10px] text-rail-muted ml-2">Change ▾</span>
+        </button>
+        {onOpenWorkspaces && (
+          <button
+            onClick={onOpenWorkspaces}
+            className="shrink-0 my-2 mr-3 ml-2 px-3 rounded-sm bg-rail-accent text-white text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 transition"
+          >
+            <span>Open</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
       {phase.steps.length > 0 && (
         <div className="flex gap-2 overflow-x-auto px-3 pb-3 snap-x">
           {phase.steps.map((s) => {
@@ -301,6 +314,57 @@ export function MobilePhaseBar({ activeTab, activeStep, onSelect, onOpenSheet }:
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+interface MobileWorkspaceSheetProps {
+  activeTab: string;
+  activeStep: string | null;
+  onSelect: (tab: string, step?: string) => void;
+  counts?: Partial<Record<string, number>>;
+}
+
+export function MobileWorkspaceSheet({ activeTab, activeStep, onSelect, counts }: MobileWorkspaceSheetProps) {
+  const phase = RAIL_PHASES.find((p) => TAB_BY_PHASE[p.phase] === activeTab) ?? RAIL_PHASES[0];
+  const idx = RAIL_PHASES.indexOf(phase);
+  const sub = activeStep ?? phase.defaultStep;
+  const steps = phase.steps.length > 0 ? phase.steps : [{ key: phase.defaultStep, label: phase.label }];
+
+  return (
+    <div className="flex flex-col">
+      <div className="px-1 pb-3 border-b border-border">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
+          Workspaces
+        </p>
+        <p className="text-base font-semibold mt-0.5">
+          Phase {idx + 1}: {phase.label}
+        </p>
+      </div>
+      <div className="flex flex-col py-2">
+        {steps.map((s) => {
+          const active = sub === s.key;
+          const count = counts?.[s.key];
+          return (
+            <button
+              key={s.key}
+              onClick={() => onSelect(activeTab, s.key)}
+              className={cn(
+                "flex items-center justify-between gap-3 px-3 py-3.5 rounded-md text-left transition-colors min-h-[48px]",
+                active ? "bg-rail/5 text-rail font-semibold" : "hover:bg-muted text-foreground",
+              )}
+            >
+              <span className="text-sm">{s.label}</span>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                {typeof count === "number" && count > 0 && (
+                  <span className="text-xs font-medium">{count}</span>
+                )}
+                <ChevronRight className="h-4 w-4" />
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
