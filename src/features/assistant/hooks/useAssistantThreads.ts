@@ -20,6 +20,9 @@ export type AssistantThread = {
   last_message_at: string;
   created_at: string;
   created_by: string | null;
+  folder_id: string | null;
+  tags: string[];
+  deleted_at: string | null;
 };
 
 export type AssistantMessage = {
@@ -115,7 +118,15 @@ export function useUpdateThread() {
       patch: Partial<
         Pick<
           AssistantThread,
-          "title" | "pinned" | "persona" | "plain_mode" | "pinned_knowledge_ids" | "pinned_entity"
+          | "title"
+          | "pinned"
+          | "persona"
+          | "plain_mode"
+          | "pinned_knowledge_ids"
+          | "pinned_entity"
+          | "folder_id"
+          | "tags"
+          | "deleted_at"
         >
       >;
     }) => {
