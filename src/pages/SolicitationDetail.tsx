@@ -400,7 +400,7 @@ export default function SolicitationDetail() {
               parentId={(s as { parent_solicitation_id?: string | null }).parent_solicitation_id ?? null}
             />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
+          
           <div className="flex items-center gap-3 flex-wrap">
             {s.issuing_agency && (
               <p className="text-sm text-muted-foreground">{s.issuing_agency}</p>
