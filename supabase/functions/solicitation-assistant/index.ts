@@ -697,6 +697,8 @@ Deno.serve(async (req) => {
     const toneLine = prefs?.tone && prefs.tone !== "neutral"
       ? `\n## Tone\nUse a ${prefs.tone} tone.`
       : "";
+    const actionsHint =
+      "\n## Suggested actions\nWhen the conversation surfaces a NEW concrete risk, opportunity, or shall-style requirement that is not already in the provided context, you MAY emit it via \"suggested_actions\" so the user can add it with one click. Keep titles short and specific. Never duplicate an item already in the context. Omit when nothing fits.";
     const composedSystem = [
       SYSTEM_PROMPT,
       `\n## Persona\n${personaFragment}`,
@@ -704,6 +706,7 @@ Deno.serve(async (req) => {
       toneLine,
       memoryBlock,
       availableKnowledgeBlock,
+      actionsHint,
     ].filter(Boolean).join("\n");
 
     let result;
