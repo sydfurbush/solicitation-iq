@@ -99,7 +99,7 @@ export function InlineActionButtons({ messageId, solicitationId, citations }: Pr
           solicitation_id: solicitationId,
           title: a.title,
           description: a.description ?? a.title,
-          opportunity_type: "differentiator",
+          opportunity_type: "differentiation",
           is_ai_generated: true,
           created_by: userId,
         });
