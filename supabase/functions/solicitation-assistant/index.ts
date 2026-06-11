@@ -11,6 +11,22 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+function sanitizeAutoTitle(raw: string, max = 60): string {
+  if (!raw) return "New chat";
+  let s = String(raw);
+  s = s.replace(/```[a-zA-Z0-9_-]*\s*/g, " ");
+  s = s.replace(/`+/g, "");
+  s = s.replace(/^\s*(prompt|markdown|md|text|plaintext)\b[:\-]?\s*/i, "");
+  s = s.replace(/^\s*#{1,6}\s+/gm, "");
+  s = s.replace(/^\s*>+\s?/gm, "");
+  s = s.replace(/^\s*(?:[-*+]|\d+\.)\s+/gm, "");
+  s = s.replace(/\*\*|__|~~/g, "");
+  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1");
+  s = s.replace(/\s+/g, " ").trim();
+  if (!s) return "New chat";
+  return s.length > max ? s.slice(0, max).trimEnd() : s;
+}
+
 const SYSTEM_PROMPT = `You are a proposal-strategy AI assistant scoped to ONE specific government solicitation.
 You may only answer questions using the context provided below (the solicitation overview, risks, opportunities,
 requirements, strategic questions, client profile, capabilities, teaming/incumbents, reports, and verbatim
