@@ -8,14 +8,18 @@ import { OrgChartBlock, looksLikeOrgChart } from "./OrgChartBlock";
  * "| |" instead of "|\n|"), insert newlines so remark-gfm can parse it.
  */
 export function normalizeAssistantMarkdown(input: string): string {
-  if (!input || !input.includes("|")) return input;
-  if (!/\|\s*-{3,}\s*\|/.test(input)) return input;
-  if (/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/m.test(input)) {
-    return input;
+  if (!input) return input;
+  let out = input;
+  // Add a space before § when it sits flush against a previous word/filename
+  // (e.g. "…pdf§Key Personnel" -> "…pdf §Key Personnel"). Skip if already spaced.
+  out = out.replace(/([\w.)\]])§/g, "$1 §");
+  if (out.includes("|") && /\|\s*-{3,}\s*\|/.test(out)) {
+    const alreadyMultiline = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/m.test(out);
+    if (!alreadyMultiline) {
+      out = out.replace(/\|[ \t]+\|/g, "|\n|").replace(/\n{3,}/g, "\n\n");
+    }
   }
-  return input
-    .replace(/\|[ \t]+\|/g, "|\n|")
-    .replace(/\n{3,}/g, "\n\n");
+  return out;
 }
 
 export const ASSISTANT_PROSE_CLASS =
