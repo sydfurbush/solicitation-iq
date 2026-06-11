@@ -41,7 +41,7 @@ import {
   STATUS_CLASSES,
   STATUS_LABELS,
 } from "@/features/solicitations/lib/format";
-import { SOLICITATION_STATUSES, PHASES, type PhaseType, type SolicitationStatus } from "@/lib/validators/solicitation";
+import { SOLICITATION_STATUSES, type PhaseType, type SolicitationStatus } from "@/lib/validators/solicitation";
 import { toast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useDocumentsReadiness } from "@/features/documents/hooks/useDocumentsReadiness";
