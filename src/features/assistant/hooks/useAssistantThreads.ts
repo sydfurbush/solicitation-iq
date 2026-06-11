@@ -146,6 +146,7 @@ export function useSendAssistantMessage() {
       plainMode,
       slash,
       pinnedKnowledgeIds,
+      attachmentIds,
     }: {
       solicitationId: string;
       threadId: string;
@@ -154,6 +155,7 @@ export function useSendAssistantMessage() {
       plainMode?: boolean;
       slash?: SlashPayload | null;
       pinnedKnowledgeIds?: string[];
+      attachmentIds?: string[];
     }) => {
       const { data, error } = await supabase.functions.invoke("solicitation-assistant", {
         body: {
@@ -164,6 +166,7 @@ export function useSendAssistantMessage() {
           plainMode,
           slash: slash ?? null,
           pinnedKnowledgeIds: pinnedKnowledgeIds ?? [],
+          attachmentIds: attachmentIds ?? [],
         },
       });
       if (error) throw error;
@@ -172,6 +175,7 @@ export function useSendAssistantMessage() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["assistant_messages", vars.threadId] });
       qc.invalidateQueries({ queryKey: ["assistant_threads", vars.solicitationId] });
+      qc.invalidateQueries({ queryKey: ["assistant_attachments", vars.threadId] });
     },
   });
 }

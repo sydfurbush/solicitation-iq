@@ -45,6 +45,8 @@ export interface CallAiArgs {
   user: string;
   tool: OpenAIToolSchema; // forced structured output
   modelOverride?: ModelChoice; // bypass MODEL_CONFIG and DB override for this call
+  /** Optional image URLs (signed or public) to attach to the user turn (Lovable provider only). */
+  images?: Array<{ url: string }>;
 }
 
 export class AiHttpError extends Error {
@@ -169,12 +171,19 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Rec
 async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Record<string, unknown>> {
   if (!LOVABLE_KEY) throw new AiHttpError(500, "LOVABLE_API_KEY not configured");
 
+  const userContent = args.images && args.images.length > 0
+    ? [
+        { type: "text", text: args.user },
+        ...args.images.map((img) => ({ type: "image_url", image_url: { url: img.url } })),
+      ]
+    : args.user;
+
   const body = JSON.stringify({
     model: choice.model,
     max_completion_tokens: choice.maxTokens ?? 4096,
     messages: [
       { role: "system", content: args.system },
-      { role: "user", content: args.user },
+      { role: "user", content: userContent },
     ],
     tools: [{ type: "function", function: args.tool }],
     tool_choice: { type: "function", function: { name: args.tool.name } },

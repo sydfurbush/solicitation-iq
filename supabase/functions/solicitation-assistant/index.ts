@@ -446,6 +446,9 @@ Deno.serve(async (req) => {
     const pinnedKnowledgeIds: string[] = Array.isArray(body.pinnedKnowledgeIds)
       ? body.pinnedKnowledgeIds.filter((x: unknown): x is string => typeof x === "string").slice(0, 25)
       : [];
+    const attachmentIds: string[] = Array.isArray(body.attachmentIds)
+      ? body.attachmentIds.filter((x: unknown): x is string => typeof x === "string").slice(0, 4)
+      : [];
 
     if (!solicitationId || !threadId || !message) {
       return new Response(JSON.stringify({ error: "solicitationId, threadId, and message are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -486,7 +489,7 @@ Deno.serve(async (req) => {
     const tripped = blocked.find((t: string) => t && lowerMsg.includes(t.toLowerCase()));
 
     // Persist user message
-    await supa.from("assistant_messages").insert({
+    const { data: userMsgRow } = await supa.from("assistant_messages").insert({
       thread_id: threadId,
       role: "user",
       parts: [{ type: "text", text: message }],
@@ -494,7 +497,36 @@ Deno.serve(async (req) => {
       safety_status: tripped ? "refused" : "ok",
       safety_reason: tripped ? `blocked_topic:${tripped}` : null,
       safety_topics: tripped ? [tripped] : [],
-    });
+    }).select("id").single();
+
+    // Link any photo attachments to this user message and prepare signed URLs for the model
+    type AttachmentInfo = { id: string; file_name: string; mime_type: string | null; url: string };
+    let attachmentInfos: AttachmentInfo[] = [];
+    if (attachmentIds.length > 0 && userMsgRow?.id) {
+      const { data: atts } = await supa
+        .from("assistant_attachments")
+        .select("id,storage_path,file_name,mime_type,kind,thread_id")
+        .in("id", attachmentIds)
+        .eq("thread_id", threadId);
+      const valid = (atts ?? []).filter((a: any) => a.kind === "photo");
+      if (valid.length > 0) {
+        await supa
+          .from("assistant_attachments")
+          .update({ message_id: userMsgRow.id })
+          .in("id", valid.map((a: any) => a.id));
+        const signed = await Promise.all(
+          valid.map(async (a: any) => {
+            const { data: s } = await supa.storage
+              .from("assistant-attachments")
+              .createSignedUrl(a.storage_path, 300);
+            return s?.signedUrl
+              ? { id: a.id, file_name: a.file_name, mime_type: a.mime_type, url: s.signedUrl }
+              : null;
+          }),
+        );
+        attachmentInfos = signed.filter((x): x is AttachmentInfo => !!x);
+      }
+    }
 
     if (tripped) {
       const refusal = `I can't discuss **${tripped}** — it's on your blocked-topics list. Edit it in **Preferences** if you'd like to remove the block.`;
@@ -625,7 +657,10 @@ Deno.serve(async (req) => {
 
     const excerptBlock = excerpts.block ? `${excerpts.block}\n\n` : "";
     const knowledgeBlock = knowledge.block ? `${knowledge.block}\n\n` : "";
-    const userPrompt = `## Context for this solicitation\n\n${knowledgeBlock}${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
+    const photosBlock = attachmentInfos.length > 0
+      ? `## Attached photos\nThe user attached ${attachmentInfos.length} photo${attachmentInfos.length === 1 ? "" : "s"} with this message (provided as images alongside the text). Treat them as real evidence from the user. Filenames:\n${attachmentInfos.map((a, i) => `- [Photo ${i + 1}] ${a.file_name}`).join("\n")}\n\n`
+      : "";
+    const userPrompt = `## Context for this solicitation\n\n${photosBlock}${knowledgeBlock}${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
 
     // Compose system prompt with persona + optional plain-mode fragment + memory + tone
     const personaFragment = PERSONA_FRAGMENTS[effectivePersona] ?? PERSONA_FRAGMENTS.capture_manager;
@@ -651,6 +686,7 @@ Deno.serve(async (req) => {
         system: composedSystem,
         user: userPrompt,
         tool: TOOL_SCHEMA,
+        images: attachmentInfos.map((a) => ({ url: a.url })),
       });
     } catch (err) {
       await supa.from("assistant_audit_log").insert({
