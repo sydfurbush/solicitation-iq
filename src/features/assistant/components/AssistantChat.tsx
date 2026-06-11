@@ -201,6 +201,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
         <PlainModeToggle value={plainMode} onChange={onPlainChange} disabled={!thread || sending} />
         <div className="ml-auto flex items-center gap-1">
+          <ExportThreadButton thread={thread} messages={messages} />
           <Button
             type="button"
             variant="ghost"
