@@ -642,6 +642,12 @@ Deno.serve(async (req) => {
         seenLabels.add(c.label);
       }
     }
+    for (const c of knowledge.citations) {
+      if (!seenLabels.has(c.label)) {
+        mergedCitations.push(c);
+        seenLabels.add(c.label);
+      }
+    }
 
     const { data: assistantMsg } = await supa.from("assistant_messages").insert({
       thread_id: threadId,
