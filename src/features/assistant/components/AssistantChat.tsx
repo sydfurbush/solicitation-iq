@@ -31,6 +31,9 @@ import { SuggestedKnowledgeBanner, type KnowledgeSuggestion } from "./SuggestedK
 import { PhotoAttachmentButton } from "./PhotoAttachmentButton";
 import { AttachmentChips } from "./AttachmentChips";
 import { MessageAttachments } from "./MessageAttachments";
+import { ExportThreadButton } from "./ExportThreadButton";
+import { PinnedEntityChips } from "./PinnedEntityChips";
+import { PinEntityPopover } from "./PinEntityPopover";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
@@ -198,6 +201,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
         <PlainModeToggle value={plainMode} onChange={onPlainChange} disabled={!thread || sending} />
         <div className="ml-auto flex items-center gap-1">
+          <ExportThreadButton thread={thread} messages={messages} />
           <Button
             type="button"
             variant="ghost"
@@ -244,6 +248,10 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         solicitationId={solicitationId}
         pinnedIds={pinnedKnowledgeIds}
       />
+      <PinnedEntityChips thread={thread} />
+      <div className="border-b bg-background px-3 py-1 flex items-center">
+        <PinEntityPopover thread={thread} solicitationId={solicitationId} />
+      </div>
 
       <MemoryPanel open={memoryOpen} onOpenChange={setMemoryOpen} />
       <PreferencesPanel open={prefsOpen} onOpenChange={setPrefsOpen} />
