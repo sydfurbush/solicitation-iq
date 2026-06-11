@@ -50,7 +50,7 @@ import {
   STATUS_CLASSES,
   STATUS_LABELS,
   daysUntil,
-  dueUrgency,
+  
 } from "@/features/solicitations/lib/format";
 import { SOLICITATION_STATUSES, PHASES, type PhaseType, type SolicitationStatus } from "@/lib/validators/solicitation";
 import { toast } from "@/hooks/use-toast";
