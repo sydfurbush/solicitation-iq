@@ -1,4 +1,5 @@
-import { Download, Copy, FileText, ChevronDown } from "lucide-react";
+import { useState } from "react";
+import { Download, Copy, FileText, FileDown, ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -7,12 +8,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/hooks/use-toast";
-import { copyRich, copyPlain } from "../lib/copyRich";
 import {
-  buildTranscriptMarkdown,
-  downloadMarkdown,
-  slugify,
-} from "../lib/exportTranscript";
+  copyFormatted,
+  downloadAssistantPdf,
+  downloadAssistantDocx,
+} from "../lib/exportFormatted";
 import type { AssistantMessage, AssistantThread } from "../hooks/useAssistantThreads";
 
 type Props = {
@@ -22,31 +22,23 @@ type Props = {
 
 export function ExportThreadButton({ thread, messages }: Props) {
   const disabled = !thread || messages.length === 0;
+  const [busy, setBusy] = useState<null | "copy" | "pdf" | "docx">(null);
 
-  const doCopyRich = async () => {
+  const run = async (kind: "copy" | "pdf" | "docx", fn: () => Promise<void>, okMsg?: string) => {
     if (!thread) return;
-    const md = buildTranscriptMarkdown(thread, messages);
+    setBusy(kind);
     try {
-      await copyRich(md);
-      toast({ title: "Copied", description: "Transcript copied as rich text." });
+      await fn();
+      if (okMsg) toast({ title: okMsg });
     } catch (e: any) {
-      toast({ title: "Copy failed", description: e?.message ?? "Could not copy", variant: "destructive" });
+      toast({
+        title: "Export failed",
+        description: e?.message ?? "Could not export the conversation",
+        variant: "destructive",
+      });
+    } finally {
+      setBusy(null);
     }
-  };
-  const doCopyPlain = async () => {
-    if (!thread) return;
-    const md = buildTranscriptMarkdown(thread, messages);
-    try {
-      await copyPlain(md);
-      toast({ title: "Copied", description: "Transcript copied as markdown." });
-    } catch (e: any) {
-      toast({ title: "Copy failed", description: e?.message ?? "Could not copy", variant: "destructive" });
-    }
-  };
-  const doDownload = () => {
-    if (!thread) return;
-    const md = buildTranscriptMarkdown(thread, messages);
-    downloadMarkdown(`assistant-thread-${slugify(thread.title)}.md`, md);
   };
 
   return (
@@ -57,26 +49,34 @@ export function ExportThreadButton({ thread, messages }: Props) {
           variant="ghost"
           size="sm"
           className="h-8 px-2 text-xs gap-1.5"
-          disabled={disabled}
+          disabled={disabled || !!busy}
           title="Export this conversation"
         >
-          <Download className="h-3.5 w-3.5" />
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
           Export
           <ChevronDown className="h-3 w-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem onClick={doCopyRich}>
+        <DropdownMenuItem
+          onClick={() =>
+            run("copy", () => copyFormatted(thread!, messages), "Copied formatted transcript")
+          }
+        >
           <Copy className="h-3.5 w-3.5 mr-2" />
-          Copy as rich text
+          Copy formatted
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={doCopyPlain}>
-          <Copy className="h-3.5 w-3.5 mr-2" />
-          Copy as markdown
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={doDownload}>
+        <DropdownMenuItem
+          onClick={() => run("docx", () => downloadAssistantDocx(thread!, messages))}
+        >
           <FileText className="h-3.5 w-3.5 mr-2" />
-          Download .md
+          Download Word (.docx)
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => run("pdf", () => downloadAssistantPdf(thread!, messages))}
+        >
+          <FileDown className="h-3.5 w-3.5 mr-2" />
+          Download PDF (.pdf)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
