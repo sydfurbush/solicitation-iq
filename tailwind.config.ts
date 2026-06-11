@@ -51,6 +51,14 @@ export default {
         "phase-2": "hsl(var(--phase-2))",
         "phase-3": "hsl(var(--phase-3))",
         "phase-4": "hsl(var(--phase-4))",
+        rail: {
+          DEFAULT: "hsl(var(--rail))",
+          foreground: "hsl(var(--rail-foreground))",
+          muted: "hsl(var(--rail-muted))",
+          accent: "hsl(var(--rail-accent))",
+        },
+        canvas: "hsl(var(--canvas))",
+        ink: "hsl(var(--ink))",
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
