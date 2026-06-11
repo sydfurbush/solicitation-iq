@@ -438,7 +438,15 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   );
 }
 
-function MessageRow({ m, threadId }: { m: AssistantMessage; threadId: string }) {
+function MessageRow({
+  m,
+  threadId,
+  solicitationId,
+}: {
+  m: AssistantMessage;
+  threadId: string;
+  solicitationId: string;
+}) {
   const text = (m.parts ?? []).map((p) => (p.type === "text" ? p.text ?? "" : "")).join("\n");
   const isUser = m.role === "user";
   return (
@@ -460,8 +468,15 @@ function MessageRow({ m, threadId }: { m: AssistantMessage; threadId: string }) 
         ) : (
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown>{text}</ReactMarkdown>
+            <InlineActionButtons
+              messageId={m.id}
+              solicitationId={solicitationId}
+              citations={m.citations as any[]}
+            />
             {Array.isArray(m.citations) && m.citations.length > 0 && (() => {
-              const visible = (m.citations as any[]).filter((c) => c?.kind !== "suggested_knowledge" && c?.label);
+              const visible = (m.citations as any[]).filter(
+                (c) => c?.kind !== "suggested_knowledge" && c?.kind !== "suggested_action" && c?.label,
+              );
               if (!visible.length) return null;
               return (
                 <div className="not-prose mt-2 flex flex-wrap gap-1">
