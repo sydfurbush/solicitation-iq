@@ -438,10 +438,12 @@ function MessageRow({
   m,
   threadId,
   solicitationId,
+  thread,
 }: {
   m: AssistantMessage;
   threadId: string;
   solicitationId: string;
+  thread: import("../hooks/useAssistantThreads").AssistantThread | null;
 }) {
   const text = (m.parts ?? []).map((p) => (p.type === "text" ? p.text ?? "" : "")).join("\n");
   const isUser = m.role === "user";
