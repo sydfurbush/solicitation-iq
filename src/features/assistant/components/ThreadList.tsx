@@ -57,6 +57,7 @@ import {
   type AssistantFolder,
 } from "../hooks/useAssistantFolders";
 import { useAssistantHistorySearch } from "../hooks/useAssistantHistorySearch";
+import { formatThreadTitle } from "../lib/formatThreadTitle";
 
 type Props = {
   solicitationId: string;
@@ -107,7 +108,7 @@ export function ThreadList({
 
   const startRename = (t: AssistantThread) => {
     setRenamingId(t.id);
-    setRenameValue(t.title || "");
+    setRenameValue(formatThreadTitle(t.title) || "");
   };
   const cancelRename = () => {
     setRenamingId(null);
@@ -239,7 +240,7 @@ export function ThreadList({
               {t.pinned && !opts?.inTrash && (
                 <Pin className="h-3 w-3 shrink-0 text-muted-foreground" />
               )}
-              <span className="truncate">{t.title || "Untitled"}</span>
+              <span className="truncate">{formatThreadTitle(t.title) || "Untitled"}</span>
             </div>
           )}
           <div className="text-[10px] text-muted-foreground mt-0.5">
@@ -521,7 +522,7 @@ export function ThreadList({
                     ) : (
                       <MessageSquare className="h-3 w-3" />
                     )}
-                    <span className="truncate">{h.thread_title || "Untitled"}</span>
+                    <span className="truncate">{formatThreadTitle(h.thread_title) || "Untitled"}</span>
                     <span className="ml-auto shrink-0">
                       {formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}
                     </span>
