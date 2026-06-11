@@ -721,9 +721,21 @@ export async function downloadAssistantDocx(
   thread: AssistantThread,
   messages: AssistantMessage[],
 ) {
-  const { bodyHtml } = await renderTranscriptToHtml(thread, messages);
-  const container = document.createElement("div");
-  container.innerHTML = bodyHtml;
+  // Render the transcript into the live DOM so we can rasterize SVGs in place
+  // before serializing. This avoids dumping mermaid <style> CSS as raw text.
+  const { host, cleanup } = (await renderTranscriptDom(thread, messages)) as {
+    host: HTMLElement;
+    cleanup: () => void;
+    html: string;
+  };
+  (window as any).__docxImages = [] as DocxImage[];
+  try {
+    await rasterizeAllSvgs(host);
+  } catch {
+    /* swallow — fallback placeholders already emitted by rasterizeAllSvgs */
+  }
+  const container = host;
+
 
   const children: (Paragraph | Table)[] = [];
 
