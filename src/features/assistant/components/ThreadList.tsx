@@ -108,7 +108,7 @@ export function ThreadList({
 
   const startRename = (t: AssistantThread) => {
     setRenamingId(t.id);
-    setRenameValue(t.title || "");
+    setRenameValue(formatThreadTitle(t.title) || "");
   };
   const cancelRename = () => {
     setRenamingId(null);
