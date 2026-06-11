@@ -28,6 +28,10 @@ import { KnowledgePanel } from "./KnowledgePanel";
 import { PinnedKnowledgeChips } from "./PinnedKnowledgeChips";
 import { RiskRadar } from "./RiskRadar";
 import { SuggestedKnowledgeBanner, type KnowledgeSuggestion } from "./SuggestedKnowledgeBanner";
+import { PhotoAttachmentButton } from "./PhotoAttachmentButton";
+import { AttachmentChips } from "./AttachmentChips";
+import { MessageAttachments } from "./MessageAttachments";
+import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -44,10 +48,13 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
 
   const send = useSendAssistantMessage();
   const updateThread = useUpdateThread();
+  const invalidateAttachments = useInvalidateAttachments();
   const [input, setInput] = useState("");
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
