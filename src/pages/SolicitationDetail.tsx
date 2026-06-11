@@ -489,22 +489,6 @@ export default function SolicitationDetail() {
 
       {/* Content */}
       <div>
-        {tab === "workflow" && (
-          <PhaseHub
-            currentPhase={currentPhase}
-            phaseStatusByPhase={{}}
-            buildSteps={buildHubSteps}
-            onOpenPhase={(p) => goTab(PHASE_TAB[p])}
-            onWorkspace={(k) => goTab(k)}
-            solicitationId={s.id}
-            solicitation={{
-              title: s.title,
-              solicitation_number: s.solicitation_number,
-              issuing_agency: s.issuing_agency,
-              client: { name: clientName },
-            }}
-          />
-        )}
 
         {tab === "phase-1" && renderPhase1()}
 
