@@ -11,7 +11,6 @@ export const SOLICITATION_STATUSES = [
   "phase_1_complete",
   "phase_2_active",
   "phase_3_active",
-  "phase_4_active",
   "complete",
   "archived",
 ] as const;
@@ -21,8 +20,6 @@ export const PHASES = [
   "phase_1_initial",
   "phase_2_deep_dive",
   "phase_3_outline",
-  "phase_4_win_themes",
-  "phase_5_drafting",
 ] as const;
 export type PhaseType = (typeof PHASES)[number];
 
