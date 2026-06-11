@@ -241,21 +241,9 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
     <div className="flex flex-col h-full min-h-0">
       <div className="border-b px-3 py-2 flex items-center gap-2 bg-background">
         <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
-        <PlainModeToggle value={plainMode} onChange={onPlainChange} disabled={!thread || sending} />
         <div className="ml-auto flex items-center gap-1">
           <ExportThreadButton thread={thread} messages={messages} />
           <AssistantAnalyticsButton />
-          <Button
-            type="button"
-            variant={showRadar ? "secondary" : "ghost"}
-            size="sm"
-            className="h-8 px-2 text-xs gap-1.5"
-            onClick={toggleRadar}
-            title="Risk Radar — show or hide critical risks for this solicitation"
-            aria-pressed={showRadar}
-          >
-            <Radar className="h-3.5 w-3.5" /> Risk Radar
-          </Button>
           <Button
             type="button"
             variant="ghost"
