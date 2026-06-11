@@ -344,13 +344,51 @@ Deno.serve(async (req) => {
       await supa.from("assistant_threads").update(patch).eq("id", threadId);
     }
 
+    // Load user preferences + memory (best-effort; failures don't block chat)
+    const [prefsRes, memRes] = await Promise.all([
+      supa.from("assistant_preferences").select("*").eq("user_id", user.id).maybeSingle(),
+      supa.from("assistant_memory").select("id,fact,source").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(50),
+    ]);
+    const prefs = prefsRes.data as any | null;
+    const memories = (memRes.data ?? []) as Array<{ id: string; fact: string; source: string }>;
+
+    // Blocked topics short-circuit
+    const blocked: string[] = Array.isArray(prefs?.blocked_topics) ? prefs.blocked_topics : [];
+    const lowerMsg = message.toLowerCase();
+    const tripped = blocked.find((t: string) => t && lowerMsg.includes(t.toLowerCase()));
+
     // Persist user message
     await supa.from("assistant_messages").insert({
       thread_id: threadId,
       role: "user",
       parts: [{ type: "text", text: message }],
       created_by: user.id,
+      safety_status: tripped ? "refused" : "ok",
+      safety_reason: tripped ? `blocked_topic:${tripped}` : null,
+      safety_topics: tripped ? [tripped] : [],
     });
+
+    if (tripped) {
+      const refusal = `I can't discuss **${tripped}** — it's on your blocked-topics list. Edit it in **Preferences** if you'd like to remove the block.`;
+      const { data: refMsg } = await supa.from("assistant_messages").insert({
+        thread_id: threadId,
+        role: "assistant",
+        parts: [{ type: "text", text: refusal }],
+        citations: [],
+        safety_status: "refused",
+        safety_reason: `blocked_topic:${tripped}`,
+        safety_topics: [tripped],
+      }).select().single();
+      await supa.from("assistant_threads").update({ last_message_at: new Date().toISOString() }).eq("id", threadId);
+      await supa.from("assistant_audit_log").insert({
+        user_id: user.id, solicitation_id: solicitationId, thread_id: threadId,
+        message_id: refMsg?.id ?? null, persona: effectivePersona,
+        model: "blocked", status: "refused", error: `topic:${tripped}`, latency_ms: Date.now() - t0,
+      });
+      return new Response(JSON.stringify({ message: refMsg, citations: [], followups: [] }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Handle /clear-context locally without an LLM call
     if (slash?.handler === "clear") {
@@ -363,19 +401,54 @@ Deno.serve(async (req) => {
 
       await supa.from("assistant_threads").update({ last_message_at: new Date().toISOString() }).eq("id", threadId);
       await supa.from("assistant_audit_log").insert({
-        user_id: user.id,
-        solicitation_id: solicitationId,
-        thread_id: threadId,
-        message_id: noticeMsg?.id ?? null,
-        persona: effectivePersona,
-        model: "slash:clear",
-        status: "ok",
-        latency_ms: Date.now() - t0,
+        user_id: user.id, solicitation_id: solicitationId, thread_id: threadId,
+        message_id: noticeMsg?.id ?? null, persona: effectivePersona,
+        model: "slash:clear", status: "ok", latency_ms: Date.now() - t0,
       });
       return new Response(JSON.stringify({ message: noticeMsg, citations: [], followups: [] }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Handle /remember and /forget without an LLM call
+    if (slash?.handler === "remember" && slash.rest) {
+      const { data: userRow } = await supa.from("users").select("organization_id").eq("id", user.id).maybeSingle();
+      await supa.from("assistant_memory").insert({
+        user_id: user.id,
+        organization_id: userRow?.organization_id ?? null,
+        fact: slash.rest.slice(0, 500),
+        source: "explicit",
+      });
+      const { data: m } = await supa.from("assistant_messages").insert({
+        thread_id: threadId, role: "assistant",
+        parts: [{ type: "text", text: `Got it — I'll remember: **${slash.rest}**` }],
+        citations: [],
+      }).select().single();
+      await supa.from("assistant_threads").update({ last_message_at: new Date().toISOString() }).eq("id", threadId);
+      return new Response(JSON.stringify({ message: m, citations: [], followups: [] }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (slash?.handler === "forget" && slash.rest) {
+      const needle = slash.rest.toLowerCase();
+      const toDelete = memories.filter((mm) => mm.fact.toLowerCase().includes(needle));
+      if (toDelete.length > 0) {
+        await supa.from("assistant_memory").delete().in("id", toDelete.map((d) => d.id));
+      }
+      const text = toDelete.length > 0
+        ? `Forgot ${toDelete.length} fact${toDelete.length === 1 ? "" : "s"} containing "${slash.rest}".`
+        : `I couldn't find any saved facts matching "${slash.rest}".`;
+      const { data: m } = await supa.from("assistant_messages").insert({
+        thread_id: threadId, role: "assistant",
+        parts: [{ type: "text", text }],
+        citations: [],
+      }).select().single();
+      await supa.from("assistant_threads").update({ last_message_at: new Date().toISOString() }).eq("id", threadId);
+      return new Response(JSON.stringify({ message: m, citations: [], followups: [] }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     // Load recent history
     const { data: history } = await supa.from("assistant_messages").select("role,parts").eq("thread_id", threadId).order("created_at", { ascending: true }).limit(30);
