@@ -196,137 +196,189 @@ export function ThreadList({
     }
   };
 
-  const renderRow = (t: AssistantThread, opts?: { inTrash?: boolean }) => (
-    <div
-      key={t.id}
-      role="button"
-      tabIndex={0}
-      onClick={() => onSelect(t.id)}
-      onKeyDown={(e) => (e.key === "Enter" ? onSelect(t.id) : null)}
-      className={cn(
-        "group px-3 py-2 border-b cursor-pointer hover:bg-muted/50 flex items-start gap-2",
-        activeThreadId === t.id && "bg-muted",
-      )}
-    >
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium truncate">{t.title || "Untitled"}</div>
-        <div className="text-[10px] text-muted-foreground mt-0.5">
-          {formatDistanceToNow(new Date(t.last_message_at), { addSuffix: true })}
-        </div>
-        {t.tags && t.tags.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-1">
-            {t.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="text-[9px] px-1 rounded bg-muted text-muted-foreground">
-                {tag}
-              </span>
-            ))}
-          </div>
+  const renderRow = (t: AssistantThread, opts?: { inTrash?: boolean }) => {
+    const isRenaming = renamingId === t.id;
+    return (
+      <div
+        key={t.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => {
+          if (!isRenaming) onSelect(t.id);
+        }}
+        onKeyDown={(e) => {
+          if (!isRenaming && e.key === "Enter") onSelect(t.id);
+        }}
+        className={cn(
+          "group px-3 py-2 border-b cursor-pointer hover:bg-muted/50 flex items-start gap-2",
+          activeThreadId === t.id && "bg-muted",
         )}
-      </div>
-      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5">
-        {opts?.inTrash ? (
-          <>
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-background"
-              title="Restore"
-              onClick={(e) => {
+      >
+        <div className="flex-1 min-w-0">
+          {isRenaming ? (
+            <Input
+              ref={renameInputRef}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onBlur={() => commitRename(t)}
+              onKeyDown={(e) => {
                 e.stopPropagation();
-                restore(t);
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitRename(t);
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelRename();
+                }
               }}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-background text-destructive"
-              title="Delete permanently"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm("Permanently delete this conversation?"))
-                  del.mutate({ id: t.id, solicitationId });
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-background"
-              title={t.pinned ? "Unpin" : "Pin"}
-              onClick={(e) => {
-                e.stopPropagation();
-                togglePin(t);
-              }}
-            >
-              {t.pinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-            </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="p-1 rounded hover:bg-background"
-                  title="Move to folder"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Folder className="h-3.5 w-3.5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel className="text-xs">Move to folder</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    moveToFolder(t, null);
-                  }}
-                >
-                  Unfiled
-                </DropdownMenuItem>
-                {folders.map((f) => (
+              className="h-7 text-sm px-2"
+            />
+          ) : (
+            <div className="text-sm font-medium truncate flex items-center gap-1.5">
+              {t.pinned && !opts?.inTrash && (
+                <Pin className="h-3 w-3 shrink-0 text-muted-foreground" />
+              )}
+              <span className="truncate">{t.title || "Untitled"}</span>
+            </div>
+          )}
+          <div className="text-[10px] text-muted-foreground mt-0.5">
+            {formatDistanceToNow(new Date(t.last_message_at), { addSuffix: true })}
+          </div>
+          {t.tags && t.tags.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {t.tags.slice(0, 3).map((tag) => (
+                <span key={tag} className="text-[9px] px-1 rounded bg-muted text-muted-foreground">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        {!isRenaming && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  "p-1 rounded hover:bg-background shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 data-[state=open]:opacity-100",
+                  activeThreadId === t.id && "opacity-100",
+                )}
+                title="More"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48" onClick={(e) => e.stopPropagation()}>
+              {opts?.inTrash ? (
+                <>
                   <DropdownMenuItem
-                    key={f.id}
                     className="text-xs"
                     onClick={(e) => {
                       e.stopPropagation();
-                      moveToFolder(t, f.id);
+                      restore(t);
                     }}
                   >
-                    {f.name}
+                    <RotateCcw className="h-3.5 w-3.5 mr-2" /> Restore
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-background"
-              title="Share link"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleShare(t);
-              }}
-            >
-              <Share2 className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              className="p-1 rounded hover:bg-background text-destructive"
-              title="Move to Trash"
-              onClick={(e) => {
-                e.stopPropagation();
-                softDelete(t);
-              }}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-xs text-destructive focus:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm("Permanently delete this conversation?"))
+                        del.mutate({ id: t.id, solicitationId });
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete permanently
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem
+                    className="text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePin(t);
+                    }}
+                  >
+                    {t.pinned ? (
+                      <>
+                        <PinOff className="h-3.5 w-3.5 mr-2" /> Unpin
+                      </>
+                    ) : (
+                      <>
+                        <Pin className="h-3.5 w-3.5 mr-2" /> Pin to top
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-xs"
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      startRename(t);
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-2" /> Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="text-xs">
+                      <Folder className="h-3.5 w-3.5 mr-2" /> Move to folder
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-44">
+                      <DropdownMenuItem
+                        className="text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveToFolder(t, null);
+                        }}
+                      >
+                        Unfiled
+                      </DropdownMenuItem>
+                      {folders.length > 0 && <DropdownMenuSeparator />}
+                      {folders.map((f) => (
+                        <DropdownMenuItem
+                          key={f.id}
+                          className="text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            moveToFolder(t, f.id);
+                          }}
+                        >
+                          {f.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuItem
+                    className="text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShare(t);
+                    }}
+                  >
+                    <Share2 className="h-3.5 w-3.5 mr-2" /> Copy share link
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-xs text-destructive focus:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      softDelete(t);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" /> Move to Trash
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
-    </div>
-  );
+    );
+  };
+
 
   const Section = ({
     id,
