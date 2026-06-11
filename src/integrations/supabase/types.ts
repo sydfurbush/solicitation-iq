@@ -376,6 +376,39 @@ export type Database = {
           },
         ]
       }
+      assistant_folders: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          organization_id: string | null
+          sort_order: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          organization_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string | null
+          sort_order?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       assistant_memory: {
         Row: {
           created_at: string
@@ -577,6 +610,8 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          folder_id: string | null
           id: string
           last_message_at: string
           persona: string
@@ -587,12 +622,15 @@ export type Database = {
           pinned_solicitation_id: string | null
           plain_mode: boolean
           solicitation_id: string
+          tags: string[]
           title: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          folder_id?: string | null
           id?: string
           last_message_at?: string
           persona?: string
@@ -603,12 +641,15 @@ export type Database = {
           pinned_solicitation_id?: string | null
           plain_mode?: boolean
           solicitation_id: string
+          tags?: string[]
           title?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          folder_id?: string | null
           id?: string
           last_message_at?: string
           persona?: string
@@ -619,6 +660,7 @@ export type Database = {
           pinned_solicitation_id?: string | null
           plain_mode?: boolean
           solicitation_id?: string
+          tags?: string[]
           title?: string
           updated_at?: string
         }
@@ -628,6 +670,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_threads_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_folders"
             referencedColumns: ["id"]
           },
           {
