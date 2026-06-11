@@ -17,6 +17,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   PhaseRail,
   MobilePhaseBar,
+  MobileWorkspaceSheet,
   useRailCollapsed,
 } from "@/features/solicitations/components/workspace/PhaseRail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
