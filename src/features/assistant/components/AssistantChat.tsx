@@ -442,7 +442,7 @@ function MessageRow({ m, threadId }: { m: AssistantMessage; threadId: string }) 
   const text = (m.parts ?? []).map((p) => (p.type === "text" ? p.text ?? "" : "")).join("\n");
   const isUser = m.role === "user";
   return (
-    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
+    <div id={`assistant-msg-${m.id}`} className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
         className={
           isUser
