@@ -1,21 +1,22 @@
-# Phase 8 — History Search & Analytics Dashboard
+# Phase 9 — Inline Actions on Assistant Replies
 
-Cross-thread message search inside the assistant sidebar plus an org-admin analytics dashboard sourced from `assistant_audit_log`.
+The assistant can now emit concrete "create this record" suggestions inline with its answer. Users apply them with one click and the row is inserted into `risks`, `opportunities`, or `requirement_items` for the current solicitation.
 
 ## New files
 
-- `src/features/assistant/hooks/useAssistantHistorySearch.ts` — Searches `assistant_messages.parts` text across all threads in the current solicitation (client-side filter over the 500 most-recent messages, snippet ±80 chars).
-- `src/features/assistant/hooks/useAssistantAnalytics.ts` — Aggregates `assistant_audit_log` for the last N days: total requests, error rate, avg latency, tokens, per-day series, per-persona, top users.
-- `src/features/assistant/components/AnalyticsDashboard.tsx` — `Sheet` with stat tiles + Recharts line/bar charts. 7 / 30 / 90-day window selector.
-- `src/features/assistant/components/AssistantAnalyticsButton.tsx` — Header icon button visible only to org `owner` / `admin`; opens the dashboard.
+- `src/features/assistant/components/InlineActionButtons.tsx` — Renders pending suggested-action buttons below an assistant message. Click inserts the row via the Supabase client, invalidates the relevant query, toasts success, and marks the button as Added. Applied state is persisted per-message in `localStorage` (`assistant_applied_actions_v1`).
 
 ## Edits
 
-- `src/features/assistant/components/ThreadList.tsx` — When the search box has ≥2 chars, swap the list to message-content hits showing thread title + snippet + relative time + role icon. Clicking a hit calls `onSelect(threadId, messageId)`.
-- `src/pages/SolicitationAssistant.tsx` — `setThread` now writes an optional `?msg=<id>` query param for jump-to-message.
-- `src/features/assistant/components/AssistantChat.tsx` — Mounts `<AssistantAnalyticsButton />` in the header. Reads `?msg` and scrolls the matching `#assistant-msg-<id>` row into view with a 2s primary-ring highlight, then clears the param. `MessageRow` now renders the DOM id.
+- `supabase/functions/solicitation-assistant/index.ts`
+  - Added `suggested_actions: [{ kind: "create_risk" | "create_opportunity" | "create_requirement", title, description?, severity? }]` to `TOOL_SCHEMA` (cap 3).
+  - Added a system-prompt fragment instructing the model to emit suggested_actions only for NEW items not already in the provided context.
+  - Validates returned actions (allowed kind, allowed severity, title trim/cap) and appends each as a `citations` entry of `kind: "suggested_action"`.
+- `src/features/assistant/components/AssistantChat.tsx`
+  - `MessageRow` now receives `solicitationId`, renders `<InlineActionButtons />` above the citation badge row, and filters `suggested_action` out of the visible badges (alongside `suggested_knowledge`).
 
 ## Validation
 
-- Typing "incumbent" in the sidebar search shows messages across multiple threads; clicking one jumps to the right thread and scrolls the message into view with a brief highlight.
-- An org admin sees the chart icon in the header; non-admins do not. Opening it shows totals, the per-day line chart, persona breakdown, and a top-users list, all scoped to the current org by RLS.
+- Ask the assistant something like "What risks should I be tracking that aren't already logged?" — buttons such as "+ Create risk: …" appear under the reply. Clicking inserts a row into `risks` with `is_ai_generated=true`; the button switches to "Added" and stays disabled across reloads (localStorage-keyed).
+- The "Add requirement" action writes `req_number` (`AI-XXXX`) + `shall_text` (the description) so the existing requirement_items schema is satisfied.
+- Severity defaults to `medium` for risks when the model omits it. Unknown action kinds and missing titles are dropped server-side.
