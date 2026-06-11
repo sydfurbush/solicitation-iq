@@ -4,6 +4,23 @@ import { useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronUp, Loader2, Mic, Send, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+
+/**
+ * If the model emitted a markdown table on a single line (rows separated by
+ * "| |" instead of "|\n|"), insert newlines so remark-gfm can parse it.
+ */
+function normalizeAssistantMarkdown(input: string): string {
+  if (!input || !input.includes("|")) return input;
+  // Only touch runs that look like a table (contain a separator like |---|).
+  if (!/\|\s*-{3,}\s*\|/.test(input)) return input;
+  return input
+    // Break between adjacent rows: "...| |..." -> "...|\n|..."
+    .replace(/\|[ \t]+\|/g, "|\n|")
+    // Ensure a newline before the header separator row if glued to header
+    .replace(/\|(\s*-{3,}[-\s|:]*)\|/g, "|\n|$1|")
+    // Collapse accidental double newlines created above
+    .replace(/\n{3,}/g, "\n\n");
+}
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
