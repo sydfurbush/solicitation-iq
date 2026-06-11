@@ -498,10 +498,10 @@ function MessageRow({
                   return <input {...props} />;
                 },
                 table: ({ node, ...props }) => (
-                  <div className="my-3 -mx-1 overflow-x-auto rounded-md border border-border">
+                  <div className="my-3 -mx-1 min-w-0 max-w-full overflow-x-auto rounded-md border border-border">
                     <table
                       {...props}
-                      className="w-full border-collapse text-sm table-auto"
+                      className="w-max min-w-full border-collapse text-sm table-auto"
                     />
                   </div>
                 ),
