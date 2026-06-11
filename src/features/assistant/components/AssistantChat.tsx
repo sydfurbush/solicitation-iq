@@ -130,26 +130,56 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
 
   const submit = async (text?: string) => {
     const msg = (text ?? input).trim();
-    if (!msg || sending) return;
+    if ((!msg && pendingPhotos.length === 0) || sending || uploading) return;
     const parsed = parseSlashCommand(msg);
     const slash: SlashPayload | null = parsed
       ? { handler: parsed.cmd.handler, rest: parsed.rest }
       : null;
+
+    // Upload any staged photos first; collect attachment IDs.
+    let attachmentIds: string[] = [];
+    const photosToUpload = pendingPhotos;
+    if (photosToUpload.length > 0) {
+      setUploading(true);
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        const userId = u.user?.id;
+        if (!userId) throw new Error("Not signed in");
+        attachmentIds = await Promise.all(
+          photosToUpload.map((f) => uploadAssistantPhoto({ file: f, threadId, userId })),
+        );
+      } catch (e: any) {
+        setUploading(false);
+        toast({
+          title: "Photo upload failed",
+          description: e?.message ?? "Could not upload photos. Try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setUploading(false);
+    }
+
     setInput("");
+    setPendingPhotos([]);
     try {
       await send.mutateAsync({
         solicitationId,
         threadId,
-        message: msg,
+        message: msg || "(see attached photo)",
         persona,
         plainMode,
         slash,
         pinnedKnowledgeIds,
+        attachmentIds,
       });
+      invalidateAttachments(threadId);
       taRef.current?.focus();
     } catch (e: any) {
       toast({ title: "Assistant error", description: e?.message ?? "Failed to send", variant: "destructive" });
       setInput(msg);
+      // Note: uploaded photos remain in storage and attached to the thread,
+      // but we don't restore them as pending (they're already saved).
     }
   };
 
