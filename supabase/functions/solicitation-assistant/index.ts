@@ -301,19 +301,7 @@ Summary: ${s?.ai_summary ?? "—"}`);
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  try {
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const token = authHeader.replace("Bearer ", "");
-    const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY") ?? "", { global: { headers: { Authorization: authHeader } } });
-    const { data: { user } } = await userClient.auth.getUser(token);
-    if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { solicitationId, threadId, message } = await req.json();
-    if (!solicitationId || !threadId || !message) {
-      return new Response(JSON.stringify({ error: "solicitationId, threadId, and message are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    const supa = createClient(SUPABASE_URL, SERVICE_KEY);
 
   const t0 = Date.now();
   try {
