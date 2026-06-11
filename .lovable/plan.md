@@ -1,35 +1,41 @@
-# Phase 5 — Risk Radar & Auto-suggested Knowledge
+# Phase 6 — Photo Intake & Multimodal Support
 
-Surfaces solicitation risks inline in the assistant and lets the assistant proactively suggest knowledge documents to pin based on the user's question. No new tables.
+Lets users attach photos (mobile camera or file) to assistant messages. The model sees the images alongside the text question and can answer about them. Uses the existing `assistant-attachments` storage bucket and `assistant_attachments` table (no schema change).
 
 ## New files
 
-- `src/features/assistant/components/RiskRadar.tsx` — Collapsible panel rendered above the message list when there are open (non-mitigated) high/critical risks for the solicitation. Lists severity-coloured chips with title + truncated description and a "Discuss" button that submits a pre-filled prompt ("How should we mitigate: <risk title>?") into the chat. Closed by default in `compact` mode.
-- `src/features/assistant/components/SuggestedKnowledgeBanner.tsx` — Lightweight banner shown under the header when the latest assistant message includes `suggested_knowledge` ref data. Each suggestion is a row: doc title + one-line "why", with a Pin button that calls `usePinnedKnowledge.pin`. Dismiss button hides for the session.
-- `src/features/assistant/hooks/useSolicitationRisks.ts` — `useQuery` over `risks` filtered to open high/critical for the current solicitation, ordered by severity then created_at.
+- `src/features/assistant/components/PhotoAttachmentButton.tsx` — Button next to the mic. On mobile uses `<input type="file" accept="image/*" capture="environment" multiple>` so iOS/Android surface a Camera / Photo Library chooser; on desktop opens a normal file picker. Validates type (jpeg/png/webp/heic) and size (≤8MB each, ≤4 per message).
+- `src/features/assistant/components/AttachmentChips.tsx` — Row of small thumbnails (object-URL previews) shown above the textarea for staged-but-not-yet-sent photos, each with an X to remove.
+- `src/features/assistant/components/MessageAttachments.tsx` — Renders the photos that belong to a past assistant_message (queried via `assistant_attachments.message_id`). Inline thumbnails open the original on click.
+- `src/features/assistant/hooks/useAssistantAttachments.ts` — `useQuery` returning attachments grouped by `message_id` for the current thread, plus signed-URL resolver (cached, 5-min TTL).
 
 ## Edits
 
-- `src/features/assistant/hooks/useAssistantThreads.ts` — Extend `AssistantMessage` with optional `suggestions?: { knowledge?: Array<{ document_id: string; title: string; why: string }> }` read from the existing `citations` jsonb column (no schema change — stored under a separate key in the inserted row via the edge function using a new `suggestions` column? No: piggy-back on `citations` by adding entries with `kind: "suggested_knowledge"`).
-- `src/features/assistant/components/AssistantChat.tsx`
-  - Mount `<RiskRadar />` above the message list (only when messages exist or as a one-time intro when empty).
-  - After each assistant turn, render `<SuggestedKnowledgeBanner />` based on the most recent assistant message's `kind: "suggested_knowledge"` citations.
-  - Pass `risksOpenCount` into `StarterCards` query key so dynamic starters refresh when the radar count changes meaningfully (best-effort).
+- `supabase/functions/_shared/aiClient.ts`
+  - Extend `CallAiArgs` with optional `images?: Array<{ url: string }>`.
+  - In `callLovable`, when `images.length > 0`, send the user turn as OpenAI content blocks: `[{ type: "text", text }, { type: "image_url", image_url: { url } }, ...]`. Anthropic path unchanged (not used by this function).
 - `supabase/functions/solicitation-assistant/index.ts`
-  - Extend `TOOL_SCHEMA` with optional `suggested_knowledge: Array<{ document_id, title, why }>`.
-  - Pass a compact "Available knowledge documents" list (id + title + tags, capped to ~25 docs, scoped to the solicitation's client) into the system prompt so the model can pick relevant ones to suggest. Only emit suggestions when the user's question would benefit from a doc that is NOT already pinned.
-  - Validate suggestions against the actual `client_knowledge_documents` rows (drop any unknown IDs); cap at 3. Persist them as citations with `kind: "suggested_knowledge"` so the frontend banner can read them without a schema change.
+  - Accept `attachmentIds: string[]` in the request body (cap at 4).
+  - Load matching rows from `assistant_attachments` scoped to `thread_id`, sign each `storage_path` for 5 minutes, and pass the URLs as `images` to `callAiTool`.
+  - After inserting the user message, `UPDATE assistant_attachments SET message_id = ... WHERE id IN (...)` so future renders can link photos to the right message.
+  - Add a short "## Attached photos" note to the user prompt listing each filename so the model knows they're real evidence.
+- `src/features/assistant/hooks/useAssistantThreads.ts`
+  - `useSendAssistantMessage` accepts `attachmentIds?: string[]` and forwards them in the function payload.
+- `src/features/assistant/components/AssistantChat.tsx`
+  - Local state `pendingPhotos: File[]`. On submit: upload each file to `assistant-attachments` bucket at `{user_id}/{thread_id}/{uuid}.{ext}`, insert an `assistant_attachments` row (kind='photo', message_id=null), then send the message with the resulting IDs. On error, surface a toast and keep the files staged.
+  - Render `<AttachmentChips />` above the textarea and `<PhotoAttachmentButton />` next to the mic. Disabled while sending or recording.
+  - In `MessageRow`, render `<MessageAttachments messageId={m.id} />` above the assistant/user text when that message has photos.
 
 ## Out of scope
 
-- Photo / image attachments (Phase 6).
-- History/transcript export, pinned-entity chips (Phase 7).
-- Editing risks from the radar — radar is read-only with a "Discuss" shortcut.
-- Auto-pinning suggested docs — user always confirms.
+- Photo OCR / extraction pipeline (the model already sees the pixels via multimodal).
+- Drag-and-drop into the chat area.
+- Editing or re-cropping photos client-side.
+- Multimodal for the Anthropic provider (this function is configured to Lovable Gemini, which is multimodal).
 
 ## Validation
 
-- A solicitation with at least one open `high`/`critical` risk shows the Risk Radar in chat; clicking "Discuss" sends the prefilled prompt and the radar collapses.
-- When the assistant believes a knowledge doc is relevant, the banner appears with up to 3 suggestions and "Pin" adds them to `pinned_knowledge_ids`.
-- Suggestions never reference an unknown or already-pinned `document_id`.
-- Already-pinned docs are excluded from suggestions for the next turn.
+- On mobile (iOS Safari / Android Chrome), the button opens the camera or photo library; on desktop it opens a file picker.
+- Sending a message with one photo of a SOW page produces an answer that references content visible in the photo, and `assistant_attachments.message_id` is populated for that user message.
+- Photos appear inline above the user message after reload (signed URL refresh).
+- Files larger than 8MB are rejected client-side with a toast; more than 4 per message are rejected.

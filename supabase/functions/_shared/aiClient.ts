@@ -45,6 +45,8 @@ export interface CallAiArgs {
   user: string;
   tool: OpenAIToolSchema; // forced structured output
   modelOverride?: ModelChoice; // bypass MODEL_CONFIG and DB override for this call
+  /** Optional image URLs (signed or public) to attach to the user turn (Lovable provider only). */
+  images?: Array<{ url: string }>;
 }
 
 export class AiHttpError extends Error {
