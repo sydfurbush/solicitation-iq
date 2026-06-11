@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 
 import { ChevronDown, ChevronUp, Loader2, Mic, Send, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
