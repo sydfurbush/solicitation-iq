@@ -1,48 +1,53 @@
-# Fix Word Export — Mermaid SVG renders as raw CSS text
+# Streamlined Thread List
 
-## Root cause
+## Goal
+Give chat titles more horizontal space by collapsing the per-row action icons (Pin, Move-to-folder, Share, Trash) into a single "…" overflow menu, and add a **Rename** action — matching the reference screenshot.
 
-In `src/features/assistant/lib/exportFormatted.ts`, `downloadAssistantDocx()` walks the rendered HTML body and converts each element to docx blocks. When it hits a Mermaid diagram, the diagram is an inline `<svg>` whose first child is a `<style>` element with all of mermaid's generated CSS. The walker has no special case for `<svg>` or `<style>`, so it falls through to `collectRuns()` which reads `textContent` — dumping the entire CSS stylesheet (`#mermaid-rlc{font-family:inherit;…`) into the document as a paragraph. That is exactly what the screenshot shows.
+## Changes (only `src/features/assistant/components/ThreadList.tsx`)
 
-PDF export and the "Copy formatted" path are not affected because both keep the live SVG, which renders correctly in browsers and email/Word paste targets.
+### 1. Row layout
+- Remove the 4-icon hover strip on the right.
+- Replace with a single `MoreHorizontal` (…) icon button, visible on hover/focus and always visible for the active row.
+- Keep a small inline **pin indicator** (📌) on the left of pinned rows so users still see pin state at a glance — the action itself moves into the menu.
+- Result: title gets ~80px more width, fewer truncations like "provide an exampl…".
 
-## Fix
+### 2. "…" overflow menu (DropdownMenu)
+Active (non-trash) row items, in order:
+1. **Pin to top** / **Unpin** (toggles)
+2. **Rename** ← new
+3. **Move to folder ▸** (submenu listing folders + "Unfiled")
+4. **Copy share link**
+5. ─ separator ─
+6. **Move to Trash** (destructive)
 
-### 1. Rasterize SVGs to PNG before docx generation
+Trash row items:
+1. **Restore**
+2. **Delete permanently** (destructive)
 
-In `downloadAssistantDocx`, after `renderTranscriptToHtml` produces the body HTML, locate every `<svg>` in the temporary container and convert each to a PNG `data:` URL:
+### 3. Rename flow
+- Inline rename: clicking **Rename** swaps the title text with an `<Input>` focused and selected. Enter or blur saves via `useUpdateThread({ patch: { title } })`; Escape cancels. Empty title reverts.
+- No new dialog needed — keeps the list compact and feels like the reference UI.
 
-- Serialize the SVG with `XMLSerializer`.
-- Wrap in a `Blob` (`image/svg+xml`) and `URL.createObjectURL` it.
-- Load into a new `Image()`; on `load`, draw it to an off-screen `<canvas>` sized to the SVG's natural width/height (fallback to 800 wide, preserving aspect) at 2× device pixel ratio for crispness.
-- Read `canvas.toDataURL("image/png")`, base64-decode to a `Uint8Array`.
-- Replace the original `<svg>` node with a placeholder `<div data-docx-image="...">` whose `data-docx-image` attribute carries an index into a parallel `images[]` array of `{ data: Uint8Array, width, height }`.
+### 4. Visual polish
+- Title line: bump from `text-sm` truncate to allow up to 2 lines with `line-clamp-2` (optional — recommendation A) OR keep single-line truncate with the extra width (recommendation B, matches reference more closely).
+- Timestamp stays as the small muted line beneath.
+- Active row keeps `bg-muted`; "…" button uses `opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100` so it stays visible while the menu is open.
 
-### 2. Teach the walker about the placeholder
+## Recommendations / Options for you to choose
 
-Extend `blockFromElement` to detect `data-docx-image` on a div and emit a `Paragraph` containing an `ImageRun` with `type: "png"`, the captured PNG buffer, and a width sized to fit the page (cap at ~600 px wide, scale height to preserve aspect).
+**A. Title wrapping**
+- A1 *(recommended)*: Single-line truncate — cleanest, matches your reference screenshot.
+- A2: Allow 2-line wrap (`line-clamp-2`) — fewer truncations, taller rows.
 
-### 3. Skip non-content elements everywhere
+**B. Pin visibility**
+- B1 *(recommended)*: Small pin glyph on the left of pinned rows + Pin/Unpin inside the "…" menu.
+- B2: No inline glyph — rely on the dedicated "Pinned" section header only.
 
-In both `blockFromElement` and `collectRuns`, ignore elements with tag name `STYLE`, `SCRIPT`, `NOSCRIPT`, `TEMPLATE`, or `SVG` (the SVG case is now handled by the placeholder above, so any leftover svg in the tree is treated as already consumed and skipped — no fall-through to `textContent`).
+**C. Rename UX**
+- C1 *(recommended)*: Inline edit in place (described above).
+- C2: Modal dialog (consistent with folder rename dialog already in the file).
 
-Also skip the `<button>` inside `OrgChartBlock` ("Show source" toggle) so its label and any expanded `<pre>` source don't get exported on top of the rendered card.
+Default plan uses **A1 + B1 + C1**. Tell me if you'd prefer different options and I'll adjust before implementation.
 
-### 4. Defensive fallback
-
-If SVG rasterization fails (e.g. tainted canvas, missing dimensions), drop a small italic placeholder paragraph "[diagram]" instead of dumping any text — never let raw `<style>` content reach the docx output.
-
-### 5. Verify
-
-After the change, the Word export for the org-chart thread in the screenshot must show:
-- The thread title and metadata header.
-- The user message bubble.
-- The assistant's "Proposed Organizational Chart…" heading and intro paragraph.
-- The Mermaid diagram as a properly sized PNG image (not CSS text).
-- No leaked `#mermaid-rlc{…}` stylesheet anywhere.
-
-## Files touched
-
-- `src/features/assistant/lib/exportFormatted.ts` only.
-
-No other changes. PDF, Copy formatted, and the on-screen chat are not modified.
+## Out of scope
+No changes to folders sidebar, search, quick actions (Knowledge/Memory/Preferences), trash behavior, or backend hooks.
