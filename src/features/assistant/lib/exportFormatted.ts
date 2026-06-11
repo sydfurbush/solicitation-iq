@@ -436,6 +436,50 @@ function collectRuns(node: Node, style: RunStyle = {}): (TextRun | ExternalHyper
 function blockFromElement(el: HTMLElement): (Paragraph | Table)[] {
   const tag = el.tagName.toUpperCase();
 
+  if (
+    tag === "STYLE" ||
+    tag === "SCRIPT" ||
+    tag === "NOSCRIPT" ||
+    tag === "TEMPLATE" ||
+    tag === "SVG" ||
+    tag === "BUTTON"
+  ) {
+    return [];
+  }
+
+  // SVG → image placeholder injected by rasterizeAllSvgs.
+  const imgIdx = el.getAttribute("data-docx-image");
+  if (imgIdx !== null) {
+    const images = ((window as any).__docxImages ?? []) as DocxImage[];
+    if (imgIdx === "fallback") {
+      return [
+        new Paragraph({
+          spacing: { before: 120, after: 120 },
+          children: [new TextRun({ text: "[diagram]", italics: true, color: "6B7280" })],
+        }),
+      ];
+    }
+    const img = images[Number(imgIdx)];
+    if (!img) return [];
+    const maxW = 600;
+    const scale = img.width > maxW ? maxW / img.width : 1;
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    return [
+      new Paragraph({
+        spacing: { before: 120, after: 120 },
+        children: [
+          new ImageRun({
+            type: "png",
+            data: img.data,
+            transformation: { width: w, height: h },
+          } as any),
+        ],
+      }),
+    ];
+  }
+
+
   if (HEADING_MAP[tag]) {
     return [
       new Paragraph({
