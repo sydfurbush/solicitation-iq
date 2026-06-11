@@ -819,7 +819,7 @@ Deno.serve(async (req) => {
     const updates: Record<string, unknown> = { last_message_at: new Date().toISOString() };
     const { data: t } = await supa.from("assistant_threads").select("title").eq("id", threadId).maybeSingle();
     if (t && t.title === "New chat") {
-      updates.title = message.slice(0, 60).trim() || "New chat";
+      updates.title = sanitizeAutoTitle(message);
     }
     await supa.from("assistant_threads").update(updates).eq("id", threadId);
 
