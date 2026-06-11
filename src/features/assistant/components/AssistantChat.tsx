@@ -480,7 +480,7 @@ function MessageRow({
             </div>
           </>
         ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h1:mt-4 prose-h1:mb-2 prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1.5 prose-h4:text-sm prose-h4:mt-3 prose-h4:mb-1 prose-p:my-2 prose-p:leading-relaxed prose-ul:my-2 prose-ul:pl-5 prose-ol:my-2 prose-ol:pl-5 prose-li:my-0.5 prose-li:marker:text-muted-foreground prose-strong:text-foreground prose-strong:font-semibold prose-em:text-foreground prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:opacity-80 prose-blockquote:border-l-2 prose-blockquote:border-border prose-blockquote:pl-3 prose-blockquote:italic prose-blockquote:text-muted-foreground prose-hr:my-4 prose-hr:border-border prose-code:before:content-none prose-code:after:content-none prose-code:rounded prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.85em] prose-code:font-mono prose-pre:bg-muted prose-pre:text-foreground prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-3 prose-pre:overflow-x-auto prose-pre:my-3 prose-pre:text-[0.85em] prose-img:rounded-md prose-img:my-3 [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border [&_table]:border-border [&_table]:rounded-md [&_table]:my-3 [&_thead]:bg-muted [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border-b [&_th]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:border-b [&_td]:border-border [&_tr:last-child_td]:border-b-0 [&_td]:align-top [&_ul[data-type=taskList]]:list-none [&_ul[data-type=taskList]]:pl-0 [&_input[type=checkbox]]:mr-2">
+          <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-h1:text-xl prose-h1:mt-4 prose-h1:mb-2 prose-h2:text-lg prose-h2:mt-4 prose-h2:mb-2 prose-h3:text-base prose-h3:mt-3 prose-h3:mb-1.5 prose-h4:text-sm prose-h4:mt-3 prose-h4:mb-1 prose-p:my-2 prose-p:leading-relaxed prose-ul:my-2 prose-ul:pl-5 prose-ol:my-2 prose-ol:pl-5 prose-li:my-0.5 prose-li:marker:text-muted-foreground prose-strong:text-foreground prose-strong:font-semibold prose-em:text-foreground prose-a:text-primary prose-a:underline prose-a:underline-offset-2 hover:prose-a:opacity-80 prose-blockquote:border-l-2 prose-blockquote:border-border prose-blockquote:pl-3 prose-blockquote:italic prose-blockquote:text-muted-foreground prose-hr:my-4 prose-hr:border-border prose-code:before:content-none prose-code:after:content-none prose-code:rounded prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.85em] prose-code:font-mono prose-pre:bg-muted prose-pre:text-foreground prose-pre:border prose-pre:border-border prose-pre:rounded-md prose-pre:p-3 prose-pre:overflow-x-auto prose-pre:my-3 prose-pre:text-[0.85em] prose-img:rounded-md prose-img:my-3 [&_ul[data-type=taskList]]:list-none [&_ul[data-type=taskList]]:pl-0 [&_input[type=checkbox]]:mr-2">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
@@ -488,14 +488,43 @@ function MessageRow({
                   <a {...props} target="_blank" rel="noopener noreferrer" />
                 ),
                 pre: ({ node, ...props }) => <pre {...props} />,
-                code: ({ node, className, children, ...props }: any) => {
-                  const isBlock = /language-/.test(className || "");
-                  return isBlock ? (
-                    <code className={className} {...props}>{children}</code>
-                  ) : (
-                    <code className={className} {...props}>{children}</code>
-                  );
-                },
+                code: ({ node, className, children, ...props }: any) => (
+                  <code className={className} {...props}>{children}</code>
+                ),
+                table: ({ node, ...props }) => (
+                  <div className="my-3 -mx-1 overflow-x-auto rounded-md border border-border">
+                    <table
+                      {...props}
+                      className="w-full border-collapse text-sm table-auto"
+                    />
+                  </div>
+                ),
+                thead: ({ node, ...props }) => (
+                  <thead {...props} className="bg-muted/60" />
+                ),
+                tbody: ({ node, ...props }) => (
+                  <tbody
+                    {...props}
+                    className="[&_tr:nth-child(even)]:bg-muted/20"
+                  />
+                ),
+                tr: ({ node, ...props }) => (
+                  <tr {...props} className="border-b border-border last:border-b-0" />
+                ),
+                th: ({ node, style, ...props }: any) => (
+                  <th
+                    {...props}
+                    style={style}
+                    className="px-3 py-2 text-left font-semibold whitespace-nowrap border-r border-border last:border-r-0"
+                  />
+                ),
+                td: ({ node, style, ...props }: any) => (
+                  <td
+                    {...props}
+                    style={style}
+                    className="px-3 py-2 align-top border-r border-border last:border-r-0 break-words"
+                  />
+                ),
               }}
             >{normalizeAssistantMarkdown(text)}</ReactMarkdown>
             <InlineActionButtons
