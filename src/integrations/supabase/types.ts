@@ -583,6 +583,7 @@ export type Database = {
           pinned: boolean
           pinned_client_id: string | null
           pinned_entity: Json | null
+          pinned_knowledge_ids: string[]
           pinned_solicitation_id: string | null
           plain_mode: boolean
           solicitation_id: string
@@ -598,6 +599,7 @@ export type Database = {
           pinned?: boolean
           pinned_client_id?: string | null
           pinned_entity?: Json | null
+          pinned_knowledge_ids?: string[]
           pinned_solicitation_id?: string | null
           plain_mode?: boolean
           solicitation_id: string
@@ -613,6 +615,7 @@ export type Database = {
           pinned?: boolean
           pinned_client_id?: string | null
           pinned_entity?: Json | null
+          pinned_knowledge_ids?: string[]
           pinned_solicitation_id?: string | null
           plain_mode?: boolean
           solicitation_id?: string
