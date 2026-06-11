@@ -10,9 +10,10 @@ import { OrgChartBlock, looksLikeOrgChart } from "./OrgChartBlock";
 export function normalizeAssistantMarkdown(input: string): string {
   if (!input) return input;
   let out = input;
-  // Add a space before § when it sits flush against a previous word/filename
-  // (e.g. "…pdf§Key Personnel" -> "…pdf §Key Personnel"). Skip if already spaced.
-  out = out.replace(/([\w.)\]])§/g, "$1 §");
+  // Replace the section-sign separator the model uses in citations
+  // (e.g. "filename.pdf§Key Personnel" or "filename.pdf §3.2") with a clean
+  // en-dash so it doesn't read as a stray special character.
+  out = out.replace(/\s*§\s*/g, " — ");
   if (out.includes("|") && /\|\s*-{3,}\s*\|/.test(out)) {
     const alreadyMultiline = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/m.test(out);
     if (!alreadyMultiline) {
