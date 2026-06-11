@@ -149,7 +149,6 @@ export default function SolicitationDetail() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const rawTab = searchParams.get("tab");
-  const tab = rawTab ?? "workflow";
   const step = searchParams.get("step");
 
   const { data: s, isLoading } = useSolicitation(solicitationId);
