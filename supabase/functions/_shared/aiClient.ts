@@ -188,7 +188,7 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<{ o
   };
 }
 
-async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Record<string, unknown>> {
+async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<{ output: Record<string, unknown>; usage: { tokensIn: number; tokensOut: number } }> {
   if (!LOVABLE_KEY) throw new AiHttpError(500, "LOVABLE_API_KEY not configured");
 
   const userContent = args.images && args.images.length > 0
