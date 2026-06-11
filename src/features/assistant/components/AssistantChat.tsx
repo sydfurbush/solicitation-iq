@@ -2,31 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { ChevronDown, ChevronUp, Loader2, Mic, Send, Square } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-
-/**
- * If the model emitted a markdown table on a single line (rows separated by
- * "| |" instead of "|\n|"), insert newlines so remark-gfm can parse it.
- */
-function normalizeAssistantMarkdown(input: string): string {
-  if (!input || !input.includes("|")) return input;
-  // Only touch runs that look like a table (contain a separator like |---|).
-  if (!/\|\s*-{3,}\s*\|/.test(input)) return input;
-
-  // If the assistant already returned a normal multiline GFM table, leave it
-  // untouched. Rewriting valid separator rows can make remark-gfm treat the
-  // whole table as plain inline text.
-  if (/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/m.test(input)) {
-    return input;
-  }
-
-  return input
-    // Break between adjacent rows: "...| |..." -> "...|\n|..."
-    .replace(/\|[ \t]+\|/g, "|\n|")
-    // Collapse accidental double newlines created above
-    .replace(/\n{3,}/g, "\n\n");
-}
+import { AssistantMessageBody } from "./AssistantMessageBody";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
