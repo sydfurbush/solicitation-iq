@@ -207,6 +207,7 @@ export default function SolicitationDetail() {
   // Mobile phase-rail sheet state
   const isMobile = useIsMobile();
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
+  const [workspaceSheetOpen, setWorkspaceSheetOpen] = useState(false);
   const { collapsed: railCollapsed, toggle: toggleRail } = useRailCollapsed();
 
   const goTab = (t: string, st?: string) => {
