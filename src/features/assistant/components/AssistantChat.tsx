@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+
 import { BookOpen, Brain, Loader2, Mic, Send, Settings2, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useQuery } from "@tanstack/react-query";
