@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { format } from "date-fns";
 import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
   ExternalLink,
   FileText,
   HelpCircle,
@@ -29,7 +31,8 @@ import {
   useUpdateSolicitationStatus,
 } from "@/features/solicitations/hooks/useSolicitations";
 import { useClient } from "@/features/clients/hooks/useClients";
-import { ProgressHeader } from "@/features/solicitations/components/ProgressHeader";
+import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
+import { PhaseHub, type HubStep } from "@/features/solicitations/components/PhaseHub";
 import { PhaseShell } from "@/features/solicitations/components/PhaseShell";
 import { SolicitationActionsMenu } from "@/features/solicitations/components/SolicitationActionsMenu";
 import { StageBadge } from "@/features/solicitations/components/StageBadge";
@@ -40,8 +43,10 @@ import { SolicitationOverview } from "@/features/solicitations/components/Solici
 import {
   STATUS_CLASSES,
   STATUS_LABELS,
+  daysUntil,
+  dueUrgency,
 } from "@/features/solicitations/lib/format";
-import { SOLICITATION_STATUSES, type PhaseType, type SolicitationStatus } from "@/lib/validators/solicitation";
+import { SOLICITATION_STATUSES, PHASES, type PhaseType, type SolicitationStatus } from "@/lib/validators/solicitation";
 import { toast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useDocumentsReadiness } from "@/features/documents/hooks/useDocumentsReadiness";
@@ -104,7 +109,6 @@ const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   drafting: { tab: "phase-3", step: "draft" },
   compliance: { tab: "phase-3", step: "compliance" },
   compile: { tab: "phase-3", step: "compile" },
-  workflow: { tab: "phase-1" },
 };
 
 type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity" | "assistant";
@@ -146,7 +150,7 @@ export default function SolicitationDetail() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const rawTab = searchParams.get("tab");
-  const tab = rawTab ?? "phase-1";
+  const tab = rawTab ?? "workflow";
   const step = searchParams.get("step");
 
   const { data: s, isLoading } = useSolicitation(solicitationId);
@@ -177,6 +181,8 @@ export default function SolicitationDetail() {
     });
   });
 
+  const urgency = useMemo(() => dueUrgency(s?.proposal_due_date), [s?.proposal_due_date]);
+  const days = useMemo(() => daysUntil(s?.proposal_due_date), [s?.proposal_due_date]);
 
   // One-time legacy ?tab= redirect
   useEffect(() => {
@@ -234,7 +240,7 @@ export default function SolicitationDetail() {
 
   const status = (s.status ?? "intake") as SolicitationStatus;
   const currentPhase: PhaseType = (s.current_phase ?? "phase_1_initial") as PhaseType;
-  
+  const currentPhaseIdx = PHASES.indexOf(currentPhase);
 
   // Full-bleed assistant mode: takes over the page content area with a collapse trigger.
   if (tab === "assistant") {
@@ -285,6 +291,42 @@ export default function SolicitationDetail() {
     }
   };
 
+  // Build hub step lists (light guidance: state derived from current phase position only)
+  const buildHubSteps = (phase: PhaseType): HubStep[] => {
+    const idx = PHASES.indexOf(phase);
+    const phaseDone = idx < currentPhaseIdx;
+    const phaseActive = idx === currentPhaseIdx;
+    const stepState = (active = false): HubStep["state"] =>
+      phaseDone ? "done" : phaseActive && active ? "active" : phaseActive ? "todo" : "todo";
+
+    if (phase === "phase_1_initial") {
+      return [
+        { key: "overview", label: "Overview", state: stepState(true), onClick: () => goTab("phase-1", "overview") },
+        { key: "documents", label: "Documents", count: s.documents_count, state: stepState(), onClick: () => goTab("phase-1", "documents") },
+        { key: "analysis", label: "Analysis", state: stepState(), onClick: () => goTab("phase-1", "analysis") },
+        { key: "questions", label: "Questions", count: s.questions_count, state: stepState(), onClick: () => goTab("phase-1", "questions") },
+        { key: "risks", label: "Risks & Opportunities", count: (s.risks_count ?? 0) + (s.opportunities_count ?? 0), state: stepState(), onClick: () => goTab("phase-1", "risks") },
+      ];
+    }
+    if (phase === "phase_2_deep_dive") {
+      return [
+        { key: "rtm", label: "Requirements (RTM)", state: stepState(true), onClick: () => goTab("phase-2") },
+        { key: "sections", label: "Section analysis", state: stepState(), onClick: () => goTab("phase-2") },
+        { key: "gaps", label: "Capability gaps", state: stepState(), onClick: () => goTab("phase-2") },
+      ];
+    }
+    if (phase === "phase_3_outline") {
+      return [
+        { key: "outline", label: "Proposal outline", state: stepState(true), onClick: () => goTab("phase-3", "outline") },
+        { key: "exhibits", label: "Exhibits & Attachments", state: stepState(), onClick: () => goTab("phase-3", "exhibits") },
+        { key: "themes", label: "Win themes", state: stepState(), onClick: () => goTab("phase-3", "themes") },
+        { key: "draft", label: "Draft", state: stepState(), onClick: () => goTab("phase-3", "draft") },
+        { key: "compliance", label: "Compliance matrix", state: stepState(), onClick: () => goTab("phase-3", "compliance") },
+        { key: "compile", label: "Compile & package", state: stepState(), onClick: () => goTab("phase-3", "compile") },
+      ];
+    }
+    return [];
+  };
 
   const phaseLabelByKey: Record<string, string> = {
     "phase-1": "Phase 1 · Initial",
@@ -413,23 +455,53 @@ export default function SolicitationDetail() {
         </div>
       </div>
 
-      {/* Unified progress header */}
-      <ProgressHeader
-        solicitationId={s.id}
-        currentPhase={currentPhase}
-        status={s.status}
-        proposalDueDate={s.proposal_due_date}
-        phase3Steps={PHASE_3_STEPS}
-        activeTab={tab}
-        activeStep={step}
-        onPhaseClick={(p: PhaseType) => goTab(PHASE_TAB[p])}
-        onSubStepClick={(k) => goTab("phase-3", k)}
-      />
-
+      {/* Phase strip + countdown */}
+      <Card>
+        <CardContent className="p-5 flex flex-col lg:flex-row gap-6 lg:items-center">
+          <div className="flex-1">
+            <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wide">Phase</p>
+            <PhaseIndicator
+              current={s.current_phase}
+              status={s.status}
+              onPhaseClick={(p: PhaseType) => goTab(PHASE_TAB[p])}
+            />
+          </div>
+          <div className="lg:border-l lg:pl-6">
+            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">Proposal due</p>
+            {s.proposal_due_date ? (
+              <div
+                className={cn(
+                  "flex items-center gap-2",
+                  urgency === "danger" || urgency === "overdue"
+                    ? "text-destructive"
+                    : urgency === "warning"
+                      ? "text-amber-600 dark:text-amber-500"
+                      : "",
+                )}
+              >
+                <Clock className="h-4 w-4" />
+                <div>
+                  <p className="font-semibold">{format(new Date(s.proposal_due_date), "PPP")}</p>
+                  {days !== null && (
+                    <p className="text-xs">
+                      {days < 0 ? `${Math.abs(days)} days overdue` : `${days} days left`}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No due date set</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Slim top nav */}
       <div className="border-b">
         <div className="flex flex-wrap items-center gap-1">
+          <NavBtn active={tab === "workflow"} onClick={() => goTab("workflow")}>
+            Workflow
+          </NavBtn>
 
           {/* Phase 1 with sub-step menu */}
           <div className="inline-flex items-center">
@@ -481,6 +553,22 @@ export default function SolicitationDetail() {
 
       {/* Content */}
       <div>
+        {tab === "workflow" && (
+          <PhaseHub
+            currentPhase={currentPhase}
+            phaseStatusByPhase={{}}
+            buildSteps={buildHubSteps}
+            onOpenPhase={(p) => goTab(PHASE_TAB[p])}
+            onWorkspace={(k) => goTab(k)}
+            solicitationId={s.id}
+            solicitation={{
+              title: s.title,
+              solicitation_number: s.solicitation_number,
+              issuing_agency: s.issuing_agency,
+              client: { name: clientName },
+            }}
+          />
+        )}
 
         {tab === "phase-1" && renderPhase1()}
 
