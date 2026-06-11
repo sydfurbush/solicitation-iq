@@ -1,76 +1,64 @@
-# Plan: Track AI Assistant tokens, cost, and model per Solicitation
-
-## Problem
-The Assistant Analytics panel shows Tokens = 0 because the `assistant_audit_log` table has `tokens_in` / `tokens_out` columns but nothing ever writes to them. The shared `callAiTool` helper does not return token usage, and `solicitation-assistant` only logs `status` and `latency_ms`. There is also no per-solicitation view — analytics is org-wide and not scoped to a single solicitation's lifetime.
+# Standardize AI Assistant → Word output
 
 ## Goal
-For each solicitation, regardless of which user makes the call, persist and display:
-1. Total tokens used (input + output).
-2. Estimated USD cost.
-3. The AI model(s) used.
 
-## Changes
+Make every `.docx` that flows out of the AI Assistant go through one place that enforces the docx-js rules from the `docx` agent skill (US Letter sizing, real bullet/number lists, dual-width tables, no `\n`, smart-quote-safe text, no unicode-bullet hacks). Two surfaces are in scope:
 
-### 1. Capture usage and model from the AI client
-`supabase/functions/_shared/aiClient.ts`
-- Add `callAiToolWithUsage(args)` returning `{ output, usage: { tokensIn, tokensOut }, model, provider }` without breaking existing callers.
-  - Lovable path: read `json.usage.prompt_tokens` / `json.usage.completion_tokens` (already logged today).
-  - Anthropic path: read `json.usage.input_tokens` / `json.usage.output_tokens`.
-- `callAiTool` becomes a thin wrapper that returns only `output`, so other functions keep working unchanged.
+1. The existing **Export → Word (.docx)** menu in the chat header (`ExportThreadButton`).
+2. A new **Save as Word** action on any individual AI-generated assistant message (so when the assistant proposes an artifact — a draft, a memo, a clarification, a list — the user can grab just that message as a properly-formatted Word doc).
 
-### 2. Persist tokens + model in the assistant audit log
-`supabase/functions/solicitation-assistant/index.ts`
-- Replace the single `callAiTool` call with `callAiToolWithUsage`.
-- On success, insert `tokens_in`, `tokens_out`, and `model` into the `assistant_audit_log` row (those columns already exist).
-- Error path stays unchanged (still records `status="error"` with no usage).
+Plain formatting only. The org Brand Template is intentionally **not** applied here.
 
-### 3. Cost estimation
-`src/features/assistant/lib/aiCost.ts` (new)
-- Small lookup table mapping known model ids to `{ inputPer1M, outputPer1M }` USD prices for the models actually used by `solicitation-assistant` and likely future swaps (Gemini 2.5 Pro/Flash/Flash-Lite, GPT-5/5-mini/5-nano, Claude Sonnet 4.5). Unknown models fall back to `0` with `unknownPricing: true` so the UI can flag them.
-- Export `estimateCost({ model, tokensIn, tokensOut })` → `{ usd, unknownPricing }`.
-- Pricing constants live in code (not DB) so they're easy to update via PR and stay server-free.
+## What gets built
 
-### 4. Per-solicitation analytics hook
-`src/features/assistant/hooks/useAssistantAnalytics.ts`
-- Accept optional `solicitationId`. When provided:
-  - Drop the `days` time filter (lifetime view).
-  - Add `.eq("solicitation_id", solicitationId)`.
-  - Include `solicitation_id` and `model` in the select.
-- Compute and return:
-  - `totalTokensIn`, `totalTokensOut` (already present).
-  - `estimatedCostUsd` (sum of per-row `estimateCost`).
-  - `byModel`: `Array<{ model: string, requests: number, tokens: number, costUsd: number, unknownPricing: boolean }>` sorted by requests desc.
-  - `hasUnknownPricing`: boolean for UI footnote.
-- Existing org-wide behavior preserved when `solicitationId` is omitted.
+### 1. New shared helper: `src/features/assistant/lib/docxKit.ts`
 
-### 5. Analytics UI updates
-`src/features/assistant/components/AnalyticsDashboard.tsx`
-- Accept optional `solicitationId` prop; pass through to the hook.
-- When scoped to a solicitation:
-  - Title: "Assistant analytics — this solicitation".
-  - Description: "Token, cost, and model usage across all users for this solicitation."
-  - Hide the "Window" selector (lifetime view).
-- Add two new Stat tiles next to the existing Tokens tile:
-  - **Estimated cost** — formatted `$X.XX` (or `<$0.01` for tiny totals), with a small "estimated" caption and an asterisk footnote when `hasUnknownPricing`.
-  - **Models used** — count of distinct models, with the top model name as the subline.
-- Add a new "By model" section listing each model with request count, total tokens, and estimated cost.
+A small, opinionated module that other code calls instead of touching the `docx` npm package directly. It is the single chokepoint where the skill rules live.
 
-`src/features/assistant/components/AssistantAnalyticsButton.tsx`
-- Forward the current `solicitationId` (already in the assistant context) into `AnalyticsDashboard`.
+Exports:
 
-### 6. Permissions and schema
-- No migration needed — `assistant_audit_log` already has `tokens_in`, `tokens_out`, `model`, `solicitation_id`, and policies scoped per-org. All users on the solicitation already share read access through the existing RLS.
-- Cost is computed client-side from persisted tokens + model, so no extra columns.
+- `LETTER_SECTION_PROPERTIES` — US Letter 12240×15840 DXA + 1" margins (skill rule: never rely on docx-js default A4).
+- `STANDARD_NUMBERING` — `bullets` and `numbers` configs using `LevelFormat.BULLET` / `LevelFormat.DECIMAL` (skill rule: never insert `•` or `\u2022` as literal text).
+- `markdownToDocxBlocks(md: string): (Paragraph | Table)[]` — converts assistant markdown (incl. tables, code fences, blockquotes, task lists, links) to docx blocks. Internally reuses the existing `collectRuns` / `blockFromElement` logic already in `exportFormatted.ts` by extracting them into this module.
+- `buildPlainDocx({ title, subtitle?, blocks, footerText? }): Document` — assembles a `Document` with the section properties, numbering, default fonts, header/footer (page numbers), and the provided blocks. No brand colors, no logo.
+- `saveDocx(doc: Document, filename: string): Promise<void>` — wraps `Packer.toBlob` + `file-saver`, with filename slugification.
+
+Skill-rule guardrails enforced inside `docxKit`:
+
+- All tables get both `columnWidths` and per-cell `width` in DXA (no `WidthType.PERCENTAGE`).
+- Shading uses `ShadingType.CLEAR`.
+- `PageBreak` only ever emitted inside a `Paragraph`.
+- `ImageRun` always passes an explicit `type`.
+- Newlines in source markdown become separate `Paragraph`s, never literal `\n` in a `TextRun`.
+- Smart quotes preserved (markdown already carries them; no entity substitution needed in docx — that rule is XML-only).
+
+### 2. Refactor `src/features/assistant/lib/exportFormatted.ts`
+
+- Move the docx-building portion (`collectRuns`, `blockFromElement`, `NUMBERING_CONFIG`, the `Document` assembly inside `downloadAssistantDocx`) into `docxKit.ts`.
+- `downloadAssistantDocx` becomes a thin caller: render transcript DOM → rasterize SVGs → `markdownToDocxBlocks` per turn → `buildPlainDocx` → `saveDocx`.
+- PDF/HTML/clipboard paths are unchanged.
+
+### 3. New per-message action
+
+- New component `src/features/assistant/components/MessageSaveAsWordButton.tsx`: small ghost icon button (lucide `FileDown`) that takes an `AssistantMessage`, extracts its text/markdown parts, runs `markdownToDocxBlocks` + `buildPlainDocx`, and saves as `<thread-slug>-message-<shortId>.docx`. Filename falls back to `assistant-message-<shortId>.docx` when no thread context is available.
+- Mount it in the existing assistant message toolbar. Search for the component that already renders the per-message copy/regenerate icons (likely `AssistantMessageActions` / inside `AssistantChat.tsx`); add the new button beside copy. Only show for assistant-role messages with non-empty text.
+
+### 4. No changes to other doc generators
+
+`clarificationPackageGenerator.ts`, `wordGenerator.ts`, and `compile-proposal/index.ts` keep their current bespoke layouts (they have specific structure requirements beyond plain). The skill rules are still observed there; this plan does not refactor them. We can revisit later if you want a project-wide migration.
+
+## Files touched
+
+- **add** `src/features/assistant/lib/docxKit.ts`
+- **edit** `src/features/assistant/lib/exportFormatted.ts` (refactor to use `docxKit`)
+- **add** `src/features/assistant/components/MessageSaveAsWordButton.tsx`
+- **edit** the assistant message row component to mount the new button (exact file confirmed at implementation time)
 
 ## Out of scope
-- Backfilling historical rows: tokens/cost for requests made before deploy stay at 0. The panel notes "since {first audited request}".
-- Real-time pricing pulls from provider APIs — pricing table is maintained in code.
-- Per-user breakdown of cost (still aggregated across all users for the solicitation, per request).
 
-## Files
-- `supabase/functions/_shared/aiClient.ts` — add `callAiToolWithUsage`, keep `callAiTool` wrapper.
-- `supabase/functions/solicitation-assistant/index.ts` — switch to new helper, write `tokens_in`/`tokens_out`/`model` on success.
-- `src/features/assistant/lib/aiCost.ts` — new pricing table + `estimateCost`.
-- `src/features/assistant/hooks/useAssistantAnalytics.ts` — solicitation-scoped lifetime mode, cost + model aggregations.
-- `src/features/assistant/components/AnalyticsDashboard.tsx` — accept `solicitationId`, render Cost and Models tiles + By-model section.
-- `src/features/assistant/components/AssistantAnalyticsButton.tsx` — pass `solicitationId`.
+- Brand Template / logo / header colors.
+- Edge-Function-side document generation. The split stays as-is: chat exports client-side; `compile-proposal` server-side.
+- Migrating `clarificationPackageGenerator` / `wordGenerator` / `compile-proposal` to the shared helper.
+- Any PDF changes.
+
+Used the `docx` skill to derive the helper's rule set.

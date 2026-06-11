@@ -38,6 +38,7 @@ import { PinnedEntityChips } from "./PinnedEntityChips";
 import { PinEntityPopover } from "./PinEntityPopover";
 import { AssistantAnalyticsButton } from "./AssistantAnalyticsButton";
 import { InlineActionButtons } from "./InlineActionButtons";
+import { MessageSaveAsWordButton } from "./MessageSaveAsWordButton";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
@@ -318,7 +319,7 @@ export function AssistantChat({
             compact={compact}
           />
         ) : (
-          messages.map((m) => <MessageRow key={m.id} m={m} threadId={threadId} solicitationId={solicitationId} />)
+          messages.map((m) => <MessageRow key={m.id} m={m} threadId={threadId} solicitationId={solicitationId} thread={thread} />)
         )}
         {sending && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -437,10 +438,12 @@ function MessageRow({
   m,
   threadId,
   solicitationId,
+  thread,
 }: {
   m: AssistantMessage;
   threadId: string;
   solicitationId: string;
+  thread: import("../hooks/useAssistantThreads").AssistantThread | null;
 }) {
   const text = (m.parts ?? []).map((p) => (p.type === "text" ? p.text ?? "" : "")).join("\n");
   const isUser = m.role === "user";
@@ -467,11 +470,14 @@ function MessageRow({
         ) : (
           <div>
             <AssistantMessageBody text={text} />
-            <InlineActionButtons
-              messageId={m.id}
-              solicitationId={solicitationId}
-              citations={m.citations as any[]}
-            />
+            <div className="flex items-center gap-1 flex-wrap">
+              <InlineActionButtons
+                messageId={m.id}
+                solicitationId={solicitationId}
+                citations={m.citations as any[]}
+              />
+              <MessageSaveAsWordButton message={m} thread={thread} />
+            </div>
             {Array.isArray(m.citations) && m.citations.length > 0 && (() => {
               const visible = (m.citations as any[]).filter(
                 (c) => c?.kind !== "suggested_knowledge" && c?.kind !== "suggested_action" && c?.label,
