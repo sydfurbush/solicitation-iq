@@ -179,7 +179,13 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<{ o
       `AI response truncated by token limit (model=${choice.model}, max_tokens=${choice.maxTokens ?? 4096}). Raise max_tokens for this function in AI Models settings, or switch to a roomier model.`,
     );
   }
-  return toolUse.input as Record<string, unknown>;
+  return {
+    output: toolUse.input as Record<string, unknown>,
+    usage: {
+      tokensIn: Number(json.usage?.input_tokens ?? 0),
+      tokensOut: Number(json.usage?.output_tokens ?? 0),
+    },
+  };
 }
 
 async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Record<string, unknown>> {
