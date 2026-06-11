@@ -1,41 +1,37 @@
-# Phase 6 — Photo Intake & Multimodal Support
+# Phase 7 — Transcript Export & Pinned-Entity Chips
 
-Lets users attach photos (mobile camera or file) to assistant messages. The model sees the images alongside the text question and can answer about them. Uses the existing `assistant-attachments` storage bucket and `assistant_attachments` table (no schema change).
+Two complementary features that round out the assistant: users can export a thread's transcript (download markdown or copy rich text), and pin specific risks / opportunities / requirements / documents to a thread so the assistant treats them as the focus of the conversation.
 
 ## New files
 
-- `src/features/assistant/components/PhotoAttachmentButton.tsx` — Button next to the mic. On mobile uses `<input type="file" accept="image/*" capture="environment" multiple>` so iOS/Android surface a Camera / Photo Library chooser; on desktop opens a normal file picker. Validates type (jpeg/png/webp/heic) and size (≤8MB each, ≤4 per message).
-- `src/features/assistant/components/AttachmentChips.tsx` — Row of small thumbnails (object-URL previews) shown above the textarea for staged-but-not-yet-sent photos, each with an X to remove.
-- `src/features/assistant/components/MessageAttachments.tsx` — Renders the photos that belong to a past assistant_message (queried via `assistant_attachments.message_id`). Inline thumbnails open the original on click.
-- `src/features/assistant/hooks/useAssistantAttachments.ts` — `useQuery` returning attachments grouped by `message_id` for the current thread, plus signed-URL resolver (cached, 5-min TTL).
+- `src/features/assistant/lib/exportTranscript.ts` — Pure helpers that turn a thread + messages array into markdown and HTML strings (front-matter with title/persona/plain-mode/generated time, role-labeled turns, citations summary, image attachment filenames).
+- `src/features/assistant/components/ExportThreadButton.tsx` — Header `DropdownMenu` with three actions: "Copy as rich text", "Copy as markdown", "Download .md".
+- `src/features/assistant/components/PinnedEntityChips.tsx` — Renders the thread's pinned entities (risks, opps, requirements, documents) as clickable chips with X-to-remove. Empty state hidden.
+- `src/features/assistant/components/PinEntityPopover.tsx` — "+ Focus" button that opens a popover with four small lists (risks / opportunities / requirements / documents) filtered by the solicitation. Clicking an item adds it to `thread.pinned_entity.entities` (capped at 5). Already-pinned items show a check mark.
+- `src/features/assistant/hooks/usePinnedEntities.ts` — `usePinnedEntities(thread)` returns `{ entities, add, remove, isPinned, atLimit }` backed by `useUpdateThread` writing to `pinned_entity` jsonb.
 
 ## Edits
 
-- `supabase/functions/_shared/aiClient.ts`
-  - Extend `CallAiArgs` with optional `images?: Array<{ url: string }>`.
-  - In `callLovable`, when `images.length > 0`, send the user turn as OpenAI content blocks: `[{ type: "text", text }, { type: "image_url", image_url: { url } }, ...]`. Anthropic path unchanged (not used by this function).
-- `supabase/functions/solicitation-assistant/index.ts`
-  - Accept `attachmentIds: string[]` in the request body (cap at 4).
-  - Load matching rows from `assistant_attachments` scoped to `thread_id`, sign each `storage_path` for 5 minutes, and pass the URLs as `images` to `callAiTool`.
-  - After inserting the user message, `UPDATE assistant_attachments SET message_id = ... WHERE id IN (...)` so future renders can link photos to the right message.
-  - Add a short "## Attached photos" note to the user prompt listing each filename so the model knows they're real evidence.
 - `src/features/assistant/hooks/useAssistantThreads.ts`
-  - `useSendAssistantMessage` accepts `attachmentIds?: string[]` and forwards them in the function payload.
+  - Replace `pinned_entity: Record<string, unknown> | null` with `PinnedEntityPayload | null` where `PinnedEntityPayload = { entities: PinnedEntity[] }` and `PinnedEntity = { kind: "risk" | "opportunity" | "requirement" | "document"; id: string; label: string }`.
+  - Allow `pinned_entity` in `useUpdateThread` patch.
 - `src/features/assistant/components/AssistantChat.tsx`
-  - Local state `pendingPhotos: File[]`. On submit: upload each file to `assistant-attachments` bucket at `{user_id}/{thread_id}/{uuid}.{ext}`, insert an `assistant_attachments` row (kind='photo', message_id=null), then send the message with the resulting IDs. On error, surface a toast and keep the files staged.
-  - Render `<AttachmentChips />` above the textarea and `<PhotoAttachmentButton />` next to the mic. Disabled while sending or recording.
-  - In `MessageRow`, render `<MessageAttachments messageId={m.id} />` above the assistant/user text when that message has photos.
+  - Mount `<ExportThreadButton />` in the header next to the Knowledge/Memory/Preferences buttons.
+  - Mount `<PinnedEntityChips />` and `<PinEntityPopover />` next to `<PinnedKnowledgeChips />` (one row).
+- `supabase/functions/solicitation-assistant/index.ts`
+  - When loading the thread, also select `pinned_entity`.
+  - Resolve each pinned entity's title from its respective table (risks, opportunities, requirement_items, documents) and inject a `## Focus` block at the top of the user prompt: "The user has pinned these items as the focus of this conversation. Prefer to ground your answer in them; cite them by their existing labels." with a bulleted list.
 
 ## Out of scope
 
-- Photo OCR / extraction pipeline (the model already sees the pixels via multimodal).
-- Drag-and-drop into the chat area.
-- Editing or re-cropping photos client-side.
-- Multimodal for the Anthropic provider (this function is configured to Lovable Gemini, which is multimodal).
+- PDF/DOCX export (markdown + rich-text covers Word/Outlook/Email paste-in).
+- Sharing the export externally (the existing thread-share link already covers that).
+- Pinning arbitrary text snippets (only existing structured records).
+- Auto-pinning entities from the model.
 
 ## Validation
 
-- On mobile (iOS Safari / Android Chrome), the button opens the camera or photo library; on desktop it opens a file picker.
-- Sending a message with one photo of a SOW page produces an answer that references content visible in the photo, and `assistant_attachments.message_id` is populated for that user message.
-- Photos appear inline above the user message after reload (signed URL refresh).
-- Files larger than 8MB are rejected client-side with a toast; more than 4 per message are rejected.
+- "Download .md" produces a file named `assistant-thread-<slug>.md` containing the full transcript with citations.
+- "Copy as rich text" pastes formatted markdown into Word / Gmail (headings, bullets preserved).
+- Pinning a risk shows the chip in the header, and the next assistant turn quotes that risk's title in the response. Removing the chip removes it from the next prompt.
+- Cap of 5 pinned entities is enforced both in the UI ("+" disabled when at limit) and in the edge function (slice).
