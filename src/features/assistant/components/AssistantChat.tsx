@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+
 import { BookOpen, Brain, Loader2, Mic, Send, Settings2, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useQuery } from "@tanstack/react-query";
@@ -34,6 +36,7 @@ import { MessageAttachments } from "./MessageAttachments";
 import { ExportThreadButton } from "./ExportThreadButton";
 import { PinnedEntityChips } from "./PinnedEntityChips";
 import { PinEntityPopover } from "./PinEntityPopover";
+import { AssistantAnalyticsButton } from "./AssistantAnalyticsButton";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +94,25 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   useEffect(() => {
     taRef.current?.focus();
   }, [threadId]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const jumpMsgId = searchParams.get("msg");
+  useEffect(() => {
+    if (!jumpMsgId || isLoading) return;
+    const el = document.getElementById(`assistant-msg-${jumpMsgId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-primary", "rounded-md");
+    const t = setTimeout(() => {
+      el.classList.remove("ring-2", "ring-primary", "rounded-md");
+      const next = new URLSearchParams(searchParams);
+      next.delete("msg");
+      setSearchParams(next, { replace: true });
+    }, 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpMsgId, isLoading, messages.length]);
+
 
   const sending = send.isPending;
   const transcribe = useAssistantTranscribe();
@@ -202,6 +224,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         <PlainModeToggle value={plainMode} onChange={onPlainChange} disabled={!thread || sending} />
         <div className="ml-auto flex items-center gap-1">
           <ExportThreadButton thread={thread} messages={messages} />
+          <AssistantAnalyticsButton />
           <Button
             type="button"
             variant="ghost"
@@ -419,7 +442,7 @@ function MessageRow({ m, threadId }: { m: AssistantMessage; threadId: string }) 
   const text = (m.parts ?? []).map((p) => (p.type === "text" ? p.text ?? "" : "")).join("\n");
   const isUser = m.role === "user";
   return (
-    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
+    <div id={`assistant-msg-${m.id}`} className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
         className={
           isUser

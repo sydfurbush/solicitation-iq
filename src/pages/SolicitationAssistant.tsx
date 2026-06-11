@@ -10,10 +10,12 @@ export default function SolicitationAssistant({ solicitationId }: { solicitation
   const { data: threads = [], isLoading } = useAssistantThreads(solicitationId);
   const create = useCreateThread();
 
-  const setThread = (id: string) => {
+  const setThread = (id: string, messageId?: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", "assistant");
     next.set("thread", id);
+    if (messageId) next.set("msg", messageId);
+    else next.delete("msg");
     setSearchParams(next);
   };
 
