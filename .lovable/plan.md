@@ -1,60 +1,48 @@
-# Simplify Assistant Export — Match On-Screen Formatting
+# Fix Word Export — Mermaid SVG renders as raw CSS text
 
-Reduce the Export dropdown on the Assistant chat to high-quality, fully-formatted output only, and make the exported file look the same as what is rendered in the message window.
+## Root cause
 
-## New export menu
+In `src/features/assistant/lib/exportFormatted.ts`, `downloadAssistantDocx()` walks the rendered HTML body and converts each element to docx blocks. When it hits a Mermaid diagram, the diagram is an inline `<svg>` whose first child is a `<style>` element with all of mermaid's generated CSS. The walker has no special case for `<svg>` or `<style>`, so it falls through to `collectRuns()` which reads `textContent` — dumping the entire CSS stylesheet (`#mermaid-rlc{font-family:inherit;…`) into the document as a paragraph. That is exactly what the screenshot shows.
 
-The `Export` button on the assistant thread will show exactly three options:
+PDF export and the "Copy formatted" path are not affected because both keep the live SVG, which renders correctly in browsers and email/Word paste targets.
 
-1. **Copy formatted** — copies the transcript as rich text so it pastes into Word, Outlook, Google Docs, or email with the same formatting as the chat.
-2. **Download Word (.docx)**
-3. **Download PDF (.pdf)**
+## Fix
 
-Removed: "Copy as markdown" and "Download .md".
+### 1. Rasterize SVGs to PNG before docx generation
 
-## Fidelity requirement: match the message window
+In `downloadAssistantDocx`, after `renderTranscriptToHtml` produces the body HTML, locate every `<svg>` in the temporary container and convert each to a PNG `data:` URL:
 
-The export must mirror what the user sees on screen, not a re-rendered markdown approximation. That means:
+- Serialize the SVG with `XMLSerializer`.
+- Wrap in a `Blob` (`image/svg+xml`) and `URL.createObjectURL` it.
+- Load into a new `Image()`; on `load`, draw it to an off-screen `<canvas>` sized to the SVG's natural width/height (fallback to 800 wide, preserving aspect) at 2× device pixel ratio for crispness.
+- Read `canvas.toDataURL("image/png")`, base64-decode to a `Uint8Array`.
+- Replace the original `<svg>` node with a placeholder `<div data-docx-image="...">` whose `data-docx-image` attribute carries an index into a parallel `images[]` array of `{ data: Uint8Array, width, height }`.
 
-- Headings, bold/italic, bullet & numbered lists, blockquotes, inline code, fenced code blocks, GFM tables, and GFM task lists render with the same hierarchy and spacing as the chat.
-- The `OrgChartBlock` renders as the visual card grid (role title, meta, bullets) — not the raw ASCII source.
-- Mermaid diagrams render as their generated SVG — not the source text.
-- User and Assistant turns use the same bubble/label styling, timestamps, and citation footer as the chat.
-- Typography (font family, sizes, code background, table borders, link color) matches the live theme.
+### 2. Teach the walker about the placeholder
 
-## Implementation
+Extend `blockFromElement` to detect `data-docx-image` on a div and emit a `Paragraph` containing an `ImageRun` with `type: "png"`, the captured PNG buffer, and a width sized to fit the page (cap at ~600 px wide, scale height to preserve aspect).
 
-The cleanest way to guarantee parity is to capture the same React tree the chat uses, then serialize it.
+### 3. Skip non-content elements everywhere
 
-New file: `src/features/assistant/lib/exportFormatted.ts`
+In both `blockFromElement` and `collectRuns`, ignore elements with tag name `STYLE`, `SCRIPT`, `NOSCRIPT`, `TEMPLATE`, or `SVG` (the SVG case is now handled by the placeholder above, so any leftover svg in the tree is treated as already consumed and skipped — no fall-through to `textContent`).
 
-- `renderTranscriptToHtml(thread, messages)` — mounts a hidden, off-screen `<div>` and uses `ReactDOM.createRoot` to render a new `<TranscriptDocument>` component (see below) into it. After the next paint (and after Mermaid finishes — we poll for `svg` presence inside any `MermaidBlock`), it reads `innerHTML`, inlines the computed styles for typography/colors/borders/backgrounds so the markup is self-contained, then unmounts. Returns a complete HTML string wrapped in `<html><head><style>…print CSS…</style></head><body>…</body></html>`.
+Also skip the `<button>` inside `OrgChartBlock` ("Show source" toggle) so its label and any expanded `<pre>` source don't get exported on top of the rendered card.
 
-New file: `src/features/assistant/components/TranscriptDocument.tsx`
+### 4. Defensive fallback
 
-- A presentational component that renders a cover block (title, persona, plain-mode, export date) followed by each non-system message using the **exact same** `MessageRow` / `MarkdownBody` rendering path the chat uses (same `react-markdown` config, same `OrgChartBlock`, same `MermaidBlock`, same GFM plugins, same table/list/code styles). It just lays them out top-to-bottom with speaker + timestamp labels instead of the chat scroller. No virtualization, no input bar, no action buttons.
+If SVG rasterization fails (e.g. tainted canvas, missing dimensions), drop a small italic placeholder paragraph "[diagram]" instead of dumping any text — never let raw `<style>` content reach the docx output.
 
-Updated file: `src/features/assistant/components/ExportThreadButton.tsx`
+### 5. Verify
 
-- Remove `doCopyPlain` and the markdown `doDownload` handler.
-- `doCopyRich` → keep, label "Copy formatted", source HTML now comes from `renderTranscriptToHtml` (not from re-parsing markdown with `marked`), so pastes into Word match the chat exactly.
-- `doDownloadPdf` → write the HTML into a hidden same-origin iframe, wait for `load` + mermaid SVGs + web fonts (`document.fonts.ready`), then call `iframe.contentWindow.print()`. The browser print dialog produces a high-quality, vector PDF that matches the chat styling.
-- `doDownloadDocx` → convert the rendered HTML to `.docx` via the existing `docx` library. Walk the DOM produced by `TranscriptDocument`:
-  - Headings → `Paragraph` with matching `HeadingLevel`.
-  - Paragraphs / bold / italic / inline code → `TextRun` with style flags.
-  - `<ul>` / `<ol>` / GFM task lists → `Paragraph` with `LevelFormat.BULLET` / `DECIMAL` numbering config; checked tasks prefixed with `☑`, unchecked with `☐`.
-  - `<pre><code>` → single-cell `Table` with light-gray `ShadingType.CLEAR` background and monospace `TextRun`s, one paragraph per line.
-  - GFM `<table>` → `docx` `Table` with dual widths (table `columnWidths` and per-cell `width` in DXA), header row shaded.
-  - `MermaidBlock` `<svg>` → rasterize to PNG via an off-screen canvas and embed as `ImageRun` so the diagram appears in Word.
-  - `OrgChartBlock` cards → rendered as a `docx` `Table` (one row per role) with title bolded and bullets beneath, matching the on-screen card.
-  - Citations footer → small italic `TextRun`.
-  - US Letter page size (12240 × 15840 DXA), 1-inch margins, footer with `PageNumber.CURRENT`.
+After the change, the Word export for the org-chart thread in the screenshot must show:
+- The thread title and metadata header.
+- The user message bubble.
+- The assistant's "Proposed Organizational Chart…" heading and intro paragraph.
+- The Mermaid diagram as a properly sized PNG image (not CSS text).
+- No leaked `#mermaid-rlc{…}` stylesheet anywhere.
 
-Updated file: `src/features/assistant/components/ExportThreadButton.tsx` icons → `Copy`, `FileText` (Word), `FileDown` (PDF).
+## Files touched
 
-No backend changes. No new dependencies — uses existing `docx`, `react-dom`, the project's existing react-markdown stack, and browser print for PDF.
+- `src/features/assistant/lib/exportFormatted.ts` only.
 
-## Out of scope
-
-- No styling changes to the chat itself.
-- `buildTranscriptMarkdown` stays as the canonical plain-text fallback used internally by `copyRich`'s text-blob alternative, but is no longer surfaced in the menu.
+No other changes. PDF, Copy formatted, and the on-screen chat are not modified.
