@@ -38,6 +38,7 @@ import { PinnedEntityChips } from "./PinnedEntityChips";
 import { PinEntityPopover } from "./PinEntityPopover";
 import { AssistantAnalyticsButton } from "./AssistantAnalyticsButton";
 import { InlineActionButtons } from "./InlineActionButtons";
+import { MessageSaveAsWordButton } from "./MessageSaveAsWordButton";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
