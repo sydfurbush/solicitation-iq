@@ -119,7 +119,7 @@ export async function callAiTool(args: CallAiArgs): Promise<Record<string, unkno
   return r.output;
 }
 
-async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Record<string, unknown>> {
+async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<{ output: Record<string, unknown>; usage: { tokensIn: number; tokensOut: number } }> {
   if (!ANTHROPIC_KEY) throw new AiHttpError(500, "ANTHROPIC_API_KEY not configured");
 
   const body = {
