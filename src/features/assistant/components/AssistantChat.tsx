@@ -3,6 +3,24 @@ import { useSearchParams } from "react-router-dom";
 
 import { ChevronDown, ChevronUp, Loader2, Mic, Send, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+/**
+ * If the model emitted a markdown table on a single line (rows separated by
+ * "| |" instead of "|\n|"), insert newlines so remark-gfm can parse it.
+ */
+function normalizeAssistantMarkdown(input: string): string {
+  if (!input || !input.includes("|")) return input;
+  // Only touch runs that look like a table (contain a separator like |---|).
+  if (!/\|\s*-{3,}\s*\|/.test(input)) return input;
+  return input
+    // Break between adjacent rows: "...| |..." -> "...|\n|..."
+    .replace(/\|[ \t]+\|/g, "|\n|")
+    // Ensure a newline before the header separator row if glued to header
+    .replace(/\|(\s*-{3,}[-\s|:]*)\|/g, "|\n|$1|")
+    // Collapse accidental double newlines created above
+    .replace(/\n{3,}/g, "\n\n");
+}
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -456,8 +474,8 @@ function MessageRow({
             </div>
           </>
         ) : (
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <ReactMarkdown>{text}</ReactMarkdown>
+          <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:block [&_table]:w-full [&_table]:overflow-x-auto [&_table]:border [&_table]:border-border [&_table]:rounded-md [&_table]:my-3 [&_thead]:bg-muted [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:border-b [&_th]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:border-b [&_td]:border-border [&_tr:last-child_td]:border-b-0 [&_td]:align-top">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{normalizeAssistantMarkdown(text)}</ReactMarkdown>
             <InlineActionButtons
               messageId={m.id}
               solicitationId={solicitationId}
