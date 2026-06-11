@@ -94,6 +94,35 @@ export function ThreadList({
   const [editingFolder, setEditingFolder] = useState<AssistantFolder | null>(null);
   const [showTrash, setShowTrash] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (renamingId && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [renamingId]);
+
+  const startRename = (t: AssistantThread) => {
+    setRenamingId(t.id);
+    setRenameValue(t.title || "");
+  };
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameValue("");
+  };
+  const commitRename = (t: AssistantThread) => {
+    const name = renameValue.trim();
+    if (!name || name === t.title) {
+      cancelRename();
+      return;
+    }
+    upd.mutate({ id: t.id, patch: { title: name } });
+    cancelRename();
+  };
+
 
   const trimmed = q.trim();
   const searchMode = trimmed.length >= 2;
