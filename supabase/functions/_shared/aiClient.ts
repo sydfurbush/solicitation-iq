@@ -30,6 +30,7 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "suggest-risk-mitigation": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 2000 },
   "extract-capabilities": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 8000 },
   "solicitation-assistant": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 8000 },
+  "generate-assistant-starters": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 1500 },
 };
 
 export interface OpenAIToolSchema {
