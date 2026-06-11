@@ -108,6 +108,7 @@ const LEGACY_TAB: Record<string, { tab: string; step?: string }> = {
   drafting: { tab: "phase-3", step: "draft" },
   compliance: { tab: "phase-3", step: "compliance" },
   compile: { tab: "phase-3", step: "compile" },
+  workflow: { tab: "phase-1" },
 };
 
 type WorkspaceKey = "writing-queue" | "reports" | "comparison" | "activity" | "assistant";
