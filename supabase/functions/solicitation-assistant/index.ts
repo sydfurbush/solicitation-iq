@@ -77,6 +77,20 @@ const TOOL_SCHEMA = {
           required: ["document_id", "title", "why"],
         },
       },
+      suggested_actions: {
+        type: "array",
+        description: "Up to 3 concrete records the user should create in the workspace based on this conversation (a new risk, opportunity, or shall-style requirement). Only emit when you have a clear, specific item; never repeat an item that already exists in the provided context. Omit when nothing fits.",
+        items: {
+          type: "object",
+          properties: {
+            kind: { type: "string", enum: ["create_risk", "create_opportunity", "create_requirement"] },
+            title: { type: "string", description: "Short title (<=120 chars). For requirements, a brief label like 'Cybersecurity plan'." },
+            description: { type: "string", description: "1-3 sentences of detail. For requirements, the full shall-text." },
+            severity: { type: "string", enum: ["low", "medium", "high", "critical"], description: "Only for risks." },
+          },
+          required: ["kind", "title"],
+        },
+      },
     },
     required: ["reply"],
   },
