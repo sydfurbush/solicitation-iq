@@ -20,6 +20,7 @@ import {
   Bar,
 } from "recharts";
 import { useAssistantAnalytics } from "../hooks/useAssistantAnalytics";
+import { formatUsd } from "../lib/aiCost";
 
 type Props = {
   open: boolean;
