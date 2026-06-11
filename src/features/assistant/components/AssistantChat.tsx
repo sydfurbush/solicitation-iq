@@ -95,6 +95,25 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
     taRef.current?.focus();
   }, [threadId]);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const jumpMsgId = searchParams.get("msg");
+  useEffect(() => {
+    if (!jumpMsgId || isLoading) return;
+    const el = document.getElementById(`assistant-msg-${jumpMsgId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-primary", "rounded-md");
+    const t = setTimeout(() => {
+      el.classList.remove("ring-2", "ring-primary", "rounded-md");
+      const next = new URLSearchParams(searchParams);
+      next.delete("msg");
+      setSearchParams(next, { replace: true });
+    }, 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpMsgId, isLoading, messages.length]);
+
+
   const sending = send.isPending;
   const transcribe = useAssistantTranscribe();
 
