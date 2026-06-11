@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { estimateCost } from "../lib/aiCost";
 
 export type AuditRow = {
   id: string;
@@ -14,6 +15,14 @@ export type AuditRow = {
   created_at: string;
 };
 
+export type ModelUsage = {
+  model: string;
+  requests: number;
+  tokens: number;
+  costUsd: number;
+  unknownPricing: boolean;
+};
+
 export type AnalyticsSummary = {
   totalRequests: number;
   errors: number;
@@ -21,27 +30,47 @@ export type AnalyticsSummary = {
   avgLatencyMs: number;
   totalTokensIn: number;
   totalTokensOut: number;
+  estimatedCostUsd: number;
+  hasUnknownPricing: boolean;
   byDay: Array<{ day: string; requests: number; errors: number; tokens: number }>;
   byPersona: Array<{ persona: string; count: number }>;
   byUser: Array<{ user_id: string; label: string; count: number }>;
+  byModel: ModelUsage[];
+  firstAuditedAt: string | null;
+  scope: "org" | "solicitation";
 };
 
-export function useAssistantAnalytics(days: number = 30) {
+export function useAssistantAnalytics(
+  daysOrOpts: number | { days?: number; solicitationId?: string } = 30,
+) {
+  const opts =
+    typeof daysOrOpts === "number" ? { days: daysOrOpts } : daysOrOpts;
+  const solicitationId = opts.solicitationId;
+  const days = opts.days ?? 30;
+  const scope: "org" | "solicitation" = solicitationId ? "solicitation" : "org";
+
   return useQuery({
-    queryKey: ["assistant_analytics", days],
+    queryKey: ["assistant_analytics", scope, solicitationId ?? null, days],
     staleTime: 60_000,
     queryFn: async (): Promise<AnalyticsSummary> => {
-      const since = new Date(Date.now() - days * 86400_000).toISOString();
-      const { data: rows, error } = await supabase
+      let query = supabase
         .from("assistant_audit_log")
         .select("id,user_id,persona,model,tokens_in,tokens_out,latency_ms,status,error,created_at")
-        .gte("created_at", since)
         .order("created_at", { ascending: true })
         .limit(5000);
+
+      if (solicitationId) {
+        query = query.eq("solicitation_id", solicitationId);
+      } else {
+        const since = new Date(Date.now() - days * 86400_000).toISOString();
+        query = query.gte("created_at", since);
+      }
+
+      const { data: rows, error } = await query;
       if (error) throw error;
       const list = (rows ?? []) as AuditRow[];
 
-      // Resolve user names (best effort, only ids we see)
+      // Resolve user names
       const userIds = Array.from(new Set(list.map((r) => r.user_id).filter(Boolean))) as string[];
       const labelByUser = new Map<string, string>();
       if (userIds.length) {
@@ -62,11 +91,39 @@ export function useAssistantAnalytics(days: number = 30) {
       const totalTokensIn = list.reduce((a, r) => a + (r.tokens_in ?? 0), 0);
       const totalTokensOut = list.reduce((a, r) => a + (r.tokens_out ?? 0), 0);
 
+      // Per-row cost + per-model aggregation
+      let estimatedCostUsd = 0;
+      let hasUnknownPricing = false;
+      const modelMap = new Map<string, ModelUsage>();
+      for (const r of list) {
+        const tin = r.tokens_in ?? 0;
+        const tout = r.tokens_out ?? 0;
+        const { usd, unknownPricing } = estimateCost({ model: r.model, tokensIn: tin, tokensOut: tout });
+        estimatedCostUsd += usd;
+        if (unknownPricing && (tin > 0 || tout > 0)) hasUnknownPricing = true;
+        const key = r.model || "unknown";
+        const cur = modelMap.get(key) ?? {
+          model: key,
+          requests: 0,
+          tokens: 0,
+          costUsd: 0,
+          unknownPricing: false,
+        };
+        cur.requests += 1;
+        cur.tokens += tin + tout;
+        cur.costUsd += usd;
+        if (unknownPricing && (tin > 0 || tout > 0)) cur.unknownPricing = true;
+        modelMap.set(key, cur);
+      }
+      const byModel = Array.from(modelMap.values()).sort((a, b) => b.requests - a.requests);
+
+      // By day
       const dayMap = new Map<string, { requests: number; errors: number; tokens: number }>();
-      // Pre-seed with all days in range so the chart is continuous.
-      for (let i = 0; i < days; i++) {
-        const d = new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10);
-        dayMap.set(d, { requests: 0, errors: 0, tokens: 0 });
+      if (scope === "org") {
+        for (let i = 0; i < days; i++) {
+          const d = new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10);
+          dayMap.set(d, { requests: 0, errors: 0, tokens: 0 });
+        }
       }
       for (const r of list) {
         const d = r.created_at.slice(0, 10);
@@ -103,9 +160,14 @@ export function useAssistantAnalytics(days: number = 30) {
         avgLatencyMs,
         totalTokensIn,
         totalTokensOut,
+        estimatedCostUsd,
+        hasUnknownPricing,
         byDay,
         byPersona,
         byUser,
+        byModel,
+        firstAuditedAt: list[0]?.created_at ?? null,
+        scope,
       };
     },
   });

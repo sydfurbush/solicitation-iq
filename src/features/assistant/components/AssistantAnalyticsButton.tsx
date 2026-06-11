@@ -1,13 +1,10 @@
 import { useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useUser } from "@/features/auth/hooks/useUser";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 
-export function AssistantAnalyticsButton() {
-  const { role } = useUser();
+export function AssistantAnalyticsButton({ solicitationId }: { solicitationId?: string }) {
   const [open, setOpen] = useState(false);
-  if (role !== "owner" && role !== "admin") return null;
   return (
     <>
       <Button
@@ -21,7 +18,7 @@ export function AssistantAnalyticsButton() {
       >
         <BarChart3 className="h-3.5 w-3.5" />
       </Button>
-      <AnalyticsDashboard open={open} onOpenChange={setOpen} />
+      <AnalyticsDashboard open={open} onOpenChange={setOpen} solicitationId={solicitationId} />
     </>
   );
 }

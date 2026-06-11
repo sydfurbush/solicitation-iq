@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { aiErrorResponse, callAiTool } from "../_shared/aiClient.ts";
+import { aiErrorResponse, callAiToolWithUsage } from "../_shared/aiClient.ts";
 import { embedQuery } from "../_shared/embeddings.ts";
 
 
@@ -732,14 +732,19 @@ Deno.serve(async (req) => {
     ].filter(Boolean).join("\n");
 
     let result;
+    let aiUsage = { tokensIn: 0, tokensOut: 0 };
+    let aiModel = "unknown";
     try {
-      result = await callAiTool({
+      const r = await callAiToolWithUsage({
         functionName: "solicitation-assistant",
         system: composedSystem,
         user: userPrompt,
         tool: TOOL_SCHEMA,
         images: attachmentInfos.map((a) => ({ url: a.url })),
       });
+      result = r.output;
+      aiUsage = r.usage;
+      aiModel = r.model;
     } catch (err) {
       await supa.from("assistant_audit_log").insert({
         user_id: user.id,
@@ -846,6 +851,9 @@ Deno.serve(async (req) => {
       thread_id: threadId,
       message_id: assistantMsg?.id ?? null,
       persona: effectivePersona,
+      model: aiModel,
+      tokens_in: aiUsage.tokensIn,
+      tokens_out: aiUsage.tokensOut,
       status: "ok",
       latency_ms: Date.now() - t0,
     });

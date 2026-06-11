@@ -20,37 +20,48 @@ import {
   Bar,
 } from "recharts";
 import { useAssistantAnalytics } from "../hooks/useAssistantAnalytics";
+import { formatUsd } from "../lib/aiCost";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  solicitationId?: string;
 };
 
-export function AnalyticsDashboard({ open, onOpenChange }: Props) {
+export function AnalyticsDashboard({ open, onOpenChange, solicitationId }: Props) {
   const [days, setDays] = useState(30);
-  const { data, isLoading } = useAssistantAnalytics(days);
+  const { data, isLoading } = useAssistantAnalytics(
+    solicitationId ? { solicitationId } : days,
+  );
+  const scoped = !!solicitationId;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Assistant analytics</SheetTitle>
-          <SheetDescription>Usage across your organization.</SheetDescription>
+          <SheetTitle>{scoped ? "Assistant analytics — this solicitation" : "Assistant analytics"}</SheetTitle>
+          <SheetDescription>
+            {scoped
+              ? "Token, cost, and model usage across all users for this solicitation."
+              : "Usage across your organization."}
+          </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-4 flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Window</span>
-          <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
-            <SelectTrigger className="h-8 w-32 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">Last 7 days</SelectItem>
-              <SelectItem value="30">Last 30 days</SelectItem>
-              <SelectItem value="90">Last 90 days</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {!scoped && (
+          <div className="mt-4 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Window</span>
+            <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
+              <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {isLoading || !data ? (
           <div className="mt-8 flex items-center gap-2 text-sm text-muted-foreground">
@@ -72,7 +83,36 @@ export function AnalyticsDashboard({ open, onOpenChange }: Props) {
                 value={(data.totalTokensIn + data.totalTokensOut).toLocaleString()}
                 sub={`${data.totalTokensIn.toLocaleString()} in · ${data.totalTokensOut.toLocaleString()} out`}
               />
+              <Stat
+                label="Estimated cost"
+                value={formatUsd(data.estimatedCostUsd)}
+                sub={data.hasUnknownPricing ? "* some models unpriced" : "based on token usage"}
+              />
+              <Stat
+                label="Models used"
+                value={String(data.byModel.length)}
+                sub={data.byModel[0]?.model ?? "—"}
+              />
             </div>
+
+            <Section title="By model">
+              {data.byModel.length === 0 ? (
+                <Empty />
+              ) : (
+                <ul className="text-sm divide-y rounded-md border">
+                  {data.byModel.map((m) => (
+                    <li key={m.model} className="flex items-center justify-between gap-2 px-3 py-2">
+                      <span className="truncate font-mono text-xs">{m.model}</span>
+                      <span className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+                        <span>{m.requests} req</span>
+                        <span>{m.tokens.toLocaleString()} tok</span>
+                        <span>{m.unknownPricing ? "—" : formatUsd(m.costUsd)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
 
             <Section title="Requests per day">
               <ResponsiveContainer width="100%" height={180}>

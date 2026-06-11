@@ -91,7 +91,14 @@ async function loadOverride(functionName: string): Promise<ModelChoice | null> {
   }
 }
 
-export async function callAiTool(args: CallAiArgs): Promise<Record<string, unknown>> {
+export interface AiCallResult {
+  output: Record<string, unknown>;
+  usage: { tokensIn: number; tokensOut: number };
+  model: string;
+  provider: Provider;
+}
+
+export async function callAiToolWithUsage(args: CallAiArgs): Promise<AiCallResult> {
   const fallback = MODEL_CONFIG[args.functionName];
   const override = args.modelOverride ? null : await loadOverride(args.functionName);
   const choice = args.modelOverride ?? override ?? fallback;
@@ -101,11 +108,18 @@ export async function callAiTool(args: CallAiArgs): Promise<Record<string, unkno
     `[aiClient] resolved ${args.functionName} -> provider=${choice.provider} model=${choice.model} maxTokens=${choice.maxTokens} source=${source}`
   );
 
-  if (choice.provider === "anthropic") return callAnthropic(choice, args);
-  return callLovable(choice, args);
+  const result = choice.provider === "anthropic"
+    ? await callAnthropic(choice, args)
+    : await callLovable(choice, args);
+  return { ...result, model: choice.model, provider: choice.provider };
 }
 
-async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Record<string, unknown>> {
+export async function callAiTool(args: CallAiArgs): Promise<Record<string, unknown>> {
+  const r = await callAiToolWithUsage(args);
+  return r.output;
+}
+
+async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<{ output: Record<string, unknown>; usage: { tokensIn: number; tokensOut: number } }> {
   if (!ANTHROPIC_KEY) throw new AiHttpError(500, "ANTHROPIC_API_KEY not configured");
 
   const body = {
@@ -165,10 +179,16 @@ async function callAnthropic(choice: ModelChoice, args: CallAiArgs): Promise<Rec
       `AI response truncated by token limit (model=${choice.model}, max_tokens=${choice.maxTokens ?? 4096}). Raise max_tokens for this function in AI Models settings, or switch to a roomier model.`,
     );
   }
-  return toolUse.input as Record<string, unknown>;
+  return {
+    output: toolUse.input as Record<string, unknown>,
+    usage: {
+      tokensIn: Number(json.usage?.input_tokens ?? 0),
+      tokensOut: Number(json.usage?.output_tokens ?? 0),
+    },
+  };
 }
 
-async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Record<string, unknown>> {
+async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<{ output: Record<string, unknown>; usage: { tokensIn: number; tokensOut: number } }> {
   if (!LOVABLE_KEY) throw new AiHttpError(500, "LOVABLE_API_KEY not configured");
 
   const userContent = args.images && args.images.length > 0
@@ -262,7 +282,14 @@ async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<Recor
       );
     }
     try {
-      return JSON.parse(toolCall.function.arguments);
+      const output = JSON.parse(toolCall.function.arguments);
+      return {
+        output,
+        usage: {
+          tokensIn: Number(usage?.prompt_tokens ?? 0),
+          tokensOut: Number(usage?.completion_tokens ?? 0),
+        },
+      };
     } catch (e) {
       console.error(`[aiClient] failed to parse tool args (likely truncated). finish=${finish} chars=${argLen}`);
       throw e;
