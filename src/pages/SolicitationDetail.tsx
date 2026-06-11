@@ -181,8 +181,6 @@ export default function SolicitationDetail() {
     });
   });
 
-  const urgency = useMemo(() => dueUrgency(s?.proposal_due_date), [s?.proposal_due_date]);
-  const days = useMemo(() => daysUntil(s?.proposal_due_date), [s?.proposal_due_date]);
 
   // One-time legacy ?tab= redirect
   useEffect(() => {
