@@ -489,7 +489,7 @@ Deno.serve(async (req) => {
     const tripped = blocked.find((t: string) => t && lowerMsg.includes(t.toLowerCase()));
 
     // Persist user message
-    await supa.from("assistant_messages").insert({
+    const { data: userMsgRow } = await supa.from("assistant_messages").insert({
       thread_id: threadId,
       role: "user",
       parts: [{ type: "text", text: message }],
@@ -497,7 +497,36 @@ Deno.serve(async (req) => {
       safety_status: tripped ? "refused" : "ok",
       safety_reason: tripped ? `blocked_topic:${tripped}` : null,
       safety_topics: tripped ? [tripped] : [],
-    });
+    }).select("id").single();
+
+    // Link any photo attachments to this user message and prepare signed URLs for the model
+    type AttachmentInfo = { id: string; file_name: string; mime_type: string | null; url: string };
+    let attachmentInfos: AttachmentInfo[] = [];
+    if (attachmentIds.length > 0 && userMsgRow?.id) {
+      const { data: atts } = await supa
+        .from("assistant_attachments")
+        .select("id,storage_path,file_name,mime_type,kind,thread_id")
+        .in("id", attachmentIds)
+        .eq("thread_id", threadId);
+      const valid = (atts ?? []).filter((a: any) => a.kind === "photo");
+      if (valid.length > 0) {
+        await supa
+          .from("assistant_attachments")
+          .update({ message_id: userMsgRow.id })
+          .in("id", valid.map((a: any) => a.id));
+        const signed = await Promise.all(
+          valid.map(async (a: any) => {
+            const { data: s } = await supa.storage
+              .from("assistant-attachments")
+              .createSignedUrl(a.storage_path, 300);
+            return s?.signedUrl
+              ? { id: a.id, file_name: a.file_name, mime_type: a.mime_type, url: s.signedUrl }
+              : null;
+          }),
+        );
+        attachmentInfos = signed.filter((x): x is AttachmentInfo => !!x);
+      }
+    }
 
     if (tripped) {
       const refusal = `I can't discuss **${tripped}** — it's on your blocked-topics list. Edit it in **Preferences** if you'd like to remove the block.`;
