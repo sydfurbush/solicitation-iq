@@ -248,6 +248,10 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         solicitationId={solicitationId}
         pinnedIds={pinnedKnowledgeIds}
       />
+      <PinnedEntityChips thread={thread} />
+      <div className="border-b bg-background px-3 py-1 flex items-center">
+        <PinEntityPopover thread={thread} solicitationId={solicitationId} />
+      </div>
 
       <MemoryPanel open={memoryOpen} onOpenChange={setMemoryOpen} />
       <PreferencesPanel open={prefsOpen} onOpenChange={setPrefsOpen} />
