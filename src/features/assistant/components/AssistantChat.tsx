@@ -38,8 +38,6 @@ import { PinnedEntityChips } from "./PinnedEntityChips";
 import { PinEntityPopover } from "./PinEntityPopover";
 import { AssistantAnalyticsButton } from "./AssistantAnalyticsButton";
 import { InlineActionButtons } from "./InlineActionButtons";
-import { MermaidBlock } from "./MermaidBlock";
-import { OrgChartBlock, looksLikeOrgChart } from "./OrgChartBlock";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
