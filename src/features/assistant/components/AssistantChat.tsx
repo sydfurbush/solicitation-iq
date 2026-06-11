@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Loader2, Mic, Send, Sparkles, Square } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Mic, Send, Square } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,10 +8,18 @@ import { toast } from "@/hooks/use-toast";
 import {
   useAssistantMessages,
   useAssistantPresets,
+  useAssistantThreads,
   useSendAssistantMessage,
+  useUpdateThread,
   type AssistantMessage,
+  type SlashPayload,
 } from "../hooks/useAssistantThreads";
 import { useAssistantTranscribe, MicrophoneError } from "../hooks/useAssistantTranscribe";
+import { parseSlashCommand, type PersonaKey } from "../lib/personas";
+import { PersonaSelector } from "./PersonaSelector";
+import { PlainModeToggle } from "./PlainModeToggle";
+import { SlashCommandPopover } from "./SlashCommandPopover";
+import { StarterCards } from "./StarterCards";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -23,10 +31,17 @@ type Props = {
 export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   const { data: messages = [], isLoading } = useAssistantMessages(threadId);
   const { data: presets = [] } = useAssistantPresets();
+  const { data: threads = [] } = useAssistantThreads(solicitationId);
+  const thread = useMemo(() => threads.find((t) => t.id === threadId) ?? null, [threads, threadId]);
+
   const send = useSendAssistantMessage();
+  const updateThread = useUpdateThread();
   const [input, setInput] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const persona: PersonaKey = (thread?.persona as PersonaKey) ?? "capture_manager";
+  const plainMode = !!thread?.plain_mode;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -78,9 +93,20 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
   const submit = async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || sending) return;
+    const parsed = parseSlashCommand(msg);
+    const slash: SlashPayload | null = parsed
+      ? { handler: parsed.cmd.handler, rest: parsed.rest }
+      : null;
     setInput("");
     try {
-      await send.mutateAsync({ solicitationId, threadId, message: msg });
+      await send.mutateAsync({
+        solicitationId,
+        threadId,
+        message: msg,
+        persona,
+        plainMode,
+        slash,
+      });
       taRef.current?.focus();
     } catch (e: any) {
       toast({ title: "Assistant error", description: e?.message ?? "Failed to send", variant: "destructive" });
@@ -88,13 +114,34 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
     }
   };
 
+  const onPersonaChange = (next: PersonaKey) => {
+    if (!thread || next === persona) return;
+    updateThread.mutate({ id: thread.id, patch: { persona: next } });
+  };
+  const onPlainChange = (next: boolean) => {
+    if (!thread || next === plainMode) return;
+    updateThread.mutate({ id: thread.id, patch: { plain_mode: next } });
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0">
+      <div className="border-b px-3 py-2 flex items-center gap-2 bg-background">
+        <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
+        <PlainModeToggle value={plainMode} onChange={onPlainChange} disabled={!thread || sending} />
+      </div>
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
         {isLoading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : messages.length === 0 ? (
-          <EmptyState compact={compact} onPick={(p) => submit(p)} presets={presets as any[]} />
+          <StarterCards
+            solicitationId={solicitationId}
+            persona={persona}
+            plainMode={plainMode}
+            fallback={presets as any[]}
+            onPick={(p) => submit(p)}
+            compact={compact}
+          />
         ) : (
           messages.map((m) => <MessageRow key={m.id} m={m} />)
         )}
@@ -129,27 +176,43 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
           submit();
         }}
       >
-        <Textarea
-          ref={taRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
+        <div className="flex-1 relative">
+          <SlashCommandPopover
+            value={input}
+            anchor={
+              <Textarea
+                ref={taRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    // SlashCommandPopover may consume Enter when picking a command;
+                    // it preventsDefault in that case so submit still fires safely.
+                    e.preventDefault();
+                    submit();
+                  }
+                }}
+                placeholder={
+                  transcribe.state === "recording"
+                    ? "Listening… click the mic to stop"
+                    : transcribe.state === "transcribing"
+                    ? "Transcribing…"
+                    : "Type / for commands, or ask about risks, requirements, incumbents…"
+                }
+                rows={2}
+                className="resize-none min-h-[44px]"
+                disabled={sending || transcribe.state !== "idle"}
+              />
             }
-          }}
-          placeholder={
-            transcribe.state === "recording"
-              ? "Listening… click the mic to stop"
-              : transcribe.state === "transcribing"
-              ? "Transcribing…"
-              : "Ask about risks, requirements, incumbents, the client lens…"
-          }
-          rows={2}
-          className="resize-none min-h-[44px]"
-          disabled={sending || transcribe.state !== "idle"}
-        />
+            onPick={(c) => {
+              setInput((prev) => {
+                const rest = prev.trimStart().replace(/^\S+\s*/, "");
+                return `${c.cmd} ${rest}`.trimEnd() + (rest ? "" : " ");
+              });
+              taRef.current?.focus();
+            }}
+          />
+        </div>
         <Button
           type="button"
           size="icon"
@@ -204,44 +267,6 @@ function MessageRow({ m }: { m: AssistantMessage }) {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function EmptyState({
-  presets,
-  onPick,
-  compact,
-}: {
-  presets: any[];
-  onPick: (p: string) => void;
-  compact?: boolean;
-}) {
-  return (
-    <div className="flex flex-col items-center text-center py-8 px-4">
-      <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-3">
-        <Sparkles className="h-6 w-6" />
-      </div>
-      <h3 className="font-semibold text-base">AI Assistant</h3>
-      <p className="text-sm text-muted-foreground max-w-md mt-1">
-        Tailored to this solicitation. Ask about risks, requirements, the client's capabilities and lens, incumbents,
-        or anything in the analysis.
-      </p>
-      {presets.length > 0 && (
-        <div className={`mt-5 grid gap-2 w-full ${compact ? "grid-cols-1" : "grid-cols-2"}`}>
-          {presets.slice(0, 6).map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => onPick(p.prompt)}
-              className="text-left text-sm border rounded-md p-3 hover:bg-muted transition"
-            >
-              <div className="font-medium">{p.label}</div>
-              <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{p.prompt}</div>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
