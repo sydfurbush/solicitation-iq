@@ -1,53 +1,58 @@
-# Streamlined Thread List
+## Problem
 
-## Goal
-Give chat titles more horizontal space by collapsing the per-row action icons (Pin, Move-to-folder, Share, Trash) into a single "…" overflow menu, and add a **Rename** action — matching the reference screenshot.
+Thread titles in the AI Assistant sidebar are showing raw markdown like:
 
-## Changes (only `src/features/assistant/components/ThreadList.tsx`)
+```
+```prompt ## Role and C...
+```
 
-### 1. Row layout
-- Remove the 4-icon hover strip on the right.
-- Replace with a single `MoreHorizontal` (…) icon button, visible on hover/focus and always visible for the active row.
-- Keep a small inline **pin indicator** (📌) on the left of pinned rows so users still see pin state at a glance — the action itself moves into the menu.
-- Result: title gets ~80px more width, fewer truncations like "provide an exampl…".
+This happens because `supabase/functions/solicitation-assistant/index.ts` line 822 auto-titles a new thread by taking the first user message verbatim:
 
-### 2. "…" overflow menu (DropdownMenu)
-Active (non-trash) row items, in order:
-1. **Pin to top** / **Unpin** (toggles)
-2. **Rename** ← new
-3. **Move to folder ▸** (submenu listing folders + "Unfiled")
-4. **Copy share link**
-5. ─ separator ─
-6. **Move to Trash** (destructive)
+```ts
+updates.title = message.slice(0, 60).trim() || "New chat";
+```
 
-Trash row items:
-1. **Restore**
-2. **Delete permanently** (destructive)
+When a user pastes a structured prompt that begins with ` ```prompt `, `## Role`, `**...**`, etc., the markdown syntax becomes the visible title.
 
-### 3. Rename flow
-- Inline rename: clicking **Rename** swaps the title text with an `<Input>` focused and selected. Enter or blur saves via `useUpdateThread({ patch: { title } })`; Escape cancels. Empty title reverts.
-- No new dialog needed — keeps the list compact and feels like the reference UI.
+## Fix
 
-### 4. Visual polish
-- Title line: bump from `text-sm` truncate to allow up to 2 lines with `line-clamp-2` (optional — recommendation A) OR keep single-line truncate with the extra width (recommendation B, matches reference more closely).
-- Timestamp stays as the small muted line beneath.
-- Active row keeps `bg-muted`; "…" button uses `opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100` so it stays visible while the menu is open.
+Two small changes, both presentation-only — no data model changes.
 
-## Recommendations / Options for you to choose
+### 1. Server: sanitize new auto-titles (`supabase/functions/solicitation-assistant/index.ts`)
 
-**A. Title wrapping**
-- A1 *(recommended)*: Single-line truncate — cleanest, matches your reference screenshot.
-- A2: Allow 2-line wrap (`line-clamp-2`) — fewer truncations, taller rows.
+Before slicing to 60 chars, strip markdown noise from the message. A small helper:
 
-**B. Pin visibility**
-- B1 *(recommended)*: Small pin glyph on the left of pinned rows + Pin/Unpin inside the "…" menu.
-- B2: No inline glyph — rely on the dedicated "Pinned" section header only.
+- Remove fenced code blocks/backticks (``` ``` ```, `` ` ``)
+- Remove leading code-fence language labels (`prompt`, `markdown`, `text`, etc.) at the start
+- Strip leading heading hashes (`^#+\s*`)
+- Strip bold/italic/strike markers (`**`, `__`, `*`, `_`, `~~`)
+- Strip blockquote/list bullets at line start (`>`, `-`, `*`, `1.`)
+- Collapse whitespace/newlines to single spaces, trim
+- Then `slice(0, 60)` and fall back to `"New chat"` if empty
 
-**C. Rename UX**
-- C1 *(recommended)*: Inline edit in place (described above).
-- C2: Modal dialog (consistent with folder rename dialog already in the file).
+This fixes all *new* threads going forward.
 
-Default plan uses **A1 + B1 + C1**. Tell me if you'd prefer different options and I'll adjust before implementation.
+### 2. Client: sanitize legacy titles at render time (`src/features/assistant/components/ThreadList.tsx`)
+
+Existing rows already have ugly titles stored. Rather than running a DB backfill, apply the same sanitizer in the UI when displaying:
+
+- Add a `formatThreadTitle(raw: string)` helper (same rules as server).
+- Use it in the two places titles render in `ThreadList.tsx`:
+  - Line 242 — `{t.title || "Untitled"}`
+  - Line 524 — `{h.thread_title || "Untitled"}` (history search result)
+- Also use it as the seed value for the rename input (line 110) so editing shows a clean string.
+
+The raw DB value is preserved; only display is cleaned.
 
 ## Out of scope
-No changes to folders sidebar, search, quick actions (Knowledge/Memory/Preferences), trash behavior, or backend hooks.
+
+- No migration to rewrite existing `assistant_threads.title` rows.
+- No changes to message body rendering, model config, or the AI Assistant chat itself.
+- No changes to how user messages are stored or echoed.
+
+## Verification
+
+1. Open the AI Assistant on the affected solicitation. Existing thread titles in the sidebar (Pinned / Previous 7 Days) should now read as plain text — no leading ``` ``` ```, no `##`, no `prompt` label.
+2. Start a new chat, paste a prompt that begins with ` ```prompt ## Role and Context `, send. Sidebar title should appear as `Role and Context …` (or similar) rather than the raw markdown.
+3. Rename a thread — the rename input should pre-fill with the cleaned title.
+4. History search results dropdown should also show cleaned thread titles.
