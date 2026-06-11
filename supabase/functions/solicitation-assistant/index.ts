@@ -25,6 +25,24 @@ consult — do not invent details.
 
 Be concise, structured, and use markdown. End with a "Next steps" bullet list when relevant.`;
 
+const PERSONA_FRAGMENTS: Record<string, string> = {
+  capture_manager:
+    "Adopt the perspective of a senior Capture Manager. Emphasize win strategy, discriminators, competitive position, teaming gaps, and go/no-go signals.",
+  proposal_writer:
+    "Adopt the perspective of a senior Proposal Writer. Focus on section content, narrative flow, win themes woven in, and persuasive language. Quote the solicitation when relevant.",
+  compliance_reviewer:
+    "Adopt the perspective of a strict Compliance Reviewer. Map answers to Section L/M, identify shall-statements, flag format/page-limit risks. Always cite the exact section.",
+  pricing_analyst:
+    "Adopt the perspective of a Pricing Analyst. Focus on cost structure, labor categories, basis-of-estimate signals, escalation, ceilings, and price-to-win considerations.",
+  executive:
+    "Adopt the perspective of an executive briefer. Lead with the bottom line, follow with 3-5 bullets, end with the single most important risk and opportunity.",
+  plain_english:
+    "Use plain English. Avoid jargon and acronyms; if you must use one, define it. Prefer short sentences and concrete examples.",
+};
+
+const PLAIN_MODE_FRAGMENT =
+  "ADDITIONAL CONSTRAINT: Write in plain English. Avoid jargon and acronyms; if you must use one, define it. Prefer short sentences (under 20 words) and concrete examples.";
+
 
 const TOOL_SCHEMA = {
   name: "answer",
@@ -283,6 +301,9 @@ Summary: ${s?.ai_summary ?? "—"}`);
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+
+
+  const t0 = Date.now();
   try {
     const authHeader = req.headers.get("Authorization") ?? "";
     const token = authHeader.replace("Bearer ", "");
@@ -290,7 +311,14 @@ Deno.serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser(token);
     if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    const { solicitationId, threadId, message } = await req.json();
+    const body = await req.json();
+    const { solicitationId, threadId, message } = body as { solicitationId?: string; threadId?: string; message?: string };
+    const persona = typeof body.persona === "string" ? body.persona : undefined;
+    const plainMode = body.plainMode === true;
+    const slash = body.slash && typeof body.slash === "object"
+      ? { handler: String(body.slash.handler ?? ""), rest: String(body.slash.rest ?? "") }
+      : null;
+
     if (!solicitationId || !threadId || !message) {
       return new Response(JSON.stringify({ error: "solicitationId, threadId, and message are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -298,9 +326,22 @@ Deno.serve(async (req) => {
     const supa = createClient(SUPABASE_URL, SERVICE_KEY);
 
     // Verify the user can access this thread (RLS-style check via userClient)
-    const { data: thread } = await userClient.from("assistant_threads").select("id,solicitation_id").eq("id", threadId).maybeSingle();
+    const { data: thread } = await userClient.from("assistant_threads").select("id,solicitation_id,persona,plain_mode").eq("id", threadId).maybeSingle();
     if (!thread || thread.solicitation_id !== solicitationId) {
       return new Response(JSON.stringify({ error: "thread not found or access denied" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Resolve persona / plain_mode (request overrides thread; thread is source of truth otherwise)
+    const effectivePersona = persona ?? (thread as any).persona ?? "capture_manager";
+    const effectivePlain = typeof body.plainMode === "boolean" ? plainMode : !!(thread as any).plain_mode;
+
+    // If persona/plain settings changed via the request, persist to the thread
+    if ((persona && persona !== (thread as any).persona) ||
+        (typeof body.plainMode === "boolean" && plainMode !== (thread as any).plain_mode)) {
+      const patch: Record<string, unknown> = {};
+      if (persona) patch.persona = persona;
+      if (typeof body.plainMode === "boolean") patch.plain_mode = plainMode;
+      await supa.from("assistant_threads").update(patch).eq("id", threadId);
     }
 
     // Persist user message
@@ -310,6 +351,31 @@ Deno.serve(async (req) => {
       parts: [{ type: "text", text: message }],
       created_by: user.id,
     });
+
+    // Handle /clear-context locally without an LLM call
+    if (slash?.handler === "clear") {
+      const { data: noticeMsg } = await supa.from("assistant_messages").insert({
+        thread_id: threadId,
+        role: "assistant",
+        parts: [{ type: "text", text: "_Context cleared. I'll start fresh from your next message (your saved memory and this thread's history remain)._" }],
+        citations: [],
+      }).select().single();
+
+      await supa.from("assistant_threads").update({ last_message_at: new Date().toISOString() }).eq("id", threadId);
+      await supa.from("assistant_audit_log").insert({
+        user_id: user.id,
+        solicitation_id: solicitationId,
+        thread_id: threadId,
+        message_id: noticeMsg?.id ?? null,
+        persona: effectivePersona,
+        model: "slash:clear",
+        status: "ok",
+        latency_ms: Date.now() - t0,
+      });
+      return new Response(JSON.stringify({ message: noticeMsg, citations: [], followups: [] }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Load recent history
     const { data: history } = await supa.from("assistant_messages").select("role,parts").eq("thread_id", threadId).order("created_at", { ascending: true }).limit(30);
@@ -329,15 +395,32 @@ Deno.serve(async (req) => {
     const excerptBlock = excerpts.block ? `${excerpts.block}\n\n` : "";
     const userPrompt = `## Context for this solicitation\n\n${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
 
+    // Compose system prompt with persona + optional plain-mode fragment
+    const personaFragment = PERSONA_FRAGMENTS[effectivePersona] ?? PERSONA_FRAGMENTS.capture_manager;
+    const composedSystem = [
+      SYSTEM_PROMPT,
+      `\n## Persona\n${personaFragment}`,
+      effectivePlain ? `\n## Plain mode\n${PLAIN_MODE_FRAGMENT}` : "",
+    ].filter(Boolean).join("\n");
+
     let result;
     try {
       result = await callAiTool({
         functionName: "solicitation-assistant",
-        system: SYSTEM_PROMPT,
+        system: composedSystem,
         user: userPrompt,
         tool: TOOL_SCHEMA,
       });
     } catch (err) {
+      await supa.from("assistant_audit_log").insert({
+        user_id: user.id,
+        solicitation_id: solicitationId,
+        thread_id: threadId,
+        persona: effectivePersona,
+        status: "error",
+        error: err instanceof Error ? err.message : String(err),
+        latency_ms: Date.now() - t0,
+      });
       return aiErrorResponse(err, corsHeaders);
     }
 
@@ -370,6 +453,17 @@ Deno.serve(async (req) => {
       updates.title = message.slice(0, 60).trim() || "New chat";
     }
     await supa.from("assistant_threads").update(updates).eq("id", threadId);
+
+    // Audit log success
+    await supa.from("assistant_audit_log").insert({
+      user_id: user.id,
+      solicitation_id: solicitationId,
+      thread_id: threadId,
+      message_id: assistantMsg?.id ?? null,
+      persona: effectivePersona,
+      status: "ok",
+      latency_ms: Date.now() - t0,
+    });
 
     return new Response(JSON.stringify({ message: assistantMsg, citations: mergedCitations, followups }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
