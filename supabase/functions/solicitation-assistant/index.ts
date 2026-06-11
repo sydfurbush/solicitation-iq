@@ -25,6 +25,24 @@ consult — do not invent details.
 
 Be concise, structured, and use markdown. End with a "Next steps" bullet list when relevant.`;
 
+const PERSONA_FRAGMENTS: Record<string, string> = {
+  capture_manager:
+    "Adopt the perspective of a senior Capture Manager. Emphasize win strategy, discriminators, competitive position, teaming gaps, and go/no-go signals.",
+  proposal_writer:
+    "Adopt the perspective of a senior Proposal Writer. Focus on section content, narrative flow, win themes woven in, and persuasive language. Quote the solicitation when relevant.",
+  compliance_reviewer:
+    "Adopt the perspective of a strict Compliance Reviewer. Map answers to Section L/M, identify shall-statements, flag format/page-limit risks. Always cite the exact section.",
+  pricing_analyst:
+    "Adopt the perspective of a Pricing Analyst. Focus on cost structure, labor categories, basis-of-estimate signals, escalation, ceilings, and price-to-win considerations.",
+  executive:
+    "Adopt the perspective of an executive briefer. Lead with the bottom line, follow with 3-5 bullets, end with the single most important risk and opportunity.",
+  plain_english:
+    "Use plain English. Avoid jargon and acronyms; if you must use one, define it. Prefer short sentences and concrete examples.",
+};
+
+const PLAIN_MODE_FRAGMENT =
+  "ADDITIONAL CONSTRAINT: Write in plain English. Avoid jargon and acronyms; if you must use one, define it. Prefer short sentences (under 20 words) and concrete examples.";
+
 
 const TOOL_SCHEMA = {
   name: "answer",
