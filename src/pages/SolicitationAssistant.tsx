@@ -23,17 +23,12 @@ export default function SolicitationAssistant({ solicitationId }: { solicitation
     setSearchParams(next);
   };
 
-  // Auto-select first non-deleted thread (or create one) when none selected
+  // Always start with a fresh blank chat when no thread is selected via URL.
   useEffect(() => {
-    if (threadId || isLoading) return;
-    const live = threads.filter((t) => !t.deleted_at);
-    if (live.length > 0) {
-      setThread(live[0].id);
-    } else if (!create.isPending) {
-      create.mutateAsync({ solicitationId }).then((t) => setThread(t.id));
-    }
+    if (threadId || isLoading || create.isPending) return;
+    create.mutateAsync({ solicitationId }).then((t) => setThread(t.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId, threads, isLoading]);
+  }, [threadId, isLoading]);
 
   const activeThread = useMemo(
     () => (threadId ? threads.find((t) => t.id === threadId) : null) ?? null,
