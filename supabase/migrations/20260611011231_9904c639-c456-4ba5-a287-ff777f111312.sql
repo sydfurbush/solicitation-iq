@@ -1,0 +1,1 @@
+ALTER TABLE public.assistant_threads ADD COLUMN IF NOT EXISTS pinned_knowledge_ids uuid[] NOT NULL DEFAULT '{}';

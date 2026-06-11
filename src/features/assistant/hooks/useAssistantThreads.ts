@@ -12,6 +12,7 @@ export type AssistantThread = {
   pinned_client_id: string | null;
   pinned_solicitation_id: string | null;
   pinned_entity: Record<string, unknown> | null;
+  pinned_knowledge_ids: string[];
   last_message_at: string;
   created_at: string;
   created_by: string | null;
@@ -107,7 +108,7 @@ export function useUpdateThread() {
       patch,
     }: {
       id: string;
-      patch: Partial<Pick<AssistantThread, "title" | "pinned" | "persona" | "plain_mode">>;
+      patch: Partial<Pick<AssistantThread, "title" | "pinned" | "persona" | "plain_mode" | "pinned_knowledge_ids">>;
     }) => {
       const { data, error } = await supabase
         .from("assistant_threads")
@@ -144,6 +145,7 @@ export function useSendAssistantMessage() {
       persona,
       plainMode,
       slash,
+      pinnedKnowledgeIds,
     }: {
       solicitationId: string;
       threadId: string;
@@ -151,9 +153,18 @@ export function useSendAssistantMessage() {
       persona?: PersonaKey;
       plainMode?: boolean;
       slash?: SlashPayload | null;
+      pinnedKnowledgeIds?: string[];
     }) => {
       const { data, error } = await supabase.functions.invoke("solicitation-assistant", {
-        body: { solicitationId, threadId, message, persona, plainMode, slash: slash ?? null },
+        body: {
+          solicitationId,
+          threadId,
+          message,
+          persona,
+          plainMode,
+          slash: slash ?? null,
+          pinnedKnowledgeIds: pinnedKnowledgeIds ?? [],
+        },
       });
       if (error) throw error;
       return data as { message: AssistantMessage; citations: any[]; followups: string[] };
