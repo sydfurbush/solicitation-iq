@@ -162,7 +162,7 @@ async function renderTranscriptDom(
     root.unmount();
     host.remove();
   };
-  return { html, cleanup };
+  return { html, host, cleanup } as { html: string; host: HTMLElement; cleanup: () => void };
 }
 
 export async function renderTranscriptToHtml(
@@ -175,6 +175,82 @@ export async function renderTranscriptToHtml(
   const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${title}</title><style>${PRINT_CSS}</style></head><body>${bodyHtml}</body></html>`;
   return { html, bodyHtml };
 }
+
+/* ----------------------------- SVG → PNG ---------------------------------- */
+
+type DocxImage = { data: Uint8Array; width: number; height: number };
+
+async function rasterizeSvg(svg: SVGSVGElement): Promise<DocxImage | null> {
+  try {
+    // Determine natural width/height from attributes, viewBox, or bounding box.
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox?.baseVal;
+    let w = svg.width?.baseVal?.value || rect.width || (vb && vb.width) || 800;
+    let h = svg.height?.baseVal?.value || rect.height || (vb && vb.height) || 600;
+    if (!isFinite(w) || w <= 0) w = 800;
+    if (!isFinite(h) || h <= 0) h = Math.round(w * 0.6);
+
+    // Make sure the serialized SVG carries explicit dimensions and the
+    // xmlns attribute (some live DOM SVGs omit it).
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    if (!clone.getAttribute("width")) clone.setAttribute("width", String(w));
+    if (!clone.getAttribute("height")) clone.setAttribute("height", String(h));
+
+    const svgString = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    const loaded = new Promise<HTMLImageElement>((resolve, reject) => {
+      img.onload = () => resolve(img);
+      img.onerror = (e) => reject(e);
+    });
+    img.src = url;
+    await loaded;
+
+    const scale = 2;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      URL.revokeObjectURL(url);
+      return null;
+    }
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+
+    const dataUrl = canvas.toDataURL("image/png");
+    const base64 = dataUrl.split(",")[1] ?? "";
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return { data: bytes, width: w, height: h };
+  } catch {
+    return null;
+  }
+}
+
+async function rasterizeAllSvgs(host: HTMLElement): Promise<void> {
+  const svgs = Array.from(host.querySelectorAll("svg"));
+  for (const svg of svgs) {
+    const img = await rasterizeSvg(svg as SVGSVGElement);
+    const placeholder = document.createElement("div");
+    if (img) {
+      const idx = (window as any).__docxImages.length;
+      (window as any).__docxImages.push(img);
+      placeholder.setAttribute("data-docx-image", String(idx));
+    } else {
+      placeholder.setAttribute("data-docx-image", "fallback");
+    }
+    svg.parentNode?.replaceChild(placeholder, svg);
+  }
+}
+
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
@@ -326,6 +402,16 @@ function collectRuns(node: Node, style: RunStyle = {}): (TextRun | ExternalHyper
     if (child.nodeType !== Node.ELEMENT_NODE) return;
     const el = child as HTMLElement;
     const tag = el.tagName.toUpperCase();
+    if (
+      tag === "STYLE" ||
+      tag === "SCRIPT" ||
+      tag === "NOSCRIPT" ||
+      tag === "TEMPLATE" ||
+      tag === "SVG" ||
+      tag === "BUTTON"
+    ) {
+      return;
+    }
     const next: RunStyle = { ...style };
     if (tag === "STRONG" || tag === "B") next.bold = true;
     if (tag === "EM" || tag === "I") next.italics = true;
@@ -349,6 +435,50 @@ function collectRuns(node: Node, style: RunStyle = {}): (TextRun | ExternalHyper
 
 function blockFromElement(el: HTMLElement): (Paragraph | Table)[] {
   const tag = el.tagName.toUpperCase();
+
+  if (
+    tag === "STYLE" ||
+    tag === "SCRIPT" ||
+    tag === "NOSCRIPT" ||
+    tag === "TEMPLATE" ||
+    tag === "SVG" ||
+    tag === "BUTTON"
+  ) {
+    return [];
+  }
+
+  // SVG → image placeholder injected by rasterizeAllSvgs.
+  const imgIdx = el.getAttribute("data-docx-image");
+  if (imgIdx !== null) {
+    const images = ((window as any).__docxImages ?? []) as DocxImage[];
+    if (imgIdx === "fallback") {
+      return [
+        new Paragraph({
+          spacing: { before: 120, after: 120 },
+          children: [new TextRun({ text: "[diagram]", italics: true, color: "6B7280" })],
+        }),
+      ];
+    }
+    const img = images[Number(imgIdx)];
+    if (!img) return [];
+    const maxW = 600;
+    const scale = img.width > maxW ? maxW / img.width : 1;
+    const w = Math.round(img.width * scale);
+    const h = Math.round(img.height * scale);
+    return [
+      new Paragraph({
+        spacing: { before: 120, after: 120 },
+        children: [
+          new ImageRun({
+            type: "png",
+            data: img.data,
+            transformation: { width: w, height: h },
+          } as any),
+        ],
+      }),
+    ];
+  }
+
 
   if (HEADING_MAP[tag]) {
     return [
@@ -591,9 +721,21 @@ export async function downloadAssistantDocx(
   thread: AssistantThread,
   messages: AssistantMessage[],
 ) {
-  const { bodyHtml } = await renderTranscriptToHtml(thread, messages);
-  const container = document.createElement("div");
-  container.innerHTML = bodyHtml;
+  // Render the transcript into the live DOM so we can rasterize SVGs in place
+  // before serializing. This avoids dumping mermaid <style> CSS as raw text.
+  const { host, cleanup } = (await renderTranscriptDom(thread, messages)) as {
+    host: HTMLElement;
+    cleanup: () => void;
+    html: string;
+  };
+  (window as any).__docxImages = [] as DocxImage[];
+  try {
+    await rasterizeAllSvgs(host);
+  } catch {
+    /* swallow — fallback placeholders already emitted by rasterizeAllSvgs */
+  }
+  const container = host;
+
 
   const children: (Paragraph | Table)[] = [];
 
@@ -737,7 +879,10 @@ export async function downloadAssistantDocx(
   const blob = await Packer.toBlob(doc);
   const filename = `assistant-thread-${slugify(thread.title)}.docx`;
   saveAs(blob, filename);
+  (window as any).__docxImages = [];
+  cleanup();
 }
+
 
 function prettyPersona(p: string): string {
   const m: Record<string, string> = {
