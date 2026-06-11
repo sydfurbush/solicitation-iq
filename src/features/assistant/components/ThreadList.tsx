@@ -55,13 +55,52 @@ export function ThreadList({ solicitationId, activeThreadId, onSelect, shareBase
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search"
+            placeholder="Search titles & messages"
             className="h-8 pl-7 text-xs"
           />
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
+        {searchMode ? (
+          searching && hits.length === 0 ? (
+            <div className="p-3 text-xs text-muted-foreground">Searching…</div>
+          ) : hits.length === 0 ? (
+            <div className="p-3 text-xs text-muted-foreground">No matching messages.</div>
+          ) : (
+            <>
+              <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                {hits.length} message{hits.length === 1 ? "" : "s"}
+              </div>
+              {hits.map((h) => (
+                <div
+                  key={h.message_id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onSelect(h.thread_id, h.message_id)}
+                  onKeyDown={(e) => (e.key === "Enter" ? onSelect(h.thread_id, h.message_id) : null)}
+                  className={cn(
+                    "px-3 py-2 border-b cursor-pointer hover:bg-muted/50",
+                    activeThreadId === h.thread_id && "bg-muted/40",
+                  )}
+                >
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    {h.role === "user" ? (
+                      <User className="h-3 w-3" />
+                    ) : (
+                      <MessageSquare className="h-3 w-3" />
+                    )}
+                    <span className="truncate">{h.thread_title || "Untitled"}</span>
+                    <span className="ml-auto shrink-0">
+                      {formatDistanceToNow(new Date(h.created_at), { addSuffix: true })}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs line-clamp-2">{h.snippet}</div>
+                </div>
+              ))}
+            </>
+          )
+        ) : isLoading ? (
+
           <div className="p-3 text-xs text-muted-foreground">Loading…</div>
         ) : filtered.length === 0 ? (
           <div className="p-3 text-xs text-muted-foreground">No conversations yet.</div>
