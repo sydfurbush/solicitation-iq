@@ -31,6 +31,9 @@ import { SuggestedKnowledgeBanner, type KnowledgeSuggestion } from "./SuggestedK
 import { PhotoAttachmentButton } from "./PhotoAttachmentButton";
 import { AttachmentChips } from "./AttachmentChips";
 import { MessageAttachments } from "./MessageAttachments";
+import { ExportThreadButton } from "./ExportThreadButton";
+import { PinnedEntityChips } from "./PinnedEntityChips";
+import { PinEntityPopover } from "./PinEntityPopover";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
