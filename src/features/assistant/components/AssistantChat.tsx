@@ -243,48 +243,11 @@ export function AssistantChat({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="border-b px-3 py-2 flex items-center gap-2 bg-background">
+      <div className="border-b px-3 py-2 flex items-center justify-center gap-2 bg-background relative">
         <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
-        <div className="ml-auto flex items-center gap-1">
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
           <ExportThreadButton thread={thread} messages={messages} />
           <AssistantAnalyticsButton />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs gap-1.5"
-            onClick={() => setKnowledgeOpen(true)}
-            title="Knowledge — pin client documents for this thread"
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            Knowledge
-            {pinnedKnowledgeIds.length > 0 && (
-              <Badge variant="secondary" className="h-4 px-1 text-[10px] font-normal">
-                {pinnedKnowledgeIds.length}
-              </Badge>
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 px-2 text-xs gap-1.5"
-            onClick={() => setMemoryOpen(true)}
-            title="Memory — durable facts the assistant remembers"
-          >
-            <Brain className="h-3.5 w-3.5" /> Memory
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            onClick={() => setPrefsOpen(true)}
-            title="Preferences"
-            aria-label="Preferences"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-          </Button>
         </div>
       </div>
 
@@ -298,6 +261,7 @@ export function AssistantChat({
       <div className="border-b bg-background px-3 py-1 flex items-center">
         <PinEntityPopover thread={thread} solicitationId={solicitationId} />
       </div>
+
 
       <MemoryPanel open={memoryOpen} onOpenChange={setMemoryOpen} />
       <PreferencesPanel open={prefsOpen} onOpenChange={setPrefsOpen} />
