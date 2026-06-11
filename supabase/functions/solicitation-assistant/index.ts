@@ -468,12 +468,20 @@ Deno.serve(async (req) => {
     const excerptBlock = excerpts.block ? `${excerpts.block}\n\n` : "";
     const userPrompt = `## Context for this solicitation\n\n${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
 
-    // Compose system prompt with persona + optional plain-mode fragment
+    // Compose system prompt with persona + optional plain-mode fragment + memory + tone
     const personaFragment = PERSONA_FRAGMENTS[effectivePersona] ?? PERSONA_FRAGMENTS.capture_manager;
+    const memoryBlock = memories.length > 0
+      ? `\n## Durable user memory\nThese are facts the user has explicitly asked you to remember. Treat them as authoritative.\n${memories.map((m) => `- ${m.fact}`).join("\n")}`
+      : "";
+    const toneLine = prefs?.tone && prefs.tone !== "neutral"
+      ? `\n## Tone\nUse a ${prefs.tone} tone.`
+      : "";
     const composedSystem = [
       SYSTEM_PROMPT,
       `\n## Persona\n${personaFragment}`,
       effectivePlain ? `\n## Plain mode\n${PLAIN_MODE_FRAGMENT}` : "",
+      toneLine,
+      memoryBlock,
     ].filter(Boolean).join("\n");
 
     let result;
