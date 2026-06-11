@@ -135,6 +135,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         persona,
         plainMode,
         slash,
+        pinnedKnowledgeIds,
       });
       taRef.current?.focus();
     } catch (e: any) {
@@ -163,6 +164,22 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
             variant="ghost"
             size="sm"
             className="h-8 px-2 text-xs gap-1.5"
+            onClick={() => setKnowledgeOpen(true)}
+            title="Knowledge — pin client documents for this thread"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Knowledge
+            {pinnedKnowledgeIds.length > 0 && (
+              <Badge variant="secondary" className="h-4 px-1 text-[10px] font-normal">
+                {pinnedKnowledgeIds.length}
+              </Badge>
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs gap-1.5"
             onClick={() => setMemoryOpen(true)}
             title="Memory — durable facts the assistant remembers"
           >
@@ -182,8 +199,24 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
         </div>
       </div>
 
+      <PinnedKnowledgeChips
+        clientId={clientId ?? undefined}
+        threadId={threadId}
+        solicitationId={solicitationId}
+        pinnedIds={pinnedKnowledgeIds}
+      />
+
       <MemoryPanel open={memoryOpen} onOpenChange={setMemoryOpen} />
       <PreferencesPanel open={prefsOpen} onOpenChange={setPrefsOpen} />
+      <KnowledgePanel
+        open={knowledgeOpen}
+        onOpenChange={setKnowledgeOpen}
+        clientId={clientId ?? undefined}
+        threadId={threadId}
+        solicitationId={solicitationId}
+        pinnedIds={pinnedKnowledgeIds}
+      />
+
 
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
