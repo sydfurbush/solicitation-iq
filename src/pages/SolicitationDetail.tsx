@@ -31,7 +31,7 @@ import {
   useUpdateSolicitationStatus,
 } from "@/features/solicitations/hooks/useSolicitations";
 import { useClient } from "@/features/clients/hooks/useClients";
-import { PhaseIndicator } from "@/features/solicitations/components/PhaseIndicator";
+
 import { PhaseHub, type HubStep } from "@/features/solicitations/components/PhaseHub";
 import { PhaseShell } from "@/features/solicitations/components/PhaseShell";
 import { SolicitationActionsMenu } from "@/features/solicitations/components/SolicitationActionsMenu";
@@ -400,7 +400,7 @@ export default function SolicitationDetail() {
               parentId={(s as { parent_solicitation_id?: string | null }).parent_solicitation_id ?? null}
             />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
+          
           <div className="flex items-center gap-3 flex-wrap">
             {s.issuing_agency && (
               <p className="text-sm text-muted-foreground">{s.issuing_agency}</p>
@@ -420,6 +420,28 @@ export default function SolicitationDetail() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {s.proposal_due_date && (
+            <div
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs",
+                urgency === "danger" || urgency === "overdue"
+                  ? "border-destructive/40 text-destructive bg-destructive/5"
+                  : urgency === "warning"
+                    ? "border-amber-500/40 text-amber-600 dark:text-amber-500 bg-amber-500/5"
+                    : "text-muted-foreground",
+              )}
+              title={format(new Date(s.proposal_due_date), "PPP")}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              <span className="font-medium">
+                {days !== null
+                  ? days < 0
+                    ? `${Math.abs(days)}d overdue`
+                    : `${days}d left`
+                  : format(new Date(s.proposal_due_date), "PP")}
+              </span>
+            </div>
+          )}
           <TeamPresence solicitationId={s.id} />
           <AnnotationsSidebar solicitationId={s.id} />
           <DropdownMenu>
@@ -455,46 +477,6 @@ export default function SolicitationDetail() {
         </div>
       </div>
 
-      {/* Phase strip + countdown */}
-      <Card>
-        <CardContent className="p-5 flex flex-col lg:flex-row gap-6 lg:items-center">
-          <div className="flex-1">
-            <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wide">Phase</p>
-            <PhaseIndicator
-              current={s.current_phase}
-              status={s.status}
-              onPhaseClick={(p: PhaseType) => goTab(PHASE_TAB[p])}
-            />
-          </div>
-          <div className="lg:border-l lg:pl-6">
-            <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wide">Proposal due</p>
-            {s.proposal_due_date ? (
-              <div
-                className={cn(
-                  "flex items-center gap-2",
-                  urgency === "danger" || urgency === "overdue"
-                    ? "text-destructive"
-                    : urgency === "warning"
-                      ? "text-amber-600 dark:text-amber-500"
-                      : "",
-                )}
-              >
-                <Clock className="h-4 w-4" />
-                <div>
-                  <p className="font-semibold">{format(new Date(s.proposal_due_date), "PPP")}</p>
-                  {days !== null && (
-                    <p className="text-xs">
-                      {days < 0 ? `${Math.abs(days)} days overdue` : `${days} days left`}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No due date set</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Slim top nav */}
       <div className="border-b">
