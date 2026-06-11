@@ -602,37 +602,33 @@ export default function SolicitationDetail() {
             activeStep={step ?? "outline"}
             onStepChange={(k) => goTab("phase-3", k)}
           >
-            {(step ?? "outline") === "exhibits" ? (
-              <ExhibitsTab solicitationId={s.id} />
-            ) : (
-              <SolicitationOutline
-                solicitationId={s.id}
-                currentPhase={currentPhase}
-                solicitationTitle={s.title}
-                solicitationNumber={s.solicitation_number}
-                clientName={clientName}
-              />
-            )}
+            {(() => {
+              const sub = step ?? "outline";
+              if (sub === "exhibits") return <ExhibitsTab solicitationId={s.id} />;
+              if (sub === "themes")
+                return (
+                  <SolicitationWinThemes
+                    solicitationId={s.id}
+                    currentPhase={currentPhase}
+                    solicitationTitle={s.title}
+                    clientName={clientName}
+                  />
+                );
+              if (sub === "draft" || sub === "compliance" || sub === "compile")
+                return <Phase5Workspace solicitationId={s.id} />;
+              return (
+                <SolicitationOutline
+                  solicitationId={s.id}
+                  currentPhase={currentPhase}
+                  solicitationTitle={s.title}
+                  solicitationNumber={s.solicitation_number}
+                  clientName={clientName}
+                />
+              );
+            })()}
           </PhaseShell>
         )}
 
-
-        {tab === "phase-4" && (
-          <PhaseShell solicitationId={s.id} phase="phase_4_win_themes" currentPhase={currentPhase}>
-            <SolicitationWinThemes
-              solicitationId={s.id}
-              currentPhase={currentPhase}
-              solicitationTitle={s.title}
-              clientName={clientName}
-            />
-          </PhaseShell>
-        )}
-
-        {tab === "phase-5" && (
-          <PhaseShell solicitationId={s.id} phase="phase_5_drafting" currentPhase={currentPhase}>
-            <Phase5Workspace solicitationId={s.id} />
-          </PhaseShell>
-        )}
 
         {tab === "writing-queue" && (
           <SolicitationWritingQueue
