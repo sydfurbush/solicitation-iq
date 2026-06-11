@@ -1,41 +1,35 @@
-# Phase 4 — Knowledge Documents Panel
+# Phase 5 — Risk Radar & Auto-suggested Knowledge
 
-Wire the existing `client_knowledge_documents` corpus into the assistant chat so users can browse the client's knowledge base, pin relevant documents to the active thread, and have the assistant cite them.
+Surfaces solicitation risks inline in the assistant and lets the assistant proactively suggest knowledge documents to pin based on the user's question. No new tables.
 
 ## New files
 
-- `src/features/assistant/components/KnowledgePanel.tsx` — Side sheet (Sheet from shadcn) opened from a `BookOpen` button in the chat header. Lists the active solicitation's client knowledge docs with status badges, tags, search box, and a pin/unpin toggle per row. Reuses the existing `useClientKnowledge` hook. Empty state links to the client's Knowledge tab.
-- `src/features/assistant/components/PinnedKnowledgeChips.tsx` — Compact row of pinned docs shown under the persona/plain-mode header, with a click-to-unpin "×". Hidden when nothing is pinned.
-- `src/features/assistant/hooks/usePinnedKnowledge.ts` — Reads/writes `assistant_threads.pinned_knowledge_ids` (uuid[]) via Supabase. Exposes `pinned`, `pin(id)`, `unpin(id)`, `clear()`.
-
-## Database (single migration)
-
-- Add `pinned_knowledge_ids uuid[] not null default '{}'` to `public.assistant_threads`. No RLS change (existing thread policies already cover reads/writes).
+- `src/features/assistant/components/RiskRadar.tsx` — Collapsible panel rendered above the message list when there are open (non-mitigated) high/critical risks for the solicitation. Lists severity-coloured chips with title + truncated description and a "Discuss" button that submits a pre-filled prompt ("How should we mitigate: <risk title>?") into the chat. Closed by default in `compact` mode.
+- `src/features/assistant/components/SuggestedKnowledgeBanner.tsx` — Lightweight banner shown under the header when the latest assistant message includes `suggested_knowledge` ref data. Each suggestion is a row: doc title + one-line "why", with a Pin button that calls `usePinnedKnowledge.pin`. Dismiss button hides for the session.
+- `src/features/assistant/hooks/useSolicitationRisks.ts` — `useQuery` over `risks` filtered to open high/critical for the current solicitation, ordered by severity then created_at.
 
 ## Edits
 
-- `src/features/assistant/hooks/useAssistantThreads.ts` — Extend `AssistantThread` with `pinned_knowledge_ids: string[]`. Extend `useUpdateThread` patch type. Forward `pinnedKnowledgeIds` in `useSendAssistantMessage` payload.
+- `src/features/assistant/hooks/useAssistantThreads.ts` — Extend `AssistantMessage` with optional `suggestions?: { knowledge?: Array<{ document_id: string; title: string; why: string }> }` read from the existing `citations` jsonb column (no schema change — stored under a separate key in the inserted row via the edge function using a new `suggestions` column? No: piggy-back on `citations` by adding entries with `kind: "suggested_knowledge"`).
 - `src/features/assistant/components/AssistantChat.tsx`
-  - Add a `BookOpen` button next to Memory/Preferences that opens `KnowledgePanel`.
-  - Render `PinnedKnowledgeChips` directly under the header strip when the thread has pinned docs.
-  - Resolve the solicitation's `client_id` once (small `useQuery` on `solicitations`) and pass to the panel.
+  - Mount `<RiskRadar />` above the message list (only when messages exist or as a one-time intro when empty).
+  - After each assistant turn, render `<SuggestedKnowledgeBanner />` based on the most recent assistant message's `kind: "suggested_knowledge"` citations.
+  - Pass `risksOpenCount` into `StarterCards` query key so dynamic starters refresh when the radar count changes meaningfully (best-effort).
 - `supabase/functions/solicitation-assistant/index.ts`
-  - Accept `pinnedKnowledgeIds?: string[]` in the request body.
-  - When present and non-empty, fetch up to 6 chunks across those docs: first try semantic match via `match_client_knowledge` (using the user's message as query embedding from the existing `generate-embedding` helper), then fall back to top-N chunks by `chunk_index` if no embeddings exist. Filter strictly to the pinned `document_id`s.
-  - Inject a `## Pinned knowledge` section into the system prompt with `[doc-title › chunk N]` headers and trimmed chunk text (~800 chars each, total cap ~3.5k chars).
-  - Append matching citations to the assistant message `citations` jsonb so `MessageRow` renders them as chips. Use shape `{ label, kind: "knowledge", document_id, chunk_id }`.
-  - Audit log: include `pinned_knowledge_count` in `assistant_audit_log.metadata`.
+  - Extend `TOOL_SCHEMA` with optional `suggested_knowledge: Array<{ document_id, title, why }>`.
+  - Pass a compact "Available knowledge documents" list (id + title + tags, capped to ~25 docs, scoped to the solicitation's client) into the system prompt so the model can pick relevant ones to suggest. Only emit suggestions when the user's question would benefit from a doc that is NOT already pinned.
+  - Validate suggestions against the actual `client_knowledge_documents` rows (drop any unknown IDs); cap at 3. Persist them as citations with `kind: "suggested_knowledge"` so the frontend banner can read them without a schema change.
 
 ## Out of scope
 
-- Auto-suggesting docs (Phase 5). Phase 4 is manual pin/unpin only.
-- Editing knowledge from the panel — panel is read-only + pin toggle. Note creation/upload stays on the client Knowledge tab.
-- Risk Radar / Photo / History / Pinned-entity chips (Phases 5–7).
+- Photo / image attachments (Phase 6).
+- History/transcript export, pinned-entity chips (Phase 7).
+- Editing risks from the radar — radar is read-only with a "Discuss" shortcut.
+- Auto-pinning suggested docs — user always confirms.
 
 ## Validation
 
-- Opening the panel lists the correct client's docs and respects RLS.
-- Pinning a doc persists across reload and shows a chip.
-- Sending a message with a pinned doc that has ready embeddings yields an answer that quotes the doc and renders knowledge citation chips.
-- Unpinning all docs returns the assistant to default behavior (no pinned-knowledge section).
-- `assistant_audit_log` rows include `pinned_knowledge_count`.
+- A solicitation with at least one open `high`/`critical` risk shows the Risk Radar in chat; clicking "Discuss" sends the prefilled prompt and the radar collapses.
+- When the assistant believes a knowledge doc is relevant, the banner appears with up to 3 suggestions and "Pin" adds them to `pinned_knowledge_ids`.
+- Suggestions never reference an unknown or already-pinned `document_id`.
+- Already-pinned docs are excluded from suggestions for the next turn.
