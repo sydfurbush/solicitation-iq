@@ -446,6 +446,9 @@ Deno.serve(async (req) => {
     const pinnedKnowledgeIds: string[] = Array.isArray(body.pinnedKnowledgeIds)
       ? body.pinnedKnowledgeIds.filter((x: unknown): x is string => typeof x === "string").slice(0, 25)
       : [];
+    const attachmentIds: string[] = Array.isArray(body.attachmentIds)
+      ? body.attachmentIds.filter((x: unknown): x is string => typeof x === "string").slice(0, 4)
+      : [];
 
     if (!solicitationId || !threadId || !message) {
       return new Response(JSON.stringify({ error: "solicitationId, threadId, and message are required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
