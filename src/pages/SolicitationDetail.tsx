@@ -241,14 +241,6 @@ export default function SolicitationDetail() {
   const currentPhase: PhaseType = (s.current_phase ?? "phase_1_initial") as PhaseType;
   const currentPhaseIdx = PHASES.indexOf(currentPhase);
 
-  // On first load with no explicit tab, jump into focus mode on the current phase.
-  useEffect(() => {
-    if (rawTab) return;
-    const next = new URLSearchParams(searchParams);
-    next.set("tab", PHASE_TAB[currentPhase]);
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawTab, currentPhase]);
 
 
   // Full-bleed assistant mode: takes over the page content area with a collapse trigger.
