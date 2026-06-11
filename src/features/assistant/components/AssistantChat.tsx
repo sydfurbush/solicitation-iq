@@ -26,6 +26,8 @@ import { MemoryPanel } from "./MemoryPanel";
 import { PreferencesPanel } from "./PreferencesPanel";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { PinnedKnowledgeChips } from "./PinnedKnowledgeChips";
+import { RiskRadar } from "./RiskRadar";
+import { SuggestedKnowledgeBanner, type KnowledgeSuggestion } from "./SuggestedKnowledgeBanner";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -219,7 +221,29 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
 
 
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <RiskRadar solicitationId={solicitationId} onDiscuss={(p) => submit(p)} compact={compact} />
+        {(() => {
+          const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+          if (!lastAssistant) return null;
+          const sugg = (lastAssistant.citations ?? [])
+            .filter((c: any) => c?.kind === "suggested_knowledge" && c?.document_id && c?.title)
+            .map((c: any) => ({
+              document_id: String(c.document_id),
+              title: String(c.title),
+              why: String(c.why ?? ""),
+            })) as KnowledgeSuggestion[];
+          if (!sugg.length) return null;
+          return (
+            <SuggestedKnowledgeBanner
+              suggestions={sugg}
+              pinnedIds={pinnedKnowledgeIds}
+              threadId={threadId}
+              solicitationId={solicitationId}
+              messageKey={lastAssistant.id}
+            />
+          );
+        })()}
         {isLoading ? (
           <div className="text-sm text-muted-foreground">Loading…</div>
         ) : messages.length === 0 ? (
@@ -240,6 +264,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
           </div>
         )}
       </div>
+
 
       {messages.length > 0 && presets.length > 0 && (
         <div className="px-4 pb-2 flex flex-wrap gap-1.5 border-t pt-3">
@@ -344,15 +369,19 @@ function MessageRow({ m }: { m: AssistantMessage }) {
         ) : (
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown>{text}</ReactMarkdown>
-            {Array.isArray(m.citations) && m.citations.length > 0 && (
-              <div className="not-prose mt-2 flex flex-wrap gap-1">
-                {m.citations.map((c: any, i: number) => (
-                  <Badge key={i} variant="secondary" className="text-[10px] font-normal">
-                    {c.label}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            {Array.isArray(m.citations) && m.citations.length > 0 && (() => {
+              const visible = (m.citations as any[]).filter((c) => c?.kind !== "suggested_knowledge" && c?.label);
+              if (!visible.length) return null;
+              return (
+                <div className="not-prose mt-2 flex flex-wrap gap-1">
+                  {visible.map((c: any, i: number) => (
+                    <Badge key={i} variant="secondary" className="text-[10px] font-normal">
+                      {c.label}
+                    </Badge>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

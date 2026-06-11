@@ -64,6 +64,19 @@ const TOOL_SCHEMA = {
         },
       },
       suggested_followups: { type: "array", items: { type: "string" } },
+      suggested_knowledge: {
+        type: "array",
+        description: "Up to 3 knowledge documents from the Available knowledge list that the user should pin for a better answer. Omit when nothing is relevant.",
+        items: {
+          type: "object",
+          properties: {
+            document_id: { type: "string" },
+            title: { type: "string" },
+            why: { type: "string", description: "One short sentence explaining why this doc is relevant." },
+          },
+          required: ["document_id", "title", "why"],
+        },
+      },
     },
     required: ["reply"],
   },
@@ -583,6 +596,28 @@ Deno.serve(async (req) => {
       message,
     );
 
+    // Available (unpinned) knowledge docs for suggestions
+    const clientIdForKb = (ctx.sol as any)?.client_id ?? null;
+    let availableKnowledge: Array<{ id: string; title: string; tags: string[] }> = [];
+    if (clientIdForKb) {
+      const { data: kbRows } = await supa
+        .from("client_knowledge_documents")
+        .select("id,title,tags,status")
+        .eq("client_id", clientIdForKb)
+        .eq("status", "ready")
+        .order("updated_at", { ascending: false })
+        .limit(40);
+      availableKnowledge = ((kbRows ?? []) as any[])
+        .filter((r) => !pinnedKnowledgeIds.includes(r.id))
+        .slice(0, 25)
+        .map((r) => ({ id: r.id, title: r.title, tags: r.tags ?? [] }));
+    }
+    const availableKnowledgeBlock = availableKnowledge.length
+      ? `\n## Available knowledge documents (NOT yet pinned)\nYou MAY recommend up to 3 of these via "suggested_knowledge" when they would meaningfully improve your answer. Only use document_ids from this list verbatim. Skip when nothing fits.\n${availableKnowledge
+          .map((d) => `- id=${d.id} | "${d.title}"${d.tags.length ? ` | tags: ${d.tags.slice(0, 5).join(", ")}` : ""}`)
+          .join("\n")}`
+      : "";
+
     const conversation = (history ?? []).map((m: any) => {
       const text = (m.parts ?? []).map((p: any) => (p.type === "text" ? p.text : "")).join("\n");
       return `${m.role.toUpperCase()}: ${text}`;
@@ -606,6 +641,7 @@ Deno.serve(async (req) => {
       effectivePlain ? `\n## Plain mode\n${PLAIN_MODE_FRAGMENT}` : "",
       toneLine,
       memoryBlock,
+      availableKnowledgeBlock,
     ].filter(Boolean).join("\n");
 
     let result;
@@ -648,6 +684,27 @@ Deno.serve(async (req) => {
         seenLabels.add(c.label);
       }
     }
+
+    // Validate suggested knowledge against the available list and cap at 3
+    const validIds = new Set(availableKnowledge.map((d) => d.id));
+    const titleById = new Map(availableKnowledge.map((d) => [d.id, d.title]));
+    const rawSuggestions = Array.isArray(result.suggested_knowledge) ? result.suggested_knowledge : [];
+    const seenSuggestionIds = new Set<string>();
+    for (const s of rawSuggestions) {
+      const id = typeof s?.document_id === "string" ? s.document_id : "";
+      if (!id || !validIds.has(id) || seenSuggestionIds.has(id)) continue;
+      seenSuggestionIds.add(id);
+      mergedCitations.push({
+        kind: "suggested_knowledge",
+        label: `Suggest pin: ${titleById.get(id) ?? "knowledge"}`,
+        ref_id: id,
+        document_id: id,
+        title: titleById.get(id) ?? String(s.title ?? "Knowledge"),
+        why: String(s.why ?? "").slice(0, 240),
+      } as any);
+      if (seenSuggestionIds.size >= 3) break;
+    }
+
 
     const { data: assistantMsg } = await supa.from("assistant_messages").insert({
       thread_id: threadId,
