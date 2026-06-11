@@ -657,7 +657,10 @@ Deno.serve(async (req) => {
 
     const excerptBlock = excerpts.block ? `${excerpts.block}\n\n` : "";
     const knowledgeBlock = knowledge.block ? `${knowledge.block}\n\n` : "";
-    const userPrompt = `## Context for this solicitation\n\n${knowledgeBlock}${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
+    const photosBlock = attachmentInfos.length > 0
+      ? `## Attached photos\nThe user attached ${attachmentInfos.length} photo${attachmentInfos.length === 1 ? "" : "s"} with this message (provided as images alongside the text). Treat them as real evidence from the user. Filenames:\n${attachmentInfos.map((a, i) => `- [Photo ${i + 1}] ${a.file_name}`).join("\n")}\n\n`
+      : "";
+    const userPrompt = `## Context for this solicitation\n\n${photosBlock}${knowledgeBlock}${excerptBlock}${ctxStr}\n\n## Conversation so far\n\n${conversation}\n\n## Respond to the latest user message above.`;
 
     // Compose system prompt with persona + optional plain-mode fragment + memory + tone
     const personaFragment = PERSONA_FRAGMENTS[effectivePersona] ?? PERSONA_FRAGMENTS.capture_manager;
@@ -683,6 +686,7 @@ Deno.serve(async (req) => {
         system: composedSystem,
         user: userPrompt,
         tool: TOOL_SCHEMA,
+        images: attachmentInfos.map((a) => ({ url: a.url })),
       });
     } catch (err) {
       await supa.from("assistant_audit_log").insert({
