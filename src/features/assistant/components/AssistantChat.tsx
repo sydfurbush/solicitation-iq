@@ -293,7 +293,7 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
             compact={compact}
           />
         ) : (
-          messages.map((m) => <MessageRow key={m.id} m={m} />)
+          messages.map((m) => <MessageRow key={m.id} m={m} threadId={threadId} />)
         )}
         {sending && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -321,69 +321,87 @@ export function AssistantChat({ solicitationId, threadId, compact }: Props) {
       )}
 
       <form
-        className="border-t bg-background p-3 flex items-end gap-2"
+        className="border-t bg-background p-3"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
       >
-        <div className="flex-1 relative">
-          <SlashCommandPopover
-            value={input}
-            anchor={
-              <Textarea
-                ref={taRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    // SlashCommandPopover may consume Enter when picking a command;
-                    // it preventsDefault in that case so submit still fires safely.
-                    e.preventDefault();
-                    submit();
+        <AttachmentChips
+          files={pendingPhotos}
+          onRemove={(i) => setPendingPhotos((prev) => prev.filter((_, idx) => idx !== i))}
+        />
+        <div className="flex items-end gap-2">
+          <div className="flex-1 relative">
+            <SlashCommandPopover
+              value={input}
+              anchor={
+                <Textarea
+                  ref={taRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      submit();
+                    }
+                  }}
+                  placeholder={
+                    transcribe.state === "recording"
+                      ? "Listening… click the mic to stop"
+                      : transcribe.state === "transcribing"
+                      ? "Transcribing…"
+                      : uploading
+                      ? "Uploading photos…"
+                      : "Type / for commands, attach a photo, or ask about risks, requirements…"
                   }
-                }}
-                placeholder={
-                  transcribe.state === "recording"
-                    ? "Listening… click the mic to stop"
-                    : transcribe.state === "transcribing"
-                    ? "Transcribing…"
-                    : "Type / for commands, or ask about risks, requirements, incumbents…"
-                }
-                rows={2}
-                className="resize-none min-h-[44px]"
-                disabled={sending || transcribe.state !== "idle"}
-              />
-            }
-            onPick={(c) => {
-              setInput((prev) => {
-                const rest = prev.trimStart().replace(/^\S+\s*/, "");
-                return `${c.cmd} ${rest}`.trimEnd() + (rest ? "" : " ");
-              });
-              taRef.current?.focus();
-            }}
+                  rows={2}
+                  className="resize-none min-h-[44px]"
+                  disabled={sending || uploading || transcribe.state !== "idle"}
+                />
+              }
+              onPick={(c) => {
+                setInput((prev) => {
+                  const rest = prev.trimStart().replace(/^\S+\s*/, "");
+                  return `${c.cmd} ${rest}`.trimEnd() + (rest ? "" : " ");
+                });
+                taRef.current?.focus();
+              }}
+            />
+          </div>
+          <PhotoAttachmentButton
+            pending={pendingPhotos}
+            onAdd={(files) => setPendingPhotos((prev) => [...prev, ...files])}
+            disabled={sending || uploading || transcribe.state !== "idle"}
           />
+          <Button
+            type="button"
+            size="icon"
+            variant={transcribe.state === "recording" ? "destructive" : "outline"}
+            onClick={handleMic}
+            disabled={sending || uploading || transcribe.state === "transcribing"}
+            title={transcribe.state === "recording" ? "Stop recording" : "Voice input"}
+            aria-label={transcribe.state === "recording" ? "Stop recording" : "Start voice input"}
+          >
+            {transcribe.state === "transcribing" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : transcribe.state === "recording" ? (
+              <Square className={cn("h-4 w-4")} />
+            ) : (
+              <Mic className="h-4 w-4" />
+            )}
+          </Button>
+          <Button
+            type="submit"
+            size="icon"
+            disabled={
+              sending || uploading || transcribe.state !== "idle" ||
+              (!input.trim() && pendingPhotos.length === 0)
+            }
+          >
+            {sending || uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
         </div>
-        <Button
-          type="button"
-          size="icon"
-          variant={transcribe.state === "recording" ? "destructive" : "outline"}
-          onClick={handleMic}
-          disabled={sending || transcribe.state === "transcribing"}
-          title={transcribe.state === "recording" ? "Stop recording" : "Voice input"}
-          aria-label={transcribe.state === "recording" ? "Stop recording" : "Start voice input"}
-        >
-          {transcribe.state === "transcribing" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : transcribe.state === "recording" ? (
-            <Square className={cn("h-4 w-4")} />
-          ) : (
-            <Mic className="h-4 w-4" />
-          )}
-        </Button>
-        <Button type="submit" size="icon" disabled={sending || !input.trim() || transcribe.state !== "idle"}>
-          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        </Button>
       </form>
     </div>
   );
