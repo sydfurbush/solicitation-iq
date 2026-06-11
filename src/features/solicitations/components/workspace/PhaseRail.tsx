@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, ChevronRight, Clock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Clock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PHASES, type PhaseType } from "@/lib/validators/solicitation";
 import { format } from "date-fns";
@@ -172,20 +172,8 @@ export function PhaseRail({
                   </span>
                 </button>
 
-                {isActive && (
-                  <div className="ml-[34px] mt-3 mb-1">
-                    <button
-                      onClick={() => onSelect(tab, p.defaultStep)}
-                      className="w-full flex items-center justify-between gap-2 h-8 px-3 rounded-sm bg-rail-accent text-white text-xs font-semibold uppercase tracking-wider hover:brightness-110 transition"
-                    >
-                      <span>Open Workspace</span>
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-
                 {isActive && p.steps.length > 0 && (
-                  <div className="ml-[34px] mt-2 pt-2 pl-4 border-l border-white/10 space-y-1">
+                  <div className="ml-[34px] mt-2 pt-2 pl-4 border-l border-white/10 space-y-3">
                     {p.steps.map((s) => {
                       const sActive = (activeStep ?? p.defaultStep) === s.key;
                       const count = counts?.[s.key];
@@ -194,9 +182,9 @@ export function PhaseRail({
                           key={s.key}
                           onClick={() => onSelect(tab, s.key)}
                           className={cn(
-                            "w-full flex items-center justify-between text-left text-sm transition-colors relative cursor-pointer rounded-sm px-2 -mx-2 py-1.5 hover:bg-white/5",
+                            "w-full flex items-center justify-between text-left text-sm transition-colors relative",
                             sActive
-                              ? "text-white font-medium before:absolute before:-left-[19px] before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-1.5 before:bg-rail-accent before:rounded-full"
+                              ? "text-white font-medium before:absolute before:-left-[17px] before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-1.5 before:bg-rail-accent before:rounded-full"
                               : "text-rail-muted hover:text-white",
                           )}
                         >
@@ -256,43 +244,30 @@ interface MobileBarProps {
   activeStep: string | null;
   onSelect: (tab: string, step?: string) => void;
   onOpenSheet: () => void;
-  onOpenWorkspaces?: () => void;
-  counts?: Partial<Record<string, number>>;
 }
 
-export function MobilePhaseBar({ activeTab, activeStep, onSelect, onOpenSheet, onOpenWorkspaces }: MobileBarProps) {
+export function MobilePhaseBar({ activeTab, activeStep, onSelect, onOpenSheet }: MobileBarProps) {
   const phase = RAIL_PHASES.find((p) => TAB_BY_PHASE[p.phase] === activeTab) ?? RAIL_PHASES[0];
   const idx = RAIL_PHASES.indexOf(phase);
   const sub = activeStep ?? phase.defaultStep;
 
   return (
     <div className="bg-rail text-rail-foreground sticky top-0 z-20">
-      <div className="flex items-stretch">
-        <button
-          onClick={onOpenSheet}
-          className="flex-1 flex items-center justify-between px-4 py-3 text-left min-w-0"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="flex items-center justify-center w-7 h-7 rounded-full bg-rail-accent text-[10px] font-bold shrink-0">
-              {String(idx + 1).padStart(2, "0")}
-            </span>
-            <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-widest text-rail-muted">Phase {idx + 1}</p>
-              <p className="text-sm font-semibold truncate">{phase.label}</p>
-            </div>
+      <button
+        onClick={onOpenSheet}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="flex items-center justify-center w-7 h-7 rounded-full bg-rail-accent text-[10px] font-bold shrink-0">
+            {String(idx + 1).padStart(2, "0")}
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-widest text-rail-muted">Phase {idx + 1}</p>
+            <p className="text-sm font-semibold truncate">{phase.label}</p>
           </div>
-          <span className="text-[10px] text-rail-muted ml-2">Change ▾</span>
-        </button>
-        {onOpenWorkspaces && (
-          <button
-            onClick={onOpenWorkspaces}
-            className="shrink-0 my-2 mr-3 ml-2 px-3 rounded-sm bg-rail-accent text-white text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 hover:brightness-110 transition"
-          >
-            <span>Open</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+        </div>
+        <span className="text-xs text-rail-muted">Change ▾</span>
+      </button>
       {phase.steps.length > 0 && (
         <div className="flex gap-2 overflow-x-auto px-3 pb-3 snap-x">
           {phase.steps.map((s) => {
@@ -314,57 +289,6 @@ export function MobilePhaseBar({ activeTab, activeStep, onSelect, onOpenSheet, o
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-interface MobileWorkspaceSheetProps {
-  activeTab: string;
-  activeStep: string | null;
-  onSelect: (tab: string, step?: string) => void;
-  counts?: Partial<Record<string, number>>;
-}
-
-export function MobileWorkspaceSheet({ activeTab, activeStep, onSelect, counts }: MobileWorkspaceSheetProps) {
-  const phase = RAIL_PHASES.find((p) => TAB_BY_PHASE[p.phase] === activeTab) ?? RAIL_PHASES[0];
-  const idx = RAIL_PHASES.indexOf(phase);
-  const sub = activeStep ?? phase.defaultStep;
-  const steps = phase.steps.length > 0 ? phase.steps : [{ key: phase.defaultStep, label: phase.label }];
-
-  return (
-    <div className="flex flex-col">
-      <div className="px-1 pb-3 border-b border-border">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-semibold">
-          Workspaces
-        </p>
-        <p className="text-base font-semibold mt-0.5">
-          Phase {idx + 1}: {phase.label}
-        </p>
-      </div>
-      <div className="flex flex-col py-2">
-        {steps.map((s) => {
-          const active = sub === s.key;
-          const count = counts?.[s.key];
-          return (
-            <button
-              key={s.key}
-              onClick={() => onSelect(activeTab, s.key)}
-              className={cn(
-                "flex items-center justify-between gap-3 px-3 py-3.5 rounded-md text-left transition-colors min-h-[48px]",
-                active ? "bg-rail/5 text-rail font-semibold" : "hover:bg-muted text-foreground",
-              )}
-            >
-              <span className="text-sm">{s.label}</span>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                {typeof count === "number" && count > 0 && (
-                  <span className="text-xs font-medium">{count}</span>
-                )}
-                <ChevronRight className="h-4 w-4" />
-              </div>
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }

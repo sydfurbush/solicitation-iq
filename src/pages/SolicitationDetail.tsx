@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { format } from "date-fns";
 import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
   ExternalLink,
   FileText,
   HelpCircle,
@@ -17,7 +19,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import {
   PhaseRail,
   MobilePhaseBar,
-  MobileWorkspaceSheet,
   useRailCollapsed,
 } from "@/features/solicitations/components/workspace/PhaseRail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -51,7 +52,7 @@ import {
   STATUS_CLASSES,
   STATUS_LABELS,
   daysUntil,
-  
+  dueUrgency,
 } from "@/features/solicitations/lib/format";
 import { SOLICITATION_STATUSES, PHASES, type PhaseType, type SolicitationStatus } from "@/lib/validators/solicitation";
 import { toast } from "@/hooks/use-toast";
@@ -179,6 +180,7 @@ export default function SolicitationDetail() {
     });
   });
 
+  const urgency = useMemo(() => dueUrgency(s?.proposal_due_date), [s?.proposal_due_date]);
   const days = useMemo(() => daysUntil(s?.proposal_due_date), [s?.proposal_due_date]);
 
   // One-time legacy ?tab= redirect
@@ -207,7 +209,6 @@ export default function SolicitationDetail() {
   // Mobile phase-rail sheet state
   const isMobile = useIsMobile();
   const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
-  const [workspaceSheetOpen, setWorkspaceSheetOpen] = useState(false);
   const { collapsed: railCollapsed, toggle: toggleRail } = useRailCollapsed();
 
   const goTab = (t: string, st?: string) => {
@@ -376,6 +377,48 @@ export default function SolicitationDetail() {
     );
   };
 
+  // Phase headline copy for the focused canvas
+  const phaseHeadline: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
+    "phase-1": {
+      eyebrow: "Phase 01 · Initial",
+      title: "Initial Workspace",
+      subtitle: "Establish the foundation of the solicitation — ingest documents, run analysis, raise clarifying questions, and identify risks.",
+    },
+    "phase-2": {
+      eyebrow: "Phase 02 · Deep Dive",
+      title: "Requirements & Analysis",
+      subtitle: "Build the RTM, analyze each section against your capabilities, and surface capability gaps and teaming options.",
+    },
+    "phase-3": {
+      eyebrow: "Phase 03 · Outline",
+      title: "Proposal Outline",
+      subtitle: "Shape the proposal outline and align exhibits, attachments, and section ownership.",
+    },
+    "phase-4": {
+      eyebrow: "Phase 04 · Win Themes",
+      title: "Win Themes",
+      subtitle: "Crystallize the differentiators that will frame every section of the proposal.",
+    },
+    "phase-5": {
+      eyebrow: "Phase 05 · Drafting",
+      title: "Drafting & Compile",
+      subtitle: "Draft, review compliance, and compile the final proposal package.",
+    },
+    "workflow": {
+      eyebrow: "Workspace",
+      title: "Workspace overview",
+      subtitle: "All phases at a glance. Pick a phase from the rail to enter focus mode.",
+    },
+  };
+
+  const workspaceHeadline: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
+    "writing-queue": { eyebrow: "Workspace", title: "Writing Queue", subtitle: "Assignments queued for the drafting team." },
+    "reports": { eyebrow: "Workspace", title: "Reports", subtitle: "Published reports for this solicitation." },
+    "comparison": { eyebrow: "Workspace", title: "Comparison", subtitle: "Compare against prior solicitations and revisions." },
+    "activity": { eyebrow: "Workspace", title: "Activity", subtitle: "Recent events on this solicitation." },
+  };
+
+  const headline = phaseHeadline[tab] ?? workspaceHeadline[tab];
 
   return (
     <div className="-my-6 -mx-4 md:-mx-8 flex flex-col h-[calc(100vh-3.5rem)] bg-canvas">
@@ -478,38 +521,13 @@ export default function SolicitationDetail() {
 
       {/* MOBILE PHASE BAR */}
       {isMobile && tab.startsWith("phase-") && (
-        <>
-          <MobilePhaseBar
-            currentPhase={currentPhase}
-            activeTab={tab}
-            activeStep={step}
-            onSelect={goTab}
-            onOpenSheet={() => setMobileSheetOpen(true)}
-            onOpenWorkspaces={() => setWorkspaceSheetOpen(true)}
-            counts={{
-              documents: s.documents_count,
-              questions: s.questions_count,
-              risks: (s.risks_count ?? 0) + (s.opportunities_count ?? 0),
-            }}
-          />
-          <Sheet open={workspaceSheetOpen} onOpenChange={setWorkspaceSheetOpen}>
-            <SheetContent side="bottom" className="rounded-t-xl max-h-[80vh] overflow-y-auto p-4">
-              <MobileWorkspaceSheet
-                activeTab={tab}
-                activeStep={step}
-                onSelect={(t, st) => {
-                  goTab(t, st);
-                  setWorkspaceSheetOpen(false);
-                }}
-                counts={{
-                  documents: s.documents_count,
-                  questions: s.questions_count,
-                  risks: (s.risks_count ?? 0) + (s.opportunities_count ?? 0),
-                }}
-              />
-            </SheetContent>
-          </Sheet>
-        </>
+        <MobilePhaseBar
+          currentPhase={currentPhase}
+          activeTab={tab}
+          activeStep={step}
+          onSelect={goTab}
+          onOpenSheet={() => setMobileSheetOpen(true)}
+        />
       )}
 
       {/* BODY */}
@@ -534,6 +552,35 @@ export default function SolicitationDetail() {
 
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-5xl mx-auto px-4 md:px-10 py-6 md:py-10 animate-in fade-in slide-in-from-bottom-2 duration-300" key={tab}>
+            {headline && (
+              <header className="mb-8 md:mb-10">
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-rail-accent">
+                  {headline.eyebrow}
+                </span>
+                <h2 className="font-display text-3xl md:text-4xl text-ink mt-2 leading-tight">
+                  {headline.title}
+                </h2>
+                <p className="text-muted-foreground text-base mt-3 max-w-2xl leading-relaxed">
+                  {headline.subtitle}
+                </p>
+                {s.proposal_due_date && (
+                  <div className={cn(
+                    "mt-4 inline-flex items-center gap-2 text-xs",
+                    urgency === "danger" || urgency === "overdue" ? "text-destructive" :
+                    urgency === "warning" ? "text-amber-600 dark:text-amber-500" :
+                    "text-muted-foreground"
+                  )}>
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>Proposal due {format(new Date(s.proposal_due_date), "PPP")}</span>
+                    {days !== null && (
+                      <span className="font-semibold">
+                        · {days < 0 ? `${Math.abs(days)} days overdue` : `${days} days left`}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </header>
+            )}
 
             <div>
               {tab === "workflow" && (
