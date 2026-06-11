@@ -369,15 +369,19 @@ function MessageRow({ m }: { m: AssistantMessage }) {
         ) : (
           <div className="prose prose-sm dark:prose-invert max-w-none">
             <ReactMarkdown>{text}</ReactMarkdown>
-            {Array.isArray(m.citations) && m.citations.length > 0 && (
-              <div className="not-prose mt-2 flex flex-wrap gap-1">
-                {m.citations.map((c: any, i: number) => (
-                  <Badge key={i} variant="secondary" className="text-[10px] font-normal">
-                    {c.label}
-                  </Badge>
-                ))}
-              </div>
-            )}
+            {Array.isArray(m.citations) && m.citations.length > 0 && (() => {
+              const visible = (m.citations as any[]).filter((c) => c?.kind !== "suggested_knowledge" && c?.label);
+              if (!visible.length) return null;
+              return (
+                <div className="not-prose mt-2 flex flex-wrap gap-1">
+                  {visible.map((c: any, i: number) => (
+                    <Badge key={i} variant="secondary" className="text-[10px] font-normal">
+                      {c.label}
+                    </Badge>
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
