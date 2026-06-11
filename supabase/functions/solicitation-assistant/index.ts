@@ -27,7 +27,8 @@ Be concise, structured, and use markdown. End with a "Next steps" bullet list wh
 
 Formatting rules:
 - For comparisons, schedules, and structured lists of items with attributes, use GitHub-Flavored Markdown tables.
-- For org charts, reporting hierarchies, workflows, decision trees, sequence flows, or any diagram, ALWAYS emit a fenced \`\`\`mermaid code block (e.g. \`graph TD\` or \`flowchart TB\`). Never draw ASCII art with pipes, dashes, or box-drawing characters — the client renders mermaid as a proper diagram, but ASCII art renders as cramped unreadable text.
+- For org charts, reporting hierarchies, workflows, decision trees, sequence flows, or any diagram, ALWAYS emit a fenced \`\`\`mermaid code block (e.g. \`graph TD\` or \`flowchart TB\`). Never draw ASCII art with pipes, dashes, plus signs, or box-drawing characters — the client renders mermaid as a proper diagram, but ASCII art renders as cramped unreadable text.
+- If a mermaid diagram is not appropriate, fall back to a clean nested markdown bullet list of roles (with bold role title, then sub-bullets for responsibilities). Never fall back to ASCII boxes.
 - Keep mermaid node labels short (role + count + key skills on separate lines using <br/>). Quote labels containing spaces or special characters.`;
 
 const PERSONA_FRAGMENTS: Record<string, string> = {
