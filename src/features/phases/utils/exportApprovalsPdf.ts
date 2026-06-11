@@ -8,12 +8,10 @@ import { APPROVAL_LABEL, type PhaseApproval } from "../hooks/usePhaseApprovals";
 const PHASE_LABELS: Record<PhaseType, string> = {
   phase_1_initial: "Phase 1 — Initial",
   phase_2_deep_dive: "Phase 2 — Deep Dive",
-  phase_3_outline: "Phase 3 — Outline",
-  phase_4_win_themes: "Phase 4 — Win Themes",
-  phase_5_drafting: "Phase 5 — Drafting",
+  phase_3_outline: "Phase 3 — Proposal Development",
 };
 
-const GATED: PhaseType[] = ["phase_1_initial", "phase_2_deep_dive", "phase_3_outline"];
+const GATED: PhaseType[] = ["phase_1_initial", "phase_2_deep_dive"];
 
 interface SolicitationLite {
   title: string | null;

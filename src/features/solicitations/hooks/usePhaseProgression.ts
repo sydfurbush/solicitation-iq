@@ -6,15 +6,12 @@ export const PHASE_TAB: Record<PhaseType, string> = {
   phase_1_initial: "phase-1",
   phase_2_deep_dive: "phase-2",
   phase_3_outline: "phase-3",
-  phase_4_win_themes: "phase-4",
-  phase_5_drafting: "phase-5",
 };
 
 export const TAB_PHASE: Record<string, PhaseType> = {
   "phase-1": "phase_1_initial",
   "phase-2": "phase_2_deep_dive",
   "phase-3": "phase_3_outline",
-  "phase-4": "phase_4_win_themes",
 };
 
 export function nextPhase(current: PhaseType | null | undefined): PhaseType | null {
@@ -31,8 +28,9 @@ export function useAdvancePhase(solicitationId: string | undefined) {
       const { data: userData } = await supabase.auth.getUser();
       const userId = userData.user?.id ?? null;
 
-      // Gate check: phase 4 has no gate; gated phases (1-3) require client approval
-      const GATED: PhaseType[] = ["phase_1_initial", "phase_2_deep_dive", "phase_3_outline"];
+      // Gated phases (1 and 2) require client approval before advancing.
+      // Phase 3 is the final phase so no further gate is required.
+      const GATED: PhaseType[] = ["phase_1_initial", "phase_2_deep_dive"];
       if (!input.override && GATED.includes(input.from)) {
         const { data: ap } = await supabase
           .from("phase_approvals")

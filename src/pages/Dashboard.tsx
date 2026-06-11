@@ -48,7 +48,6 @@ const STATUS_LABELS: Record<string, string> = {
   phase_1_complete: "Phase 1 Complete",
   phase_2_active: "Phase 2 Active",
   phase_3_active: "Phase 3 Active",
-  phase_4_active: "Phase 4 Active",
   complete: "Complete",
   archived: "Archived",
 };
