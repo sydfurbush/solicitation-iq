@@ -22,7 +22,7 @@ import autoTable from "jspdf-autotable";
 /* --------------------------------- Constants ------------------------------ */
 
 export const LETTER = { width: 612, height: 792 } as const; // pt
-export const MARGINS = { top: 56, right: 56, bottom: 56, left: 56 } as const;
+export const MARGINS = { top: 64, right: 72, bottom: 64, left: 72 } as const;
 export const CONTENT_WIDTH = LETTER.width - MARGINS.left - MARGINS.right;
 
 export const PALETTE = {
