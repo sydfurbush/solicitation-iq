@@ -21,8 +21,25 @@ type Props = {
   thread?: AssistantThread | null;
 };
 
+/** Strip inline markdown emphasis/code markers — we render plain text per
+ *  product decision (no inline bold/italic in the PDF). */
+function stripInlineMd(s: string): string {
+  let out = s;
+  // bold/italic: **text**, __text__, *text*, _text_
+  out = out.replace(/\*\*(.+?)\*\*/g, "$1");
+  out = out.replace(/__(.+?)__/g, "$1");
+  out = out.replace(/(?<!\*)\*(?!\s)([^*\n]+?)\*(?!\*)/g, "$1");
+  out = out.replace(/(?<!_)_(?!\s)([^_\n]+?)_(?!_)/g, "$1");
+  // inline code: `code`
+  out = out.replace(/`([^`]+)`/g, "$1");
+  // links [text](url) -> text (url)
+  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)");
+  return out;
+}
+
 /** Render a simple markdown-ish block of assistant text into the pdfKit doc.
- *  Supports: # / ## / ### headings, - / * bullets, 1. ordered items, pipe tables, blank lines. */
+ *  Supports: #/##/###/#### headings, -/* bullets (nested), 1. ordered items,
+ *  pipe tables, --- horizontal rules, blank lines. Inline emphasis is stripped. */
 function renderMarkdownToPdf(doc: ReturnType<typeof createPdf>, text: string, startY: number): number {
   let y = startY;
   const lines = text.replace(/\r\n/g, "\n").split("\n");
@@ -34,9 +51,9 @@ function renderMarkdownToPdf(doc: ReturnType<typeof createPdf>, text: string, st
     // Table block: header | --- | body
     if (/^\s*\|.+\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) {
       const parseRow = (s: string) =>
-        s.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+        s.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => stripInlineMd(c.trim()));
       const head = [parseRow(line)];
-      i += 2; // skip header + separator
+      i += 2;
       const body: string[][] = [];
       while (i < lines.length && /^\s*\|.+\|\s*$/.test(lines[i])) {
         body.push(parseRow(lines[i]));
@@ -52,25 +69,55 @@ function renderMarkdownToPdf(doc: ReturnType<typeof createPdf>, text: string, st
       continue;
     }
 
-    const h1 = /^#\s+(.*)$/.exec(line);
-    const h2 = /^##\s+(.*)$/.exec(line);
-    const h3 = /^###\s+(.*)$/.exec(line);
-    const bullet = /^\s*[-*]\s+(.*)$/.exec(line);
-    const ordered = /^\s*(\d+)\.\s+(.*)$/.exec(line);
-
-    if (h1) {
-      y = writeWrapped(doc, h1[1], y + 4, { size: FONT.h2, bold: true, gap: 4 });
-    } else if (h2) {
-      y = writeWrapped(doc, h2[1], y + 2, { size: FONT.h3, bold: true, gap: 3 });
-    } else if (h3) {
-      y = writeWrapped(doc, h3[1], y + 2, { size: FONT.body, bold: true, gap: 2 });
-    } else if (bullet) {
-      y = writeWrapped(doc, `\u2022 ${bullet[1]}`, y, { indent: 12, gap: 1 });
-    } else if (ordered) {
-      y = writeWrapped(doc, `${ordered[1]}. ${ordered[2]}`, y, { indent: 12, gap: 1 });
-    } else {
-      y = writeWrapped(doc, line, y, { gap: 3 });
+    // Horizontal rule: --- or *** or ___
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
+      y += 4;
+      if (y > LETTER.height - MARGINS.bottom) {
+        doc.addPage();
+        y = MARGINS.top;
+      }
+      doc.setDrawColor(...PALETTE.rule);
+      doc.setLineWidth(0.5);
+      doc.line(MARGINS.left, y, MARGINS.left + CONTENT_WIDTH, y);
+      y += 8;
+      i++;
+      continue;
     }
+
+    // Headings — check deepest first so #### isn't mistaken for #
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      const content = stripInlineMd(heading[2]);
+      const size = level <= 1 ? FONT.h2 : level === 2 ? FONT.h3 : FONT.body;
+      const gap = level <= 2 ? 4 : 3;
+      const pre = level <= 2 ? 4 : 2;
+      y = writeWrapped(doc, content, y + pre, { size, bold: true, gap });
+      i++;
+      continue;
+    }
+
+    // Bullet (preserve nesting by leading-space count)
+    const bullet = /^(\s*)[-*]\s+(.*)$/.exec(line);
+    if (bullet) {
+      const depth = Math.min(3, Math.floor(bullet[1].length / 2));
+      const indent = 12 + depth * 12;
+      y = writeWrapped(doc, `\u2022 ${stripInlineMd(bullet[2])}`, y, { indent, gap: 1 });
+      i++;
+      continue;
+    }
+
+    // Ordered list
+    const ordered = /^(\s*)(\d+)\.\s+(.*)$/.exec(line);
+    if (ordered) {
+      const depth = Math.min(3, Math.floor(ordered[1].length / 2));
+      const indent = 12 + depth * 12;
+      y = writeWrapped(doc, `${ordered[2]}. ${stripInlineMd(ordered[3])}`, y, { indent, gap: 1 });
+      i++;
+      continue;
+    }
+
+    y = writeWrapped(doc, stripInlineMd(line), y, { gap: 3 });
     i++;
   }
   return y;
