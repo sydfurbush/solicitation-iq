@@ -37,6 +37,40 @@ function stripInlineMd(s: string): string {
   return out;
 }
 
+/* Typography tuned to mirror the on-screen assistant prose styles
+ * (prose-h1 xl, h2 lg, h3 base, h4 sm, body sm leading-relaxed). */
+const TYPO = {
+  h1: { size: 16, preGap: 10, postGap: 6 },
+  h2: { size: 14, preGap: 9, postGap: 5 },
+  h3: { size: 12, preGap: 7, postGap: 4 },
+  h4: { size: 11, preGap: 6, postGap: 3 },
+  body: { size: 10.5, postGap: 5 },
+  list: { size: 10.5, itemGap: 2, baseIndent: 14, levelStep: 14, markerGap: 8 },
+};
+
+/** Draw a bullet/number marker at a column, then wrap the text body with a
+ *  hanging indent so continuation lines align under the text, not the marker. */
+function drawListItem(
+  doc: ReturnType<typeof createPdf>,
+  y: number,
+  marker: string,
+  body: string,
+  depth: number,
+): number {
+  const markerX = MARGINS.left + TYPO.list.baseIndent + depth * TYPO.list.levelStep;
+  const textIndent = markerX - MARGINS.left + TYPO.list.markerGap;
+  doc.setFont(FONT.family, "normal");
+  doc.setFontSize(TYPO.list.size);
+  doc.setTextColor(...PALETTE.text);
+  doc.text(marker, markerX, y);
+  return writeWrapped(doc, body, y, {
+    size: TYPO.list.size,
+    indent: textIndent,
+    maxWidth: CONTENT_WIDTH - textIndent,
+    gap: TYPO.list.itemGap,
+  });
+}
+
 /** Render a simple markdown-ish block of assistant text into the pdfKit doc.
  *  Supports: #/##/###/#### headings, -/* bullets (nested), 1. ordered items,
  *  pipe tables, --- horizontal rules, blank lines. Inline emphasis is stripped. */
@@ -69,9 +103,9 @@ function renderMarkdownToPdf(doc: ReturnType<typeof createPdf>, text: string, st
       continue;
     }
 
-    // Horizontal rule: --- or *** or ___
+    // Horizontal rule
     if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
-      y += 4;
+      y += 6;
       if (y > LETTER.height - MARGINS.bottom) {
         doc.addPage();
         y = MARGINS.top;
@@ -79,30 +113,27 @@ function renderMarkdownToPdf(doc: ReturnType<typeof createPdf>, text: string, st
       doc.setDrawColor(...PALETTE.rule);
       doc.setLineWidth(0.5);
       doc.line(MARGINS.left, y, MARGINS.left + CONTENT_WIDTH, y);
-      y += 8;
+      y += 10;
       i++;
       continue;
     }
 
-    // Headings — check deepest first so #### isn't mistaken for #
+    // Headings
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     if (heading) {
-      const level = heading[1].length;
+      const level = Math.min(4, heading[1].length);
       const content = stripInlineMd(heading[2]);
-      const size = level <= 1 ? FONT.h2 : level === 2 ? FONT.h3 : FONT.body;
-      const gap = level <= 2 ? 4 : 3;
-      const pre = level <= 2 ? 4 : 2;
-      y = writeWrapped(doc, content, y + pre, { size, bold: true, gap });
+      const t = level === 1 ? TYPO.h1 : level === 2 ? TYPO.h2 : level === 3 ? TYPO.h3 : TYPO.h4;
+      y = writeWrapped(doc, content, y + t.preGap, { size: t.size, bold: true, gap: t.postGap });
       i++;
       continue;
     }
 
-    // Bullet (preserve nesting by leading-space count)
+    // Bullet (depth from leading-space count, 2 spaces per level)
     const bullet = /^(\s*)[-*]\s+(.*)$/.exec(line);
     if (bullet) {
       const depth = Math.min(3, Math.floor(bullet[1].length / 2));
-      const indent = 12 + depth * 12;
-      y = writeWrapped(doc, `\u2022 ${stripInlineMd(bullet[2])}`, y, { indent, gap: 1 });
+      y = drawListItem(doc, y, "\u2022", stripInlineMd(bullet[2]), depth);
       i++;
       continue;
     }
@@ -111,17 +142,18 @@ function renderMarkdownToPdf(doc: ReturnType<typeof createPdf>, text: string, st
     const ordered = /^(\s*)(\d+)\.\s+(.*)$/.exec(line);
     if (ordered) {
       const depth = Math.min(3, Math.floor(ordered[1].length / 2));
-      const indent = 12 + depth * 12;
-      y = writeWrapped(doc, `${ordered[2]}. ${stripInlineMd(ordered[3])}`, y, { indent, gap: 1 });
+      y = drawListItem(doc, y, `${ordered[2]}.`, stripInlineMd(ordered[3]), depth);
       i++;
       continue;
     }
 
-    y = writeWrapped(doc, stripInlineMd(line), y, { gap: 3 });
+    // Paragraph
+    y = writeWrapped(doc, stripInlineMd(line), y, { size: TYPO.body.size, gap: TYPO.body.postGap });
     i++;
   }
   return y;
 }
+
 
 /**
  * Per-message "Save as PDF" action — exports a single assistant message
