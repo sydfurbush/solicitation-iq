@@ -45,6 +45,8 @@ import {
 import { LensOverridePanel } from "./LensOverridePanel";
 import { SolicitationAssignmentsCard } from "@/features/team/components/AssignmentsCard";
 import { OverviewProposalsCard, AutofillChip } from "./OverviewProposalsCard";
+import { LogTimeButton } from "@/features/time/components/LogTimeButton";
+import { OutcomeWidget } from "@/features/outcomes/components/OutcomeWidget";
 
 interface Props {
   solicitation: SolicitationRow;
