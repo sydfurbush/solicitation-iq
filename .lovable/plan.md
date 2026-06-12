@@ -1,105 +1,55 @@
-## Global Reports — `/reports` rebuild
+## Goal
+Add four new report deliverables that close gaps against existing data. Use deterministic PDFs where the source is structured tables, AI narrative where prose adds value.
 
-Replace the `ComingSoon` placeholder with a real, tabbed Reports hub serving both internal leadership and (read-only) client-facing audiences. Add the data foundations the app is missing today so cost and utilization reports are accurate, not estimated.
+## Reports to add
 
-### Audience & visibility
-- **Internal staff** (owner/admin/analyst): all tabs, all metrics.
-- **Viewer role**: read-only access to everything they can already see.
-- **Client portal users**: a stripped-down Portfolio view is added later in the portal (out of scope for this milestone — flagged below).
+### 1. Compliance Matrix + RTM (deterministic, per solicitation)
+Two PDFs sharing the same data source:
+- **Compliance Matrix** — `requirement_items` joined to `outline_nodes` (where mapped). Columns: ID · Requirement (truncated + source citation) · Type (shall/must/should) · Volume/Section · Owner · Status · Notes. Grouped by source document, sorted by section/page.
+- **RTM** — stricter variant of the same data. Every requirement listed once with: Requirement ID · Source (doc §section p.X) · Verb · Response location · Compliance status (`compliant`/`partial`/`gap`/`tbd`) · Verification method.
 
-### Tab structure on `/reports`
+Wired from the existing solicitation Reports tab and from the `Phase 3 → Compliance` step.
 
-```text
-+------------------------------------------------------------------+
-|  Reports                                          [PDF tools v]  |
-+------------------------------------------------------------------+
-|  [ Operations ]  [ Deliverables ]  [ Client Portfolio ]          |
-|------------------------------------------------------------------|
-|  Filters: client v   date range v   stage v   assignee v         |
-|------------------------------------------------------------------|
-|  ... cards / tables for the active tab ...                       |
-+------------------------------------------------------------------+
-```
+### 2. Cost-to-Bid / Time & Utilization (deterministic, per solicitation)
+PDF that aggregates `time_entries` × `user_rates` for one solicitation:
+- KPI strip: total hours · billable hours · cost-to-bid · vs. estimated value (gross margin if won).
+- By person table: name · hours · billable · blended rate · cost.
+- By phase table: phase · hours · cost · % of total.
+- Daily activity sparkline-style table (last 60 days).
+- Footer note about which rate snapshots were applied.
 
-**Tab 1 — Operations** (4 cards, all org-scoped):
-1. **Pipeline overview** — solicitations grouped by stage/phase/status with counts and total estimated value; click-through to filtered Solicitations list.
-2. **On-time submission rate** — % of solicitations submitted on/before `proposal_due_date`, broken down by client and lead assignee; trailing 90-day trend.
-3. **Team workload & utilization** — per-user table: active assignments, overdue items, hours logged (last 30d), 7-day activity volume, utilization % (logged ÷ capacity).
-4. **Client portfolio summary** — counts, total estimated value, win rate, cost-to-bid, net contribution per client.
+Mounts on `SolicitationDetail` next to the existing report list, and on `/reports → Operations` as a per-solicitation export.
 
-**Tab 2 — Deliverables Library** — cross-solicitation rollup of every `executive_reports` row the user can see. Sortable/filterable table (date, type, client, solicitation, generated_by). Click a row → existing `ReportViewer`. "Open in solicitation" link.
+### 3. Win/Loss Analysis (AI narrative, org-wide) + Past Performance Brief (deterministic, org-wide)
+- **Win/Loss Analysis** — pulls all `solicitation_outcomes` in a date range. AI summarizes themes per outcome bucket, drawing on the linked solicitations' `ai_summary`, evaluation factors, and outcome notes. Sections: Overview · Win patterns · Loss patterns · No-bid rationale · Recommendations. Filterable by client and date range.
+- **Past Performance Brief** — deterministic. One block per `won` outcome: client · solicitation · awarded value · period of performance · scope summary (from `ai_summary` or title) · contact placeholder. Formatted as a reusable "Past Performance" reference document.
 
-**Tab 3 — Client Portfolio** — one card per client: active solicitations, upcoming due dates (next 30d), recent deliverables, last activity, total bid value, win/loss tally, cost-to-bid. Each card has "Generate client status report" → new "Client Portfolio" report type.
+Both surface under `/reports` as a new **"Org reports"** tab (alongside Operations / Deliverables / Client Portfolio).
 
-### New data foundations
+### 4. Teaming + Win Themes + Capability Gaps briefs (deterministic, per solicitation)
+Three small standalone PDFs, each rendered with `pdfKit` + the existing `drawTable`/`writeWrapped` helpers:
+- **Teaming Brief** — table of `solicitation_teaming_partners` with capabilities, role, NAICS, status, attachments listed.
+- **Win Themes Brief** — `win_themes` rows with theme · proof points · supporting citations · discriminator flag.
+- **Capability Gaps Brief** — `capability_gaps` rows with requirement · gap description · severity · proposed remediation · owner.
 
-Three new tables + one column added to `solicitations`. RLS scoped via `current_user_org()` and `is_solicitation_member` patterns already in use.
+Wired into existing tab pages: each tab gains a "Download PDF" button using `PdfToolsMenu`.
 
-```text
-time_entries
-  user_id, solicitation_id, phase (nullable),
-  entry_date, hours numeric(5,2), notes, billable bool
+## Technical layout
 
-user_rates
-  user_id, organization_id, hourly_rate numeric(10,2),
-  effective_from date, effective_to date (nullable)
+- `src/features/reports/pdf/complianceMatrix.ts` + `rtm.ts`
+- `src/features/reports/pdf/costToBid.ts`
+- `src/features/reports/pdf/pastPerformance.ts`
+- `src/features/reports/pdf/teamingBrief.ts`, `winThemesBrief.ts`, `capabilityGapsBrief.ts`
+- `supabase/functions/generate-win-loss-analysis/index.ts` (AI; deterministic path falls back when no rows)
+- `src/features/reports-hub/components/OrgReportsTab.tsx` — new tab on `/reports` for win/loss + past performance
+- `REPORT_TYPES` registry gains: `compliance_matrix`, `rtm`, `cost_to_bid`, `teaming_brief`, `win_themes_brief`, `capability_gaps_brief`, `past_performance`, `win_loss_analysis`. The first six register as per-solicitation deterministic generators (no edge function call); `win_loss_analysis` calls the new edge function; `past_performance` is org-wide deterministic.
+- `ReportTypeSelector` gets new icons and handles the deterministic path by invoking the generator directly instead of inserting an `executive_reports` row.
 
-solicitation_outcomes              -- 1:1 with solicitations
-  solicitation_id PK, outcome enum('won','lost','no_bid','withdrawn','pending'),
-  awarded_value numeric, awarded_at date, notes
+## Out of scope (v1)
+- Editable templates / branding per report (uses existing branding options).
+- Storing deterministic reports in `executive_reports` — they download directly; we can persist later if needed.
+- Approval/sign-off workflow on RTM rows (status column is display-only for now).
+- Lessons-learned post-mortem, pipeline forecast, per-solicitation client status brief — deferred to a follow-up.
 
-solicitations
-  + weekly_capacity_hours numeric  -- optional; default 40 on user_rates instead
-```
-
-`user_rates` also stores **weekly capacity hours** so utilization = logged ÷ capacity. Cost-to-bid = Σ(hours × rate effective on `entry_date`) per solicitation. Win rate = `won / (won+lost+no_bid)` over a date window.
-
-### Time tracking UI (minimum to populate the data)
-- New **"Log time"** button on every solicitation header → drawer that picks phase, hours, date, notes; pre-fills today.
-- New **`/profile/rates`** page for owners/admins to set hourly_rate and capacity per teammate (effective-dated).
-- New **Outcome** widget on `SolicitationDetail` to mark won/lost/no_bid/withdrawn with awarded value/date.
-
-### Reuse vs. new
-- Reuse `useReports`, `ReportCard`, `ReportViewer`, `ReportTypeSelector`, `PdfToolsMenu`, `pdfKit`, `slugifyFilename`.
-- New report type `client_portfolio` added to `REPORT_TYPES`; new generator section in `generate-report` edge function.
-- All ops cards are React Query reads against new aggregation SQL views (`v_pipeline_summary`, `v_ontime_rate`, `v_user_workload`, `v_client_portfolio`) for predictable RLS and easy reuse.
-
-### Technical details
-
-Stack & conventions: React Query + Supabase client; Tailwind/shadcn cards; existing `tabs` component; charts via existing `recharts` if needed.
-
-Migration outline (single migration, ordered: CREATE TABLE → GRANT → ENABLE RLS → CREATE POLICY):
-- `time_entries` — RLS: users insert/update/delete own rows; org admins read all in org; viewers read own.
-- `user_rates` — RLS: only owner/admin can insert/update; all org members can read their own row.
-- `solicitation_outcomes` — RLS: `is_solicitation_member` for read, `is_solicitation_admin` for write.
-- `outcome_status` enum.
-- SECURITY DEFINER aggregation views (`v_*`) scoped by `current_user_org()`.
-
-Files added:
-- `src/pages/Reports.tsx` (replaced — tabs + filter bar)
-- `src/features/reports-hub/components/{OperationsTab,DeliverablesTab,ClientPortfolioTab,PipelineCard,OnTimeCard,WorkloadCard,ClientSummaryCard,ReportsFilters}.tsx`
-- `src/features/reports-hub/hooks/{usePipeline,useOnTimeRate,useWorkload,useClientPortfolio,useDeliverablesLibrary}.ts`
-- `src/features/time/components/{LogTimeButton,LogTimeDrawer}.tsx`
-- `src/features/time/hooks/{useTimeEntries,useUserRates}.ts`
-- `src/features/outcomes/components/OutcomeWidget.tsx`
-- `src/features/outcomes/hooks/useSolicitationOutcome.ts`
-- `src/features/reports/templates/types.ts` — add `client_portfolio`
-- `supabase/functions/generate-report/index.ts` — add client_portfolio renderer
-
-Files edited:
-- `src/components/layout/AppSidebar.tsx` — Reports already linked, no change.
-- `src/pages/SolicitationDetail.tsx` — mount `LogTimeButton` + `OutcomeWidget`.
-- `src/pages/Profile.tsx` (or new `/settings/rates`) — rates editor.
-
-### Out of scope for this milestone
-- Client-portal Portfolio surfacing for end-clients (separate task).
-- Approval/locking of time entries, exports to QuickBooks/payroll.
-- Automated reminders for missing time.
-- Real-time charts; v1 uses static range queries.
-
-### Acceptance
-- `/reports` shows three tabs with data, not "Coming soon".
-- Logging hours on a solicitation immediately changes the Workload card.
-- Setting a win/loss outcome immediately changes Client Portfolio win rate and cost-to-bid.
-- A user with `viewer` role can read all tabs but cannot log time or set outcomes.
-- A "Client Portfolio" report can be generated and appears in Deliverables.
+## Open question
+The deterministic per-solicitation PDFs (compliance matrix, RTM, cost-to-bid, the three small briefs) currently bypass `executive_reports` and download on click. If you want them to also show up in the **Deliverables Library** tab, we'd need to make `solicitation_id` nullable or add a `client_id` column to `executive_reports`, and persist a row each time. Let me know — happy to do it; just adds a migration.

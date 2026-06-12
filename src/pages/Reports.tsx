@@ -40,6 +40,7 @@ import {
 } from "@/features/reports-hub/hooks/useReportsHub";
 import { generateClientPortfolioReport } from "@/features/reports-hub/lib/clientPortfolioPdf";
 import { toast } from "@/hooks/use-toast";
+import { OrgReportsTab } from "@/features/reports-hub/components/OrgReportsTab";
 
 const STATUS_LABELS: Record<string, string> = {
   intake: "Intake",
@@ -303,6 +304,7 @@ export default function Reports() {
             <TabsTrigger value="operations">Operations</TabsTrigger>
             <TabsTrigger value="deliverables">Deliverables</TabsTrigger>
             <TabsTrigger value="portfolio">Client portfolio</TabsTrigger>
+            <TabsTrigger value="org">Org reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="operations" className="space-y-3">
@@ -319,6 +321,10 @@ export default function Reports() {
 
           <TabsContent value="portfolio">
             <PortfolioGrid />
+          </TabsContent>
+
+          <TabsContent value="org">
+            <OrgReportsTab />
           </TabsContent>
         </Tabs>
       </div>
