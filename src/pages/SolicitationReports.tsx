@@ -110,6 +110,37 @@ export default function SolicitationReports({ solicitationId }: { solicitationId
         </div>
       )}
 
+      <div className="pt-2">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <h3 className="text-sm font-semibold">Quick exports</h3>
+            <p className="text-xs text-muted-foreground">Deterministic PDFs built straight from your data.</p>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {QUICK_EXPORTS.map((q) => (
+            <Card key={q.key}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">{q.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">{q.description}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full"
+                  disabled={exporting === q.key}
+                  onClick={() => runQuickExport(q.key, q.run)}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {exporting === q.key ? "Building…" : "Download PDF"}
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
       <ReportOptionsDialog
         open={!!optionsType}
         onOpenChange={(v) => !v && setOptionsType(null)}
