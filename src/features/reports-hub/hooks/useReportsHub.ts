@@ -52,9 +52,9 @@ export type PortfolioRow = {
   cost_to_bid_total: number;
 };
 
-const fromView = (name: string) =>
-  // Views aren't in generated types — cast through unknown to keep TS happy.
-  (supabase as unknown as { from: (n: string) => ReturnType<typeof supabase.from> }).from(name);
+// Views aren't in generated types — use a permissive client for them.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fromView = (name: string) => (supabase as any).from(name);
 
 export function usePipeline(opts?: { clientId?: string | null }) {
   return useQuery({
