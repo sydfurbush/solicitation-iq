@@ -304,6 +304,7 @@ export default function Reports() {
             <TabsTrigger value="operations">Operations</TabsTrigger>
             <TabsTrigger value="deliverables">Deliverables</TabsTrigger>
             <TabsTrigger value="portfolio">Client portfolio</TabsTrigger>
+            <TabsTrigger value="org">Org reports</TabsTrigger>
           </TabsList>
 
           <TabsContent value="operations" className="space-y-3">
@@ -320,6 +321,10 @@ export default function Reports() {
 
           <TabsContent value="portfolio">
             <PortfolioGrid />
+          </TabsContent>
+
+          <TabsContent value="org">
+            <OrgReportsTab />
           </TabsContent>
         </Tabs>
       </div>
