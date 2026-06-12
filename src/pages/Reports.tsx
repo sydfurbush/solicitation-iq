@@ -40,6 +40,7 @@ import {
 } from "@/features/reports-hub/hooks/useReportsHub";
 import { generateClientPortfolioReport } from "@/features/reports-hub/lib/clientPortfolioPdf";
 import { toast } from "@/hooks/use-toast";
+import { OrgReportsTab } from "@/features/reports-hub/components/OrgReportsTab";
 
 const STATUS_LABELS: Record<string, string> = {
   intake: "Intake",
