@@ -1,91 +1,105 @@
+## Global Reports — `/reports` rebuild
 
-# Standardize PDF output across the app (`pdfKit`)
+Replace the `ComingSoon` placeholder with a real, tabbed Reports hub serving both internal leadership and (read-only) client-facing audiences. Add the data foundations the app is missing today so cost and utilization reports are accurate, not estimated.
 
-## Goal
+### Audience & visibility
+- **Internal staff** (owner/admin/analyst): all tabs, all metrics.
+- **Viewer role**: read-only access to everything they can already see.
+- **Client portal users**: a stripped-down Portfolio view is added later in the portal (out of scope for this milestone — flagged below).
 
-Make every `.pdf` produced by the app flow through one helper that enforces the rules from the attached `pdf` skill: US Letter page size, consistent margins/header/footer, page numbers, slug-safe filenames, layout-aware tables, no Unicode subscript/superscript hacks, etc. Then expose three optional recipes — **merge multiple PDFs**, **DRAFT/confidential watermark**, **password protection** — that the skill calls out but none of the current generators can do.
+### Tab structure on `/reports`
 
-Engine stays **jsPDF + jspdf-autotable** for *generating* PDFs (no rewrite of existing layouts). The three recipes require `pdf-lib` because jsPDF cannot merge, stamp, or encrypt existing PDF bytes; `pdf-lib` is browser-safe and tree-shakeable. No server-side work.
+```text
++------------------------------------------------------------------+
+|  Reports                                          [PDF tools v]  |
++------------------------------------------------------------------+
+|  [ Operations ]  [ Deliverables ]  [ Client Portfolio ]          |
+|------------------------------------------------------------------|
+|  Filters: client v   date range v   stage v   assignee v         |
+|------------------------------------------------------------------|
+|  ... cards / tables for the active tab ...                       |
++------------------------------------------------------------------+
+```
 
-## What gets built
+**Tab 1 — Operations** (4 cards, all org-scoped):
+1. **Pipeline overview** — solicitations grouped by stage/phase/status with counts and total estimated value; click-through to filtered Solicitations list.
+2. **On-time submission rate** — % of solicitations submitted on/before `proposal_due_date`, broken down by client and lead assignee; trailing 90-day trend.
+3. **Team workload & utilization** — per-user table: active assignments, overdue items, hours logged (last 30d), 7-day activity volume, utilization % (logged ÷ capacity).
+4. **Client portfolio summary** — counts, total estimated value, win rate, cost-to-bid, net contribution per client.
 
-### 1. New module: `src/lib/pdf/pdfKit.ts`
+**Tab 2 — Deliverables Library** — cross-solicitation rollup of every `executive_reports` row the user can see. Sortable/filterable table (date, type, client, solicitation, generated_by). Click a row → existing `ReportViewer`. "Open in solicitation" link.
 
-The single chokepoint. Pure helpers, no React. Exports:
+**Tab 3 — Client Portfolio** — one card per client: active solicitations, upcoming due dates (next 30d), recent deliverables, last activity, total bid value, win/loss tally, cost-to-bid. Each card has "Generate client status report" → new "Client Portfolio" report type.
 
-- **Constants** — `LETTER`, `MARGINS`, `PALETTE` (header/text/muted), `TABLE_DEFAULTS` (autotable styles), `FONT` (helvetica family + sizes for H1/H2/body/caption).
-- **`createPdf(opts)`** — returns a configured `jsPDF` instance in `pt`/`letter` with metadata (`title`, `subject`, `author`, `creator: "Solicitation IQ"`) set via `doc.setProperties`.
-- **`drawHeader(doc, { title, subtitle?, meta? })`** — standard top block.
-- **`drawFooter(doc, { left?, center?, showPageNumbers })`** — paints on every page at save time (loops `getNumberOfPages`).
-- **`writeWrapped(doc, text, opts)`** — wrapped text with auto page-break (lifted from `clarificationPackageGenerator`, generalized).
-- **`drawTable(doc, { head, body, startY, columnStyles? })`** — wraps `autoTable` with `TABLE_DEFAULTS` and returns the new `finalY`.
-- **`drawDivider(doc, y)`**, **`drawKeyValue(doc, label, value, y)`** — small primitives the existing files re-implement.
-- **`slugifyFilename(parts: string[], ext = "pdf")`** — `approvals-foo-bar-20260612-1430.pdf` style.
-- **`savePdf(doc, filenameParts)`** — calls `drawFooter` for page numbers, then `doc.save(slugified)`.
-- **Skill guardrail comment** at top of file pointing to the `pdf` skill and reiterating: never use `\u2080`–`\u209F` (Unicode subscripts) — use plain text or `^`/`_` notation, since jsPDF's built-in fonts lack those glyphs (same rule the skill flags for ReportLab).
+### New data foundations
 
-### 2. New module: `src/lib/pdf/pdfRecipes.ts`
+Three new tables + one column added to `solicitations`. RLS scoped via `current_user_org()` and `is_solicitation_member` patterns already in use.
 
-Thin wrappers around `pdf-lib` that operate on already-generated PDF blobs/bytes. Exports:
+```text
+time_entries
+  user_id, solicitation_id, phase (nullable),
+  entry_date, hours numeric(5,2), notes, billable bool
 
-- **`mergePdfs(blobs: Blob[], filename): Promise<Blob>`** — `PDFDocument.create()` + `copyPages` loop.
-- **`watermarkPdf(blob, { text, opacity?, angle?, color? })`** — draws diagonal text on every page (used for "DRAFT" stamping). Uses `StandardFonts.HelveticaBold`.
-- **`protectPdf(blob, { userPassword, ownerPassword?, permissions? })`** — `pdf-lib` does not ship encryption out of the box; we use the `pdf-lib` companion package **`@cantoo/pdf-lib`** (drop-in fork with `.encrypt()`) **or** fall back to the maintained `pdf-lib` + `pdf-lib-encrypt` shim. Decision at implementation time based on bundle size; final choice noted in the file header.
+user_rates
+  user_id, organization_id, hourly_rate numeric(10,2),
+  effective_from date, effective_to date (nullable)
 
-Recipes are *opt-in*: existing generators don't have to use them. They power a new UI surface (next section).
+solicitation_outcomes              -- 1:1 with solicitations
+  solicitation_id PK, outcome enum('won','lost','no_bid','withdrawn','pending'),
+  awarded_value numeric, awarded_at date, notes
 
-### 3. New UI: "PDF tools" menu
+solicitations
+  + weekly_capacity_hours numeric  -- optional; default 40 on user_rates instead
+```
 
-A small DropdownMenu (rendered where the assistant chat header lives, alongside `ExportThreadButton`) with three actions:
+`user_rates` also stores **weekly capacity hours** so utilization = logged ÷ capacity. Cost-to-bid = Σ(hours × rate effective on `entry_date`) per solicitation. Win rate = `won / (won+lost+no_bid)` over a date window.
 
-- **Combine PDFs…** — opens file picker (multi-select `.pdf`), calls `mergePdfs`, saves as `combined-<timestamp>.pdf`.
-- **Stamp DRAFT on a PDF…** — file picker → `watermarkPdf({ text: "DRAFT" })` → save.
-- **Protect a PDF with a password…** — file picker + password dialog → `protectPdf` → save.
+### Time tracking UI (minimum to populate the data)
+- New **"Log time"** button on every solicitation header → drawer that picks phase, hours, date, notes; pre-fills today.
+- New **`/profile/rates`** page for owners/admins to set hourly_rate and capacity per teammate (effective-dated).
+- New **Outcome** widget on `SolicitationDetail` to mark won/lost/no_bid/withdrawn with awarded value/date.
 
-These act on *any* user-supplied PDF, not just app output, so the user can combine an approvals PDF with a clarification PDF, etc. Component lives at `src/features/exports/components/PdfToolsMenu.tsx` and is also surfaced on the Reports page.
+### Reuse vs. new
+- Reuse `useReports`, `ReportCard`, `ReportViewer`, `ReportTypeSelector`, `PdfToolsMenu`, `pdfKit`, `slugifyFilename`.
+- New report type `client_portfolio` added to `REPORT_TYPES`; new generator section in `generate-report` edge function.
+- All ops cards are React Query reads against new aggregation SQL views (`v_pipeline_summary`, `v_ontime_rate`, `v_user_workload`, `v_client_portfolio`) for predictable RLS and easy reuse.
 
-### 4. Refactor all existing generators to `pdfKit`
+### Technical details
 
-Same output, less duplication. Each file shrinks to layout-specific code and delegates page setup/header/footer/filename to `pdfKit`:
+Stack & conventions: React Query + Supabase client; Tailwind/shadcn cards; existing `tabs` component; charts via existing `recharts` if needed.
 
-- `src/features/assistant/lib/exportFormatted.ts` (`downloadAssistantPdf`)
-- `src/features/phases/utils/exportApprovalsPdf.ts`
-- `src/features/questions/utils/clarificationPackageGenerator.ts` (`generateClarificationPdf`)
-- `src/features/reports/utils/pdfGenerator.ts`
-- `src/features/exports/lib/exporters.ts`
-- `src/features/writing-queue/lib/exportAssignments.ts`
+Migration outline (single migration, ordered: CREATE TABLE → GRANT → ENABLE RLS → CREATE POLICY):
+- `time_entries` — RLS: users insert/update/delete own rows; org admins read all in org; viewers read own.
+- `user_rates` — RLS: only owner/admin can insert/update; all org members can read their own row.
+- `solicitation_outcomes` — RLS: `is_solicitation_member` for read, `is_solicitation_admin` for write.
+- `outcome_status` enum.
+- SECURITY DEFINER aggregation views (`v_*`) scoped by `current_user_org()`.
 
-Visual output stays essentially identical (same fonts/sizes/colors are pulled into `PALETTE`/`FONT`). If a file has a divergent style we intentionally want to preserve, we pass overrides to `createPdf`/`drawHeader` rather than fork the helper.
+Files added:
+- `src/pages/Reports.tsx` (replaced — tabs + filter bar)
+- `src/features/reports-hub/components/{OperationsTab,DeliverablesTab,ClientPortfolioTab,PipelineCard,OnTimeCard,WorkloadCard,ClientSummaryCard,ReportsFilters}.tsx`
+- `src/features/reports-hub/hooks/{usePipeline,useOnTimeRate,useWorkload,useClientPortfolio,useDeliverablesLibrary}.ts`
+- `src/features/time/components/{LogTimeButton,LogTimeDrawer}.tsx`
+- `src/features/time/hooks/{useTimeEntries,useUserRates}.ts`
+- `src/features/outcomes/components/OutcomeWidget.tsx`
+- `src/features/outcomes/hooks/useSolicitationOutcome.ts`
+- `src/features/reports/templates/types.ts` — add `client_portfolio`
+- `supabase/functions/generate-report/index.ts` — add client_portfolio renderer
 
-### 5. Dependencies
+Files edited:
+- `src/components/layout/AppSidebar.tsx` — Reports already linked, no change.
+- `src/pages/SolicitationDetail.tsx` — mount `LogTimeButton` + `OutcomeWidget`.
+- `src/pages/Profile.tsx` (or new `/settings/rates`) — rates editor.
 
-- **add** `pdf-lib` (browser, ~330 kB gz; tree-shakes well — only `PDFDocument`, `StandardFonts`, `rgb`, `degrees` are imported).
-- **add** `@cantoo/pdf-lib` OR a tiny encryption shim, only if the `protectPdf` recipe survives bundle review.
-- No removal — `jspdf` and `jspdf-autotable` stay.
+### Out of scope for this milestone
+- Client-portal Portfolio surfacing for end-clients (separate task).
+- Approval/locking of time entries, exports to QuickBooks/payroll.
+- Automated reminders for missing time.
+- Real-time charts; v1 uses static range queries.
 
-## Files touched
-
-- **add** `src/lib/pdf/pdfKit.ts`
-- **add** `src/lib/pdf/pdfRecipes.ts`
-- **add** `src/features/exports/components/PdfToolsMenu.tsx`
-- **edit** `src/features/assistant/components/AssistantChat.tsx` (mount `PdfToolsMenu` in the chat header next to `ExportThreadButton`)
-- **edit** `src/pages/SolicitationReports.tsx` or `src/pages/Reports.tsx` (mount `PdfToolsMenu`)
-- **edit** the six generators listed in §4
-- **edit** `package.json` (add `pdf-lib`)
-
-## Out of scope
-
-- Switching to server-side (Edge Function) rendering.
-- Touching `.docx` output — already standardized via `docxKit`.
-- Migrating `compile-proposal` (Edge Function) — its PDF output, if any, is server-side.
-- OCR / table-extraction recipes from the skill — those are read-side and not needed here.
-- Visual redesign of any existing PDF.
-
-## Technical notes
-
-- jsPDF page numbers are painted at *save* time inside `savePdf` by iterating `1..getNumberOfPages()`. Centralizing this fixes the bug where some current generators only number some pages.
-- `slugifyFilename` collapses whitespace, strips non-alphanumerics, lowercases, truncates each part to 50 chars, joins with `-`, appends `yyyyMMdd-HHmm` timestamp. Matches what most current generators do by hand.
-- `pdf-lib` recipes operate on `Uint8Array`/`Blob`; we never round-trip through jsPDF for those.
-- For `watermarkPdf`, default is light gray `rgb(0.75,0.75,0.75)` at 60° rotation, font size scaled to page diagonal — same look as the skill's `merge_page` watermark recipe.
-
-Used the `pdf` skill to derive the helper's rule set and the merge/watermark/password recipes.
+### Acceptance
+- `/reports` shows three tabs with data, not "Coming soon".
+- Logging hours on a solicitation immediately changes the Workload card.
+- Setting a win/loss outcome immediately changes Client Portfolio win rate and cost-to-bid.
+- A user with `viewer` role can read all tabs but cannot log time or set outcomes.
+- A "Client Portfolio" report can be generated and appears in Deliverables.
