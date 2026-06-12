@@ -88,8 +88,8 @@ function ensureSpace(ctx: Ctx, h: number) {
 
 // Sanitize text for jsPDF's WinAnsi-only built-in fonts.
 // Re-exports the shared helper from pdfKit so all generators stay consistent.
-export { sanitizeForPdf } from "@/lib/pdf/pdfKit";
-import { sanitizeForPdf as _sanitizeForPdf } from "@/lib/pdf/pdfKit";
+import { sanitizeForPdf } from "@/lib/pdf/pdfKit";
+export { sanitizeForPdf };
 
 function wrap(doc: jsPDF, text: string, w: number, fontStyle: "normal" | "bold" | "italic" = "normal", size = 10): string[] {
   doc.setFont(FONT_PDF, fontStyle);
