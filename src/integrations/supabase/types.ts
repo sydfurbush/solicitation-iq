@@ -63,6 +63,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       ai_model_settings: {
@@ -213,6 +220,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "annotations_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "annotations_section_id_fkey"
             columns: ["section_id"]
             isOneToOne: false
@@ -232,6 +246,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annotations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -279,6 +300,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_attachments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "assistant_attachments_message_id_fkey"
@@ -493,6 +521,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "assistant_messages_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "assistant_messages_thread_id_fkey"
             columns: ["thread_id"]
             isOneToOne: false
@@ -586,6 +621,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "assistant_presets_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       assistant_rate_limits: {
@@ -673,6 +715,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "assistant_threads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "assistant_threads_folder_id_fkey"
             columns: ["folder_id"]
             isOneToOne: false
@@ -685,6 +734,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_threads_pinned_client_id_fkey"
+            columns: ["pinned_client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "assistant_threads_pinned_solicitation_id_fkey"
@@ -840,6 +896,13 @@ export type Database = {
             referencedRelation: "users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "capability_gaps_sent_to_client_by_fkey"
+            columns: ["sent_to_client_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
         ]
       }
       clarification_packages: {
@@ -897,6 +960,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "clarification_packages_compiled_by_fkey"
+            columns: ["compiled_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "clarification_packages_solicitation_id_fkey"
             columns: ["solicitation_id"]
             isOneToOne: false
@@ -944,6 +1014,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_assignments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
           },
         ]
       }
@@ -1213,6 +1290,13 @@ export type Database = {
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "client_profiles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: true
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
+          },
         ]
       }
       client_support_messages: {
@@ -1259,6 +1343,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_support_messages_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
           },
           {
             foreignKeyName: "client_support_messages_client_user_id_fkey"
@@ -1324,6 +1415,13 @@ export type Database = {
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "client_user_invitations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
+          },
         ]
       }
       client_users: {
@@ -1373,6 +1471,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "clients"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_users_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
           },
         ]
       }
@@ -1963,6 +2068,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "executive_reports_generated_by_fkey"
+            columns: ["generated_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "executive_reports_solicitation_id_fkey"
             columns: ["solicitation_id"]
             isOneToOne: false
@@ -2236,6 +2348,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunities_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "opportunities_solicitation_id_fkey"
@@ -3221,11 +3340,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "risks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "risks_sent_to_client_by_fkey"
             columns: ["sent_to_client_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "risks_sent_to_client_by_fkey"
+            columns: ["sent_to_client_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "risks_solicitation_id_fkey"
@@ -3334,6 +3467,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "solicitation_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "solicitation_access_solicitation_id_fkey"
             columns: ["solicitation_id"]
             isOneToOne: false
@@ -3346,6 +3486,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitation_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -3435,6 +3582,61 @@ export type Database = {
         }
         Relationships: []
       }
+      solicitation_outcomes: {
+        Row: {
+          awarded_at: string | null
+          awarded_value: number | null
+          created_at: string
+          notes: string | null
+          outcome: Database["public"]["Enums"]["outcome_status"]
+          recorded_by: string | null
+          solicitation_id: string
+          updated_at: string
+        }
+        Insert: {
+          awarded_at?: string | null
+          awarded_value?: number | null
+          created_at?: string
+          notes?: string | null
+          outcome?: Database["public"]["Enums"]["outcome_status"]
+          recorded_by?: string | null
+          solicitation_id: string
+          updated_at?: string
+        }
+        Update: {
+          awarded_at?: string | null
+          awarded_value?: number | null
+          created_at?: string
+          notes?: string | null
+          outcome?: Database["public"]["Enums"]["outcome_status"]
+          recorded_by?: string | null
+          solicitation_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "solicitation_outcomes_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitation_outcomes_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "solicitation_outcomes_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: true
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       solicitation_phases: {
         Row: {
           completed_at: string | null
@@ -3482,6 +3684,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitation_phases_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "solicitation_phases_solicitation_id_fkey"
@@ -3832,6 +4041,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "solicitations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
+          },
+          {
             foreignKeyName: "solicitations_parent_solicitation_id_fkey"
             columns: ["parent_solicitation_id"]
             isOneToOne: false
@@ -3966,6 +4182,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "strategic_questions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "strategic_questions_solicitation_id_fkey"
             columns: ["solicitation_id"]
             isOneToOne: false
@@ -3985,6 +4208,77 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "document_sections"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_entries: {
+        Row: {
+          billable: boolean
+          created_at: string
+          entry_date: string
+          hours: number
+          id: string
+          notes: string | null
+          organization_id: string
+          phase: Database["public"]["Enums"]["phase_type"] | null
+          solicitation_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billable?: boolean
+          created_at?: string
+          entry_date?: string
+          hours: number
+          id?: string
+          notes?: string | null
+          organization_id: string
+          phase?: Database["public"]["Enums"]["phase_type"] | null
+          solicitation_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billable?: boolean
+          created_at?: string
+          entry_date?: string
+          hours?: number
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          phase?: Database["public"]["Enums"]["phase_type"] | null
+          solicitation_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -4017,6 +4311,64 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_rates: {
+        Row: {
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          hourly_rate: number
+          id: string
+          organization_id: string
+          updated_at: string
+          user_id: string
+          weekly_capacity_hours: number
+        }
+        Insert: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          hourly_rate?: number
+          id?: string
+          organization_id: string
+          updated_at?: string
+          user_id: string
+          weekly_capacity_hours?: number
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          hourly_rate?: number
+          id?: string
+          organization_id?: string
+          updated_at?: string
+          user_id?: string
+          weekly_capacity_hours?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_rates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_rates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "v_user_workload"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -4139,7 +4491,122 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_client_portfolio: {
+        Row: {
+          active_count: number | null
+          awarded_value_total: number | null
+          client_id: string | null
+          client_name: string | null
+          cost_to_bid_total: number | null
+          lost_count: number | null
+          no_bid_count: number | null
+          organization_id: string | null
+          solicitation_count: number | null
+          total_est_value: number | null
+          won_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_ontime_rate: {
+        Row: {
+          client_id: string | null
+          lead_user_id: string | null
+          on_time_count: number | null
+          organization_id: string | null
+          submitted_count: number | null
+          total_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
+          },
+        ]
+      }
+      v_pipeline_summary: {
+        Row: {
+          client_id: string | null
+          est_value_high_sum: number | null
+          est_value_low_sum: number | null
+          organization_id: string | null
+          phase: string | null
+          solicitation_count: number | null
+          stage: string | null
+          status: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "solicitations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
+          },
+        ]
+      }
+      v_user_workload: {
+        Row: {
+          active_assignments: number | null
+          activity_7d: number | null
+          cost_30d: number | null
+          email: string | null
+          full_name: string | null
+          hourly_rate: number | null
+          hours_logged_30d: number | null
+          organization_id: string | null
+          overdue_items: number | null
+          user_id: string | null
+          weekly_capacity_hours: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_org_invitation: { Args: { p_token: string }; Returns: string }
@@ -4341,6 +4808,7 @@ export type Database = {
         | "differentiation"
         | "incumbent_weakness"
         | "evaluation_advantage"
+      outcome_status: "pending" | "won" | "lost" | "no_bid" | "withdrawn"
       phase_type: "phase_1_initial" | "phase_2_deep_dive" | "phase_3_outline"
       question_category:
         | "clarification"
@@ -4585,6 +5053,7 @@ export const Constants = {
         "incumbent_weakness",
         "evaluation_advantage",
       ],
+      outcome_status: ["pending", "won", "lost", "no_bid", "withdrawn"],
       phase_type: ["phase_1_initial", "phase_2_deep_dive", "phase_3_outline"],
       question_category: [
         "clarification",
