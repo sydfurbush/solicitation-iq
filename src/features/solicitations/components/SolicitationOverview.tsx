@@ -45,6 +45,8 @@ import {
 import { LensOverridePanel } from "./LensOverridePanel";
 import { SolicitationAssignmentsCard } from "@/features/team/components/AssignmentsCard";
 import { OverviewProposalsCard, AutofillChip } from "./OverviewProposalsCard";
+import { LogTimeButton } from "@/features/time/components/LogTimeButton";
+import { OutcomeWidget } from "@/features/outcomes/components/OutcomeWidget";
 
 interface Props {
   solicitation: SolicitationRow;
@@ -806,6 +808,8 @@ export function SolicitationOverview({
 
         <LensOverridePanel solicitationId={s.id} clientId={s.client_id} />
 
+        <OutcomeWidget solicitationId={s.id} />
+
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Quick actions</CardTitle>
@@ -820,6 +824,7 @@ export function SolicitationOverview({
             <Button variant="outline" onClick={onGenerateQuestions}>
               <FileText className="mr-2 h-4 w-4" /> Generate questions
             </Button>
+            <LogTimeButton solicitationId={s.id} />
           </CardContent>
         </Card>
       </div>

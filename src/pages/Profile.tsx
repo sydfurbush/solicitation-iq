@@ -11,6 +11,7 @@ import { useUser } from "@/features/auth/hooks/useUser";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { MyRateCard } from "@/features/time/components/MyRateCard";
 
 export default function Profile() {
   const { user, role, isLoading, refetch } = useUser();
@@ -173,6 +174,8 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+      <MyRateCard />
+
 
       <Card>
         <CardHeader>
