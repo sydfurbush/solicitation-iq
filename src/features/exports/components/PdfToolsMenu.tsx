@@ -36,7 +36,7 @@ export function PdfToolsMenu() {
   const pickMerge = () => mergeInputRef.current?.click();
   const pickSingle = (which: Exclude<PendingAction, null>) => {
     setAction(which);
-    singleInputRef.current?.value = "";
+    if (singleInputRef.current) singleInputRef.current.value = "";
     singleInputRef.current?.click();
   };
 
