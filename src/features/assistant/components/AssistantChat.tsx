@@ -34,6 +34,7 @@ import { PhotoAttachmentButton } from "./PhotoAttachmentButton";
 import { AttachmentChips } from "./AttachmentChips";
 import { MessageAttachments } from "./MessageAttachments";
 import { ExportThreadButton } from "./ExportThreadButton";
+import { PdfToolsMenu } from "@/features/exports/components/PdfToolsMenu";
 import { PinnedEntityChips } from "./PinnedEntityChips";
 import { PinEntityPopover } from "./PinEntityPopover";
 import { AssistantAnalyticsButton } from "./AssistantAnalyticsButton";
@@ -256,6 +257,7 @@ export function AssistantChat({
         <PersonaSelector value={persona} onChange={onPersonaChange} disabled={!thread || sending} />
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
           <ExportThreadButton thread={thread} messages={messages} />
+          <PdfToolsMenu />
           <AssistantAnalyticsButton solicitationId={solicitationId} />
         </div>
       </div>
