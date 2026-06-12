@@ -10,7 +10,9 @@ import {
   savePdf,
   FONT,
   MARGINS,
+  CONTENT_WIDTH,
   PALETTE,
+  LETTER,
 } from "@/lib/pdf/pdfKit";
 import type { AssistantMessage, AssistantThread } from "../hooks/useAssistantThreads";
 
