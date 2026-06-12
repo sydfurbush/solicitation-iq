@@ -59,13 +59,11 @@ function drawListItem(
 ): number {
   const markerX = MARGINS.left + TYPO.list.baseIndent + depth * TYPO.list.levelStep;
   const textIndent = markerX - MARGINS.left + TYPO.list.markerGap;
-  // Draw the marker on the current line.
   doc.setFont(FONT.family, "normal");
   doc.setFontSize(TYPO.list.size);
   doc.setTextColor(...PALETTE.text);
-  doc.text(marker, markerX, y + TYPO.list.size * 0.85);
-  // Wrap the body with hanging indent.
-  return writeWrapped(doc, body, y + TYPO.list.size * 0.85 - TYPO.list.size + TYPO.list.size, {
+  doc.text(marker, markerX, y);
+  return writeWrapped(doc, body, y, {
     size: TYPO.list.size,
     indent: textIndent,
     maxWidth: CONTENT_WIDTH - textIndent,
