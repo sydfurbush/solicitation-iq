@@ -177,8 +177,26 @@ function WorkloadCard() {
 
 function PortfolioGrid() {
   const { data = [], isLoading } = useClientPortfolio();
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
   if (isLoading) return <Skeleton className="h-48" />;
   if (data.length === 0) return <p className="text-sm text-muted-foreground">No clients yet.</p>;
+
+  const onGenerate = async (row: typeof data[number]) => {
+    setGeneratingId(row.client_id);
+    try {
+      await generateClientPortfolioReport(row);
+      toast({ title: "Client status report downloaded" });
+    } catch (e) {
+      toast({
+        title: "Could not generate report",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingId(null);
+    }
+  };
+
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {data.map((c) => {
@@ -195,6 +213,16 @@ function PortfolioGrid() {
               <div className="flex justify-between"><span className="text-muted-foreground">Win rate</span><span className="tabular-nums">{winRate == null ? "—" : `${winRate}%`}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Awarded</span><span className="tabular-nums">{fmtUsd(Number(c.awarded_value_total))}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Cost-to-bid</span><span className="tabular-nums">{fmtUsd(Number(c.cost_to_bid_total))}</span></div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full mt-2 gap-1.5"
+                onClick={() => onGenerate(c)}
+                disabled={generatingId === c.client_id}
+              >
+                <Download className="h-3.5 w-3.5" />
+                {generatingId === c.client_id ? "Generating…" : "Status report"}
+              </Button>
             </CardContent>
           </Card>
         );
