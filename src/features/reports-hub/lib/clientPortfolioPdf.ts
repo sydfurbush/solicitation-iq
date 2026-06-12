@@ -55,11 +55,11 @@ export async function generateClientPortfolioReport(portfolio: PortfolioRow): Pr
       .eq("client_id", portfolio.client_id)
       .order("proposal_due_date", { ascending: true, nullsFirst: false })
       .limit(200),
-    supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from("executive_reports")
       .select("id, title, report_type, created_at, solicitation_id, solicitation:solicitations!inner(client_id)")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .eq("solicitation.client_id" as any, portfolio.client_id)
+      .eq("solicitation.client_id", portfolio.client_id)
       .order("created_at", { ascending: false })
       .limit(50),
   ]);
