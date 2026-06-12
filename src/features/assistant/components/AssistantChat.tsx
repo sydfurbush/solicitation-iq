@@ -480,6 +480,7 @@ function MessageRow({
                 citations={m.citations as any[]}
               />
               <MessageSaveAsWordButton message={m} thread={thread} />
+              <MessageSaveAsPdfButton message={m} thread={thread} />
             </div>
             {Array.isArray(m.citations) && m.citations.length > 0 && (() => {
               const visible = (m.citations as any[]).filter(
