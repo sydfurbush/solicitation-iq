@@ -174,6 +174,8 @@ export default function Profile() {
           </div>
         </CardContent>
       </Card>
+      <MyRateCard />
+
 
       <Card>
         <CardHeader>
