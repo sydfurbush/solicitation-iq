@@ -136,7 +136,7 @@ export function useClientsList() {
       const { data, error } = await supabase
         .from("clients")
         .select("id, name")
-        .is("deleted_at" as never, null as never)
+        .is("deleted_at", null)
         .order("name");
       if (error) throw error;
       return (data ?? []) as Array<{ id: string; name: string }>;
