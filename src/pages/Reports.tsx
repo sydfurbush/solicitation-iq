@@ -38,6 +38,8 @@ import {
   useDeliverablesLibrary,
   useClientsList,
 } from "@/features/reports-hub/hooks/useReportsHub";
+import { generateClientPortfolioReport } from "@/features/reports-hub/lib/clientPortfolioPdf";
+import { toast } from "@/hooks/use-toast";
 
 const STATUS_LABELS: Record<string, string> = {
   intake: "Intake",
