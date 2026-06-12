@@ -34,6 +34,20 @@ export default function SolicitationReports({ solicitationId }: { solicitationId
   const [pickerOpen, setPickerOpen] = useState(false);
   const [optionsType, setOptionsType] = useState<ReportType | null>(null);
   const [viewing, setViewing] = useState<ReportRow | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+
+  const runQuickExport = async (key: string, run: (id: string) => Promise<void>) => {
+    try {
+      setExporting(key);
+      await run(solicitationId);
+      toast({ title: "PDF downloaded" });
+    } catch (e) {
+      toast({ title: "Export failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally {
+      setExporting(null);
+    }
+  };
+
 
   const handleGenerate = (options: ReportOptions) => {
     if (!optionsType) return;
