@@ -74,7 +74,7 @@ export async function generateRtmPdf(solicitationId: string): Promise<void> {
     body: rows.map((r) => [
       r.req_number,
       verbOf(r.shall_text),
-      r.source_citation ??
+      r.source_citation ||
         [r.source_section, r.page_number ? `p.${r.page_number}` : null].filter(Boolean).join(" ") ||
         "—",
       [r.proposal_volume, r.proposal_section].filter(Boolean).join(" · ") || "—",
