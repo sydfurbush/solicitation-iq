@@ -40,6 +40,7 @@ import { PinEntityPopover } from "./PinEntityPopover";
 import { AssistantAnalyticsButton } from "./AssistantAnalyticsButton";
 import { InlineActionButtons } from "./InlineActionButtons";
 import { MessageSaveAsWordButton } from "./MessageSaveAsWordButton";
+import { MessageSaveAsPdfButton } from "./MessageSaveAsPdfButton";
 import { uploadAssistantPhoto, useInvalidateAttachments } from "../hooks/useAssistantAttachments";
 import { cn } from "@/lib/utils";
 
@@ -479,6 +480,7 @@ function MessageRow({
                 citations={m.citations as any[]}
               />
               <MessageSaveAsWordButton message={m} thread={thread} />
+              <MessageSaveAsPdfButton message={m} thread={thread} />
             </div>
             {Array.isArray(m.citations) && m.citations.length > 0 && (() => {
               const visible = (m.citations as any[]).filter(
