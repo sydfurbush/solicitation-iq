@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { FileBarChart, Plus } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Download, FileBarChart, Plus } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -10,7 +10,23 @@ import { ReportOptionsDialog } from "@/features/reports/components/ReportOptions
 import { ReportCard } from "@/features/reports/components/ReportCard";
 import { ReportViewer } from "@/features/reports/components/ReportViewer";
 import type { ReportType, ReportOptions } from "@/features/reports/templates/types";
+import { generateComplianceMatrixPdf } from "@/features/reports/pdf/complianceMatrix";
+import { generateRtmPdf } from "@/features/reports/pdf/rtm";
+import { generateCostToBidPdf } from "@/features/reports/pdf/costToBid";
+import { generateTeamingBriefPdf } from "@/features/reports/pdf/teamingBrief";
+import { generateWinThemesBriefPdf } from "@/features/reports/pdf/winThemesBrief";
+import { generateCapabilityGapsBriefPdf } from "@/features/reports/pdf/capabilityGapsBrief";
 import { toast } from "@/hooks/use-toast";
+
+const QUICK_EXPORTS: Array<{ key: string; label: string; description: string; run: (id: string) => Promise<void> }> = [
+  { key: "compliance_matrix", label: "Compliance Matrix", description: "Requirements mapped to volume / section / owner.", run: generateComplianceMatrixPdf },
+  { key: "rtm", label: "RTM", description: "Strict requirements traceability matrix.", run: generateRtmPdf },
+  { key: "cost_to_bid", label: "Cost to Bid", description: "Hours × rates by person and phase.", run: generateCostToBidPdf },
+  { key: "teaming", label: "Teaming Brief", description: "Partners, workshare, agreements.", run: generateTeamingBriefPdf },
+  { key: "win_themes", label: "Win Themes", description: "Themes, discriminators, proof points.", run: generateWinThemesBriefPdf },
+  { key: "capability_gaps", label: "Capability Gaps", description: "Gaps, severity, recommended actions.", run: generateCapabilityGapsBriefPdf },
+];
+
 
 export default function SolicitationReports({ solicitationId }: { solicitationId: string }) {
   const { data: reports, isLoading } = useReports(solicitationId);
