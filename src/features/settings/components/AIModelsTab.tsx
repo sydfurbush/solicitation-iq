@@ -43,7 +43,7 @@ const FUNCTIONS: FnMeta[] = [
   { name: "compare-solicitations", label: "Comparison", description: "Compares the current solicitation to a prior one.", group: "Analysis", defaultProvider: "anthropic", defaultModel: "claude-sonnet-4-5", defaultMax: 8192 },
   // Extraction
   { name: "extract-entities", label: "Entity Extraction", description: "Pulls dates, requirements, dollar amounts, and other entities.", group: "Extraction", defaultProvider: "lovable", defaultModel: "google/gemini-2.5-pro", defaultMax: 16000 },
-  { name: "extract-requirements", label: "Requirement Extraction", description: "Extracts shall-statements and requirement items.", group: "Extraction", defaultProvider: "lovable", defaultModel: "google/gemini-2.5-flash", defaultMax: 8000 },
+  { name: "extract-requirements", label: "Requirement Extraction", description: "Extracts shall-statements and requirement items.", group: "Extraction", defaultProvider: "lovable", defaultModel: "google/gemini-2.5-flash", defaultMax: 48000 },
   { name: "extract-capabilities", label: "Capability Extraction", description: "Extracts capability statements from knowledge documents.", group: "Extraction", defaultProvider: "lovable", defaultModel: "google/gemini-2.5-pro", defaultMax: 8000 },
   { name: "reconcile-solicitation-overview", label: "Overview Auto-fill", description: "Maps extracted entities to overview fields.", group: "Extraction", defaultProvider: "lovable", defaultModel: "google/gemini-2.5-flash", defaultMax: 4000 },
   // Questions & Reports
