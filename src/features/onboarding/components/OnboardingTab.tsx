@@ -192,7 +192,7 @@ export function OnboardingTab({ clientId }: { clientId: string }) {
       </Sheet>
 
       <AlertDialog open={removeOpen} onOpenChange={(o) => !remove.isPending && setRemoveOpen(o)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[60] max-w-[calc(100%-2rem)] sm:max-w-lg">
           <AlertDialogHeader><AlertDialogTitle>Remove from knowledge base?</AlertDialogTitle><AlertDialogDescription>The AI drafter will no longer be able to use this file. Its stored knowledge file and chunks will be deleted. The onboarding copy stays for review.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
@@ -277,7 +277,7 @@ function TriageDetail({ triage: t, clientId, canEdit, running, onRerun }: { tria
         </div>
         {t.reviewed_at && <p className="text-xs text-muted-foreground">Reviewed {format(new Date(t.reviewed_at), "MMM d, yyyy h:mm a")}</p>}
         {canEdit && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button disabled={confirm.isPending}
               onClick={() => confirm.mutate({ triageId: t.id, destinations: dests, note },
                 { onSuccess: () => toast({ title: "Review saved" }), onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }) })}>
