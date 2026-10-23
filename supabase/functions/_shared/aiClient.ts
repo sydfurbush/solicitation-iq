@@ -17,7 +17,7 @@ export const MODEL_CONFIG: Record<string, ModelChoice> = {
   "generate-report": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 32000 },
   "compare-solicitations": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 8192 },
   "extract-entities": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
-  "extract-requirements": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 8000 },
+  "extract-requirements": { provider: "lovable", model: "google/gemini-2.5-flash", maxTokens: 48000 },
   "analyze-sections": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 16000 },
   "analyze-gaps": { provider: "lovable", model: "google/gemini-2.5-pro", maxTokens: 12000 },
   "generate-outline": { provider: "anthropic", model: "claude-sonnet-4-5", maxTokens: 16384 },
@@ -261,6 +261,13 @@ async function callLovable(choice: ModelChoice, args: CallAiArgs): Promise<{ out
     const argLen = toolCall?.function?.arguments?.length ?? 0;
     console.log(`[aiClient] lovable model=${choice.model} finish=${finish} prompt_tokens=${usage?.prompt_tokens} completion_tokens=${usage?.completion_tokens} max_tokens=${choice.maxTokens} tool_arg_chars=${argLen} emptyAttempt=${emptyAttempt}`);
 
+    if (!toolCall && (finish === "length" || finish === "max_tokens")) {
+      // Hit the token cap before producing output — retrying the same request won't help.
+      throw new AiHttpError(
+        502,
+        `AI response truncated by token limit (model=${choice.model}, max_tokens=${choice.maxTokens ?? 4096}). Raise max_tokens for this function in AI Models settings, or switch to a roomier model.`,
+      );
+    }
     if (!toolCall) {
       lastEmptyErr = new AiHttpError(
         502,
