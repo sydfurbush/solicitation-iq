@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { findUncitedRequirements } from "../_shared/requirementLinks.ts";
 import { getTeamingPromptBlock } from "../_shared/teaming.ts";
 import { buildClientLens } from "../_shared/clientLens.ts";
 import { buildPriorSectionsBlock, buildUpcomingSectionsBlock, NO_TRANSITION_RULE } from "../_shared/priorSections.ts";
@@ -31,7 +32,13 @@ Other goals:
 - Use the client's voice and proof points from the Client Lens.
 - Output Markdown. Short paragraphs and bulleted lists where appropriate.
 - FORMATTING: Do NOT hard-wrap lines at 80 columns or any fixed width. Write each paragraph as a SINGLE continuous line. Separate paragraphs and list items with a single blank line. The renderer handles visual wrapping; baked-in line breaks corrupt the editor.
-- Inline-cite each requirement you address as [Req-{req_number}] and each knowledge excerpt as [K{n}] (1-indexed in the order provided).
+- Cite each knowledge excerpt you use as [K{n}] (1-indexed in the order provided).
+
+REQUIREMENT CITATIONS (mandatory, used for the compliance matrix):
+- Every requirement listed under REQUIREMENTS TO ADDRESS must be cited at least once in content_markdown, using its tag EXACTLY as shown in that list, e.g. [Req-C-1.2.1]. Place the tag at the end of the sentence or bullet that answers it.
+- Do not change the tag's capitalization, separators or brackets, and do not wrap it in backticks.
+- Fill requirement_coverage with one entry per listed requirement.
+- Before returning, check that each listed tag appears in content_markdown.
 
 NON-REPETITION RULES (strict — read the PRIOR SECTIONS ALREADY DRAFTED block carefully):
 - Do NOT restate company identification (company/contractor name, address, CAGE code, DUNS/UEI, telephone, email, website, point of contact, authorized representative, business size/socioeconomic status) if it has already appeared in any prior section. If you must refer to it, write a brief reference like "as identified in Section X" — never repeat the table or the values.
@@ -72,7 +79,7 @@ const SCHEMA = {
       themes_woven: { type: "array", items: { type: "string" } },
       open_questions: { type: "array", items: { type: "string" } },
     },
-    required: ["content_markdown"],
+    required: ["content_markdown", "requirement_coverage"],
   },
 };
 
@@ -215,6 +222,11 @@ Draft the section now.`;
     });
 
     const markdown = String(result.content_markdown ?? "");
+    // Linked requirements the draft does not cite with a [Req-X] tag.
+    const uncitedRequirements = findUncitedRequirements(markdown, (requirements ?? []).map((r: { req_number: string | null }) => r.req_number));
+    if (uncitedRequirements.length) {
+      console.warn(`[draft-section] node=${outlineNodeId} uncited=${uncitedRequirements.length}`, uncitedRequirements);
+    }
     const wordCount = estimateWords(markdown);
     const pageEstimate = Math.max(1, Math.round(wordCount / 350));
 
@@ -244,7 +256,7 @@ Draft the section now.`;
     const upsert = {
       outline_node_id: outlineNodeId,
       solicitation_id: solicitationId,
-      content_json: { markdown, requirement_coverage: result.requirement_coverage ?? [], themes_woven: result.themes_woven ?? [], open_questions: result.open_questions ?? [], citations: citationsForStorage },
+      content_json: { markdown, uncited_requirements: uncitedRequirements, requirement_coverage: result.requirement_coverage ?? [], themes_woven: result.themes_woven ?? [], open_questions: result.open_questions ?? [], citations: citationsForStorage },
       content_html: markdown,
       word_count: wordCount,
       page_estimate: pageEstimate,
@@ -269,7 +281,7 @@ Draft the section now.`;
       });
     } catch (_) { /* non-fatal */ }
 
-    return new Response(JSON.stringify({ draft: saved, requirement_coverage: result.requirement_coverage, open_questions: result.open_questions, citations: lens.citations }), {
+    return new Response(JSON.stringify({ draft: saved, uncited_requirements: uncitedRequirements, requirement_coverage: result.requirement_coverage, open_questions: result.open_questions, citations: lens.citations }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

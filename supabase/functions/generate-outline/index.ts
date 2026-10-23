@@ -2,6 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
 import { getTeamingPromptBlock } from "../_shared/teaming.ts";
 import { buildClientLens } from "../_shared/clientLens.ts";
+import {
+  buildReqIndex,
+  resolveRequirementRefs,
+  findUnplacedRequirements,
+  buildRequirementPromptList,
+} from "../_shared/requirementLinks.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +36,11 @@ For each node:
 - page_allocation: integer page budget if Section L provides one or you can allocate
 - source_l_reference: short citation back to Section L (e.g. "L.5.2(a)")
 - source_section_refs: comma-separated [ref:N] ids from the SECTION L/M EXCERPTS block above that you used to construct this node (so reviewers can verify)
-- linked_requirement_refs: comma-separated req_number values from the RTM that this node covers
+- linked_requirement_refs: comma-separated req_number values from the RTM that this node covers. Copy each req_number EXACTLY as written in the RTM list.
+
+REQUIREMENT COVERAGE (mandatory):
+- EVERY requirement in the RTM list must appear in linked_requirement_refs of at least one node. Broad or umbrella requirements (e.g. "deliver services IAW the contract") go in the most relevant compliance or management-approach section. Do not skip short, minor or administrative requirements.
+- Before returning, check the RTM list line by line and place any requirement you have not yet assigned.
 
 Be comprehensive but concise. Typical proposal outline = 30-80 nodes.
 
@@ -136,9 +146,8 @@ Deno.serve(async (req) => {
       .map((s) => `[ref:${s.ref}] [${s.section_number ?? "?"} ${s.section_title ?? ""} | doc=${docNameById.get(s.document_id ?? "") ?? "?"} p.${s.page_start ?? "?"}]\n${(s.content ?? "").slice(0, 4000)}`)
       .join("\n\n");
 
-    const reqText = (requirements ?? []).slice(0, 200).map((r) =>
-      `${r.req_number} [${r.source_section ?? "?"}] ${r.shall_text.slice(0, 240)}`
-    ).join("\n");
+    // Every requirement is listed (the old version dropped everything after 200).
+    const reqText = buildRequirementPromptList(requirements ?? []);
 
     const sectionsText = (sectionAnalyses ?? []).map((s) =>
       `${s.section_code}${s.section_title ? ` — ${s.section_title}` : ""}${s.scoring_weight ? ` (weight=${s.scoring_weight})` : ""}\n${s.summary}`
@@ -266,19 +275,17 @@ Deno.serve(async (req) => {
     if (outErr) throw outErr;
 
     // Build req_number → id map for linking
-    const reqByNumber = new Map<string, string>();
-    (requirements ?? []).forEach((r) => reqByNumber.set(r.req_number, r.id));
+    // Matching tolerates "C.1.1" vs "C-1.1", case and brackets.
+    const reqIndex = buildReqIndex(requirements ?? []);
+    const unmatchedRefs: string[] = [];
 
     // Insert nodes in 2 passes so parent_id can be wired up by depth
     // For simplicity: flat insert with linear sort_order, no parent linking.
     const lmRefById = new Map(lmRefs.map((r) => [r.ref, r] as const));
     const rows = nodes.map((n, i) => {
-      const refs = ((n.linked_requirement_refs as string) ?? "")
-        .split(/[,;\s]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((num) => reqByNumber.get(num))
-        .filter((v): v is string => !!v);
+      const resolved = resolveRequirementRefs(n.linked_requirement_refs as string, reqIndex);
+      unmatchedRefs.push(...resolved.unmatched);
+      const refs = resolved.ids;
       const sectionRefs = ((n.source_section_refs as string) ?? "")
         .split(/[,;\s]+/)
         .map((s) => s.trim().replace(/^\[?ref:/i, "").replace(/\]$/, ""))
@@ -313,7 +320,24 @@ Deno.serve(async (req) => {
       if (error) throw error;
     }
 
-    return new Response(JSON.stringify({ success: true, outline_id: outline.id, inserted: rows.length }), {
+    // Report requirements the outline did not place, so the UI can flag them
+    // instead of them silently showing up as "Gap" in the compliance matrix.
+    const unplaced = findUnplacedRequirements(requirements ?? [], rows.map((r) => r.linked_requirement_ids));
+    if (unplaced.length || unmatchedRefs.length) {
+      console.warn(
+        `[generate-outline] sol=${solicitationId} unplaced=${unplaced.length} unmatchedRefs=${unmatchedRefs.length}`,
+        unplaced.map((r) => r.req_number).slice(0, 50),
+        unmatchedRefs.slice(0, 50),
+      );
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      outline_id: outline.id,
+      inserted: rows.length,
+      total_requirements: requirements?.length ?? 0,
+      unplaced_requirements: unplaced.map((r) => ({ id: r.id, req_number: r.req_number, source_section: r.source_section, shall_text: r.shall_text })),
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
