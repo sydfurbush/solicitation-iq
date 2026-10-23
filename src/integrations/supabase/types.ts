@@ -3339,6 +3339,65 @@ export type Database = {
           },
         ]
       }
+      requirement_extraction_runs: {
+        Row: {
+          completed_at: string | null
+          completed_batches: number
+          created_by: string | null
+          current_step: string | null
+          duplicate_count: number
+          error_message: string | null
+          failed_batches: number
+          id: string
+          inserted_count: number
+          solicitation_id: string
+          started_at: string
+          status: string
+          total_batches: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_batches?: number
+          created_by?: string | null
+          current_step?: string | null
+          duplicate_count?: number
+          error_message?: string | null
+          failed_batches?: number
+          id?: string
+          inserted_count?: number
+          solicitation_id: string
+          started_at?: string
+          status?: string
+          total_batches?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_batches?: number
+          created_by?: string | null
+          current_step?: string | null
+          duplicate_count?: number
+          error_message?: string | null
+          failed_batches?: number
+          id?: string
+          inserted_count?: number
+          solicitation_id?: string
+          started_at?: string
+          status?: string
+          total_batches?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "requirement_extraction_runs_solicitation_id_fkey"
+            columns: ["solicitation_id"]
+            isOneToOne: false
+            referencedRelation: "solicitations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       requirement_item_versions: {
         Row: {
           change_summary: string | null
@@ -3371,16 +3430,27 @@ export type Database = {
       }
       requirement_items: {
         Row: {
+          action_needed: string | null
+          applicability: string
+          area: string | null
           compliance_owner: string | null
+          covered_by_id: string | null
           created_at: string
           created_by: string | null
+          criticality: string | null
+          external_id: string | null
           id: string
+          import_source: string | null
           is_ai_generated: boolean
+          needs_clarification: boolean
           notes: string | null
+          origin: string
           page_number: number | null
           proposal_section: string | null
           proposal_volume: string | null
           req_number: string
+          requirement_type: string | null
+          response_evidence: string | null
           shall_text: string
           solicitation_id: string
           source_citation: string | null
@@ -3389,18 +3459,32 @@ export type Database = {
           source_section: string | null
           status: Database["public"]["Enums"]["requirement_status"]
           updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+          workflow_status: string
         }
         Insert: {
+          action_needed?: string | null
+          applicability?: string
+          area?: string | null
           compliance_owner?: string | null
+          covered_by_id?: string | null
           created_at?: string
           created_by?: string | null
+          criticality?: string | null
+          external_id?: string | null
           id?: string
+          import_source?: string | null
           is_ai_generated?: boolean
+          needs_clarification?: boolean
           notes?: string | null
+          origin?: string
           page_number?: number | null
           proposal_section?: string | null
           proposal_volume?: string | null
           req_number: string
+          requirement_type?: string | null
+          response_evidence?: string | null
           shall_text: string
           solicitation_id: string
           source_citation?: string | null
@@ -3409,18 +3493,32 @@ export type Database = {
           source_section?: string | null
           status?: Database["public"]["Enums"]["requirement_status"]
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          workflow_status?: string
         }
         Update: {
+          action_needed?: string | null
+          applicability?: string
+          area?: string | null
           compliance_owner?: string | null
+          covered_by_id?: string | null
           created_at?: string
           created_by?: string | null
+          criticality?: string | null
+          external_id?: string | null
           id?: string
+          import_source?: string | null
           is_ai_generated?: boolean
+          needs_clarification?: boolean
           notes?: string | null
+          origin?: string
           page_number?: number | null
           proposal_section?: string | null
           proposal_volume?: string | null
           req_number?: string
+          requirement_type?: string | null
+          response_evidence?: string | null
           shall_text?: string
           solicitation_id?: string
           source_citation?: string | null
@@ -3429,8 +3527,19 @@ export type Database = {
           source_section?: string | null
           status?: Database["public"]["Enums"]["requirement_status"]
           updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+          workflow_status?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "requirement_items_covered_by_id_fkey"
+            columns: ["covered_by_id"]
+            isOneToOne: false
+            referencedRelation: "requirement_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       revision_reviews: {
         Row: {
