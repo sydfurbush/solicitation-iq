@@ -69,3 +69,48 @@ export function matchesFilter(filter: StaffFilter, t: TriageLike | null | undefi
   if (filter === "restricted") return effectiveDestinations(t).includes("restricted");
   return effectiveDestinations(t).includes("not_needed");
 }
+
+export type ReceivedVia = "portal" | "email" | "other";
+const VIA_LABELS: Record<ReceivedVia, string> = { portal: "Portal", email: "Email", other: "Other" };
+
+/** e.g. "Tori Ingram <tori@x.com>" → "Tori Ingram"; bare email stays as-is. */
+export function senderDisplayName(from: string | null | undefined): string {
+  const s = (from ?? "").trim();
+  if (!s) return "";
+  const m = s.match(/^\s*"?([^"<]*?)"?\s*<[^>]+>\s*$/);
+  return m && m[1] ? m[1].trim() : s;
+}
+
+function formatDay(d: string): string {
+  const [y, mo, da] = d.slice(0, 10).split("-").map(Number);
+  if (!y || !mo || !da) return d;
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${months[mo - 1]} ${da}, ${y}`;
+}
+
+/** "Email · Tori Ingram · Oct 23, 2026 (uploaded by Sydney)" / "Portal · Tori Ingram · Oct 23, 2026". */
+export function receivedLabel(p: {
+  received_via: string | null | undefined;
+  received_from?: string | null;
+  received_on?: string | null;
+  created_at?: string | null;
+  uploaderName?: string | null;
+}): string {
+  const via = (p.received_via ?? "portal") as ReceivedVia;
+  const parts = [VIA_LABELS[via] ?? "Other"];
+  const who = via === "portal" ? senderDisplayName(p.received_from) || (p.uploaderName ?? "") : senderDisplayName(p.received_from);
+  if (who) parts.push(who);
+  const day = p.received_on || p.created_at;
+  if (day) parts.push(formatDay(day));
+  let out = parts.join(" · ");
+  if (via !== "portal" && p.uploaderName) out += ` (uploaded by ${p.uploaderName.split(/\s+/)[0]})`;
+  return out;
+}
+
+/** Only same-origin paths under /portal/ are allowed as post-invite redirects. */
+export function safePortalRedirect(next: string | null | undefined, fallback = "/portal"): string {
+  if (!next) return fallback;
+  if (!/^\/portal\/[A-Za-z0-9\-_/]*$/.test(next)) return fallback;
+  if (next.includes("//") || next.includes("..")) return fallback;
+  return next;
+}
