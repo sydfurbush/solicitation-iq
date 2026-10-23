@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { safePortalRedirect } from "@/features/onboarding/lib/onboardingFiles";
 
 type InviteState =
   | { status: "loading" }
@@ -24,6 +25,7 @@ type InviteState =
 export default function PortalAcceptInvite() {
   const [params] = useSearchParams();
   const token = params.get("token") ?? "";
+  const next = safePortalRedirect(params.get("next"));
   const navigate = useNavigate();
   const { signIn } = useAuth();
 
@@ -70,10 +72,10 @@ export default function PortalAcceptInvite() {
     setSubmitting(false);
     if (signInErr) {
       setSubmitError("Account created. Please sign in.");
-      navigate("/portal/login");
+      navigate(next === "/portal" ? "/portal/login" : `/portal/login?next=${encodeURIComponent(next)}`);
       return;
     }
-    navigate("/portal", { replace: true });
+    navigate(next, { replace: true });
   };
 
   return (
@@ -176,7 +178,7 @@ export default function PortalAcceptInvite() {
               </CardHeader>
               <CardContent>
                 <Button asChild className="w-full">
-                  <Link to="/portal/login">Go to sign in</Link>
+                  <Link to={next === "/portal" ? "/portal/login" : `/portal/login?next=${encodeURIComponent(next)}`}>Go to sign in</Link>
                 </Button>
               </CardContent>
             </>

@@ -26,9 +26,11 @@ interface Props {
   clientId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Optional portal path to land on after accepting (must be under /portal/). */
+  redirectTo?: string;
 }
 
-export function InviteClientUserDialog({ clientId, open, onOpenChange }: Props) {
+export function InviteClientUserDialog({ clientId, open, onOpenChange, redirectTo }: Props) {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
@@ -54,7 +56,7 @@ export function InviteClientUserDialog({ clientId, open, onOpenChange }: Props) 
       return data;
     },
     onSuccess: async (data) => {
-      const link = `${window.location.origin}/portal/accept-invite?token=${data.token}`;
+      const link = `${window.location.origin}/portal/accept-invite?token=${data.token}${redirectTo ? `&next=${encodeURIComponent(redirectTo)}` : ""}`;
       try {
         await navigator.clipboard.writeText(link);
         toast.success("Invitation created — link copied to clipboard");

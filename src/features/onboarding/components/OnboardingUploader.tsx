@@ -8,7 +8,11 @@ import { toast } from "@/hooks/use-toast";
 import { ONBOARDING_ACCEPT, ONBOARDING_EXTENSIONS, validateOnboardingFile } from "../lib/onboardingFiles";
 import { runTriage, uploadOnboardingFile } from "../hooks/useOnboarding";
 
-export function OnboardingUploader({ clientId, kind }: { clientId: string; kind: "staff" | "client" }) {
+export type ReceivedMeta = { via: "email" | "other"; from: string | null; on: string | null };
+
+export function OnboardingUploader({ clientId, kind, received, children }: {
+  clientId: string; kind: "staff" | "client"; received?: ReceivedMeta; children?: React.ReactNode;
+}) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(0);
 
@@ -26,7 +30,7 @@ export function OnboardingUploader({ clientId, kind }: { clientId: string; kind:
     if (!valid.length) return;
     setBusy((b) => b + valid.length);
     // Upload in parallel…
-    const results = await Promise.allSettled(valid.map((f) => uploadOnboardingFile(clientId, f, kind)));
+    const results = await Promise.allSettled(valid.map((f) => uploadOnboardingFile(clientId, f, kind, received)));
     setBusy((b) => b - valid.length);
     results.forEach((r, i) => {
       if (r.status === "rejected") toast({ title: "Upload failed", description: valid[i].name, variant: "destructive" });
@@ -45,6 +49,8 @@ export function OnboardingUploader({ clientId, kind }: { clientId: string; kind:
   });
 
   return (
+    <div className="space-y-3">
+    {children}
     <div
       {...getRootProps()}
       className={cn("border-2 border-dashed rounded-lg p-6 text-center transition-colors",
@@ -52,11 +58,12 @@ export function OnboardingUploader({ clientId, kind }: { clientId: string; kind:
     >
       <input {...getInputProps()} />
       <UploadCloud className="h-8 w-8 mx-auto text-primary" />
-      <p className="font-medium mt-2">{isDragActive ? "Drop the files here" : "Drag and drop files here"}</p>
+      <p className="font-medium mt-2">{isDragActive ? "Drop the files here" : received?.via === "email" ? "Drag in the email attachments here" : "Drag and drop files here"}</p>
       <p className="text-xs text-muted-foreground mt-1">Up to 25 MB each · {ONBOARDING_EXTENSIONS.join(", ")}</p>
       <Button type="button" variant="outline" size="sm" className="mt-3" onClick={open} disabled={busy > 0}>
         {busy > 0 ? `Uploading ${busy}…` : "Browse files"}
       </Button>
+    </div>
     </div>
   );
 }

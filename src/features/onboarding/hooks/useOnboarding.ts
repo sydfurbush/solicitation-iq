@@ -39,13 +39,18 @@ export async function runTriage(documentId: string) {
 }
 
 /** Insert row, upload file. Returns the document id (triage is called separately, one at a time). */
-export async function uploadOnboardingFile(clientId: string, file: File, kind: "staff" | "client"): Promise<string> {
+export async function uploadOnboardingFile(clientId: string, file: File, kind: "staff" | "client",
+  received?: { via: "email" | "other"; from: string | null; on: string | null },
+): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   const id = crypto.randomUUID();
   const path = onboardingPath(clientId, id, file.name);
   const { error: insErr } = await supabase.from("client_onboarding_documents").insert({
     id, client_id: clientId, file_name: file.name, file_path: path, mime_type: file.type || null,
     byte_size: file.size, uploaded_by: user?.id, uploaded_by_kind: kind,
+    received_via: kind === "client" ? "portal" : received?.via ?? "other",
+    received_from: kind === "client" ? null : received?.from || null,
+    received_on: kind === "client" ? null : received?.on || null,
   });
   if (insErr) throw insErr;
   const { error: upErr } = await supabase.storage.from(ONBOARDING_BUCKET).upload(path, file, { contentType: file.type || undefined });
@@ -60,9 +65,11 @@ export function useDeleteOnboardingDoc(clientId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (doc: { id: string; file_path: string }) => {
+      // Storage first: the client delete policy checks the row still exists.
+      const { error: rmErr } = await supabase.storage.from(ONBOARDING_BUCKET).remove([doc.file_path]);
+      if (rmErr) throw rmErr;
       const { error } = await supabase.from("client_onboarding_documents").delete().eq("id", doc.id);
       if (error) throw error;
-      await supabase.storage.from(ONBOARDING_BUCKET).remove([doc.file_path]);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["onboarding-docs", clientId] }),
   });
