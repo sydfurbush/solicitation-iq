@@ -9,10 +9,11 @@ export function useOnboardingDocuments(clientId: string | undefined) {
     refetchInterval: (q) =>
       (q.state.data as any[] | undefined)?.some((d) => d.status === "processing" || d.status === "uploaded") ? 4000 : false,
     queryFn: async () => {
+      if (!clientId) return [];
       const { data, error } = await supabase
         .from("client_onboarding_documents")
         .select("*")
-        .eq("client_id", clientId!)
+        .eq("client_id", clientId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -26,7 +27,8 @@ export function useOnboardingTriage(clientId: string | undefined) {
     queryKey: ["onboarding-triage", clientId],
     enabled: !!clientId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("client_onboarding_triage").select("*").eq("client_id", clientId!);
+      if (!clientId) return [];
+      const { data, error } = await supabase.from("client_onboarding_triage").select("*").eq("client_id", clientId);
       if (error) throw error;
       return data ?? [];
     },
@@ -100,7 +102,12 @@ export async function recheckKnowledgeDocument(knowledgeDocumentId: string): Pro
   const { data, error } = await supabase.functions.invoke("recheck-knowledge-document", { body: { knowledgeDocumentId } });
   if (error) {
     let message = error.message;
-    try { const b = await (error as any).context?.json?.(); if (b?.error) message = b.error; } catch { /* keep default */ }
+    const context = (error as { context?: Response }).context;
+    try {
+      const b = await context?.json();
+      if (context?.status === 409) message = "This file is already being checked. View it in Onboarding for its status.";
+      else if (b?.error) message = b.error;
+    } catch { /* keep default */ }
     throw new Error(message);
   }
   return (data as { documentId?: string | null })?.documentId ?? null;
@@ -111,12 +118,17 @@ export function useRemoveFromKnowledge(clientId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (knowledgeDocumentId: string) => {
-      const { data: k, error: readErr } = await supabase.from("client_knowledge_documents").select("id, file_path").eq("id", knowledgeDocumentId).maybeSingle();
+      if (!clientId) throw new Error("Client is required");
+      const { data: k, error: readErr } = await supabase.from("client_knowledge_documents").select("id, file_path").eq("id", knowledgeDocumentId).eq("client_id", clientId).maybeSingle();
       if (readErr) throw readErr;
       if (!k) return;
-      const { error } = await supabase.from("client_knowledge_documents").delete().eq("id", k.id);
+      if (k.file_path) {
+        const { error: storageError } = await supabase.storage.from("client-knowledge").remove([k.file_path]);
+        if (storageError) throw storageError;
+      }
+      const { data: deleted, error } = await supabase.from("client_knowledge_documents").delete().eq("id", k.id).eq("client_id", clientId).select("id");
       if (error) throw error;
-      if (k.file_path) await supabase.storage.from("client-knowledge").remove([k.file_path]);
+      if (!deleted?.length) throw new Error("The knowledge file could not be removed. Check your access and try again.");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["client-knowledge", clientId] });

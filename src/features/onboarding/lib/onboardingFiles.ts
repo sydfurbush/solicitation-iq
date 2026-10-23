@@ -100,13 +100,13 @@ export function whoseDocumentLabel(t: PartyLike | null | undefined): string {
 
 /** For agreements: "With Acme, Beta · Prime". Empty otherwise or when nothing is known. */
 export function agreementPartiesLabel(t: PartyLike | null | undefined): string {
-  if (!isAgreement(t)) return "";
+  if (!t || !isAgreement(t)) return "";
   const parts: string[] = [];
-  const names = (t!.partner_names ?? []).map((n) => n.trim()).filter(Boolean);
+  const names = (t.partner_names ?? []).map((n) => n.trim()).filter(Boolean);
   if (names.length) parts.push(`With ${names.join(", ")}`);
-  if (t!.client_role === "prime") parts.push("Prime");
-  else if (t!.client_role === "sub") parts.push("Sub");
-  else if (t!.client_role === "both") parts.push("Prime / Sub");
+  if (t.client_role === "prime") parts.push("Prime");
+  else if (t.client_role === "sub") parts.push("Sub");
+  else if (t.client_role === "both") parts.push("Prime / Sub");
   return parts.join(" · ");
 }
 
