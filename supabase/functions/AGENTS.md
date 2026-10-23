@@ -26,6 +26,7 @@ The service-role key bypasses all row-level security, so any function that uses 
 - All requirement matching, citation detection and tag stripping goes through `supabase/functions/_shared/requirementLinks.ts`. Do not write new string matching for requirement numbers or tags anywhere else; import from this module (the frontend imports it by relative path).
 - `generate-outline` must include every requirement in its prompt and return `unplaced_requirements`. `draft-section` must return and store `uncited_requirements`. `compile-proposal` must strip `[Req-X]` and `[K#]` tags from submission documents.
 - Changes to `requirementLinks.ts` or these three functions are made in the repo with tests, not through Lovable.
+- Outline volumes whose name starts with "Internal" (e.g. "Internal – Submission Checklist (not submitted)") hold requirements for tracking only; `compile-proposal` skips them (`_shared/outlineVolumes.ts`).
 
 
 ## Deploying functions

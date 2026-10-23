@@ -3,6 +3,7 @@ import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak, Footer, PageNumber,
 } from "npm:docx@8.5.0";
 import { isRequirementCited, stripCitationTags } from "../_shared/requirementLinks.ts";
+import { isInternalVolume } from "../_shared/outlineVolumes.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -246,6 +247,8 @@ Deno.serve(async (req) => {
 
     const volumes = new Map<string, Array<{ node: any; draft: any }>>();
     for (const n of nodes ?? []) {
+      // Internal tracking volumes (e.g. the submission checklist) are never compiled.
+      if (isInternalVolume(n.volume)) continue;
       const vol = n.volume || "Volume I";
       if (!volumes.has(vol)) volumes.set(vol, []);
       volumes.get(vol)!.push({ node: n, draft: draftMap.get(n.id) ?? null });
