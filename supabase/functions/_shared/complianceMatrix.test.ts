@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   docKindFromFileName,
   textSimilarity,
+  sharedWords,
   parseReference,
   itemKeys,
   refCovers,
@@ -41,6 +42,9 @@ describe("textSimilarity", () => {
   });
   it("ignores numbers, dates and times so two deadlines don't match", () => {
     expect(textSimilarity("Proposal due 9:00 a.m. EST, 20 November 2026.", "Written questions shall be submitted NO LATER THAN 9:00 a.m., EST, 3 November 2026.")).toBe(0);
+  });
+  it("counts shared words", () => {
+    expect(sharedWords("Submit resumes and letters of intent", "Provide resumes and letters of intent")).toBe(3);
   });
   it("needs at least two shared words", () => {
     expect(textSimilarity("Proposal due", "The proposal shall be presented in Adobe pdf.")).toBe(0);
@@ -101,6 +105,14 @@ describe("instruction labels", () => {
     expect(of("k")).toBe("C089");
     expect(of("x")).toBe("C095");
     expect(of("o")).toBeNull(); // same paragraph, unrelated wording
+  });
+  it("prefers the row sharing more words over a short row with a high percentage", () => {
+    const rows = parseMatrixSheet(sheet(
+      row("C089", "Key Personnel", "Proposal Instructions C.3.b(ii); Evaluation p.52", "Submit resumes and signed Letters of Intent for PM, APM, and Financial Analyst; each resume must map to every minimum qualification, education, experience and certification requirement in the PWS."),
+      row("C095", "Past Performance", "Proposal Instructions C.3.b Factor II", "Provide maximum three example projects."),
+    )).rows;
+    const plan = planImport(rows, [item("k", "C.3.b.ii", "solicitation", "Offerors must provide resumes and letters of intent for all three key positions; the Program Manager, Alternate Program Manager, and Financial Analyst.")]);
+    expect(plan.cover).toEqual([{ itemId: "k", externalId: "C089" }]);
   });
 });
 
