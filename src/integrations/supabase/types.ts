@@ -1188,6 +1188,7 @@ export type Database = {
           file_name: string
           file_path: string
           id: string
+          knowledge_document_id: string | null
           mime_type: string | null
           received_from: string | null
           received_on: string | null
@@ -1205,6 +1206,7 @@ export type Database = {
           file_name: string
           file_path: string
           id?: string
+          knowledge_document_id?: string | null
           mime_type?: string | null
           received_from?: string | null
           received_on?: string | null
@@ -1222,6 +1224,7 @@ export type Database = {
           file_name?: string
           file_path?: string
           id?: string
+          knowledge_document_id?: string | null
           mime_type?: string | null
           received_from?: string | null
           received_on?: string | null
@@ -1246,11 +1249,19 @@ export type Database = {
             referencedRelation: "v_client_portfolio"
             referencedColumns: ["client_id"]
           },
+          {
+            foreignKeyName: "client_onboarding_documents_knowledge_document_id_fkey"
+            columns: ["knowledge_document_id"]
+            isOneToOne: true
+            referencedRelation: "client_knowledge_documents"
+            referencedColumns: ["id"]
+          },
         ]
       }
       client_onboarding_triage: {
         Row: {
           client_id: string
+          client_role: string | null
           created_at: string | null
           destinations: string[] | null
           doc_type: string | null
@@ -1259,6 +1270,7 @@ export type Database = {
           final_destinations: string[] | null
           id: string
           notes: string | null
+          partner_names: string[] | null
           reasons: string[] | null
           relevance: string | null
           requires_cleaning: boolean | null
@@ -1267,6 +1279,8 @@ export type Database = {
           reviewed_by: string | null
           sensitivity: Json | null
           solicitation_numbers: string[] | null
+          subject: string | null
+          subject_name: string | null
           summary: string | null
           text_chars: number | null
           title: string | null
@@ -1275,6 +1289,7 @@ export type Database = {
         }
         Insert: {
           client_id: string
+          client_role?: string | null
           created_at?: string | null
           destinations?: string[] | null
           doc_type?: string | null
@@ -1283,6 +1298,7 @@ export type Database = {
           final_destinations?: string[] | null
           id?: string
           notes?: string | null
+          partner_names?: string[] | null
           reasons?: string[] | null
           relevance?: string | null
           requires_cleaning?: boolean | null
@@ -1291,6 +1307,8 @@ export type Database = {
           reviewed_by?: string | null
           sensitivity?: Json | null
           solicitation_numbers?: string[] | null
+          subject?: string | null
+          subject_name?: string | null
           summary?: string | null
           text_chars?: number | null
           title?: string | null
@@ -1299,6 +1317,7 @@ export type Database = {
         }
         Update: {
           client_id?: string
+          client_role?: string | null
           created_at?: string | null
           destinations?: string[] | null
           doc_type?: string | null
@@ -1307,6 +1326,7 @@ export type Database = {
           final_destinations?: string[] | null
           id?: string
           notes?: string | null
+          partner_names?: string[] | null
           reasons?: string[] | null
           relevance?: string | null
           requires_cleaning?: boolean | null
@@ -1315,6 +1335,8 @@ export type Database = {
           reviewed_by?: string | null
           sensitivity?: Json | null
           solicitation_numbers?: string[] | null
+          subject?: string | null
+          subject_name?: string | null
           summary?: string | null
           text_chars?: number | null
           title?: string | null
