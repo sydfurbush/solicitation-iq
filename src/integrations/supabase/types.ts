@@ -4610,6 +4610,10 @@ export type Database = {
     }
     Functions: {
       accept_org_invitation: { Args: { p_token: string }; Returns: string }
+      assign_requirement_to_section: {
+        Args: { p_outline_node_id: string; p_requirement_id: string }
+        Returns: undefined
+      }
       assistant_check_and_increment: {
         Args: { p_limit: number; p_user_id: string; p_window_seconds: number }
         Returns: {
@@ -4735,6 +4739,10 @@ export type Database = {
           p_role: Database["public"]["Enums"]["app_role"]
           p_user_id: string
         }
+        Returns: undefined
+      }
+      unassign_requirement: {
+        Args: { p_outline_id: string; p_requirement_id: string }
         Returns: undefined
       }
     }

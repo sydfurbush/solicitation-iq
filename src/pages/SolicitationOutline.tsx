@@ -13,6 +13,12 @@ import type { ExportDocument } from "@/features/exports/lib/exporters";
 import { useFormatProfileForSolicitation } from "@/features/formatProfiles/hooks/useFormatProfileForSolicitation";
 import { FormatProfilePanel } from "@/features/outline/components/FormatProfilePanel";
 import { DeriveFormatDialog } from "@/features/formatProfiles/components/DeriveFormatDialog";
+import { ToastAction } from "@/components/ui/toast";
+import { useSearchParams } from "react-router-dom";
+import { useRequirementItems } from "@/features/deepdive/hooks/useRequirementItems";
+import { useCanEditRequirementLinks } from "@/features/outline/hooks/useRequirementLinks";
+import { SectionRequirementsSheet } from "@/features/outline/components/SectionRequirementsSheet";
+import type { OutlineNode } from "@/features/outline/hooks/useProposalOutline";
 
 type SourceSection = {
   document_id: string | null;
@@ -29,6 +35,10 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
   const relink = useRelinkOutlineSources(solicitationId);
   const { data: formatData } = useFormatProfileForSolicitation(solicitationId);
   const [deriveOpen, setDeriveOpen] = useState(false);
+  const { data: requirements = [] } = useRequirementItems(solicitationId);
+  const canEditLinks = useCanEditRequirementLinks();
+  const [reqNode, setReqNode] = useState<OutlineNode | null>(null);
+  const [, setSearchParams] = useSearchParams();
 
   const limits = (formatData?.profile?.volume_page_limits ?? {}) as Record<string, number | null>;
 
@@ -84,6 +94,21 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
     try {
       const r = await gen.mutateAsync();
       toast({ title: "Outline generated", description: `${r.inserted} nodes` });
+      const unplaced = Array.isArray(r?.unplaced_requirements) ? r.unplaced_requirements : [];
+      if (unplaced.length > 0) {
+        toast({
+          title: `${unplaced.length} of ${r.total_requirements ?? unplaced.length} requirements weren't placed in a section`,
+          action: (
+            <ToastAction altText="Review gaps" onClick={() => {
+              const next = new URLSearchParams();
+              next.set("tab", "phase-3");
+              next.set("step", "compliance");
+              next.set("gaps", "1");
+              setSearchParams(next);
+            }}>Review gaps</ToastAction>
+          ),
+        });
+      }
     } catch (e) {
       toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
     }
@@ -156,8 +181,10 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
                               {volTotal} / {volLimit}p
                             </Badge>
                           )}
-                          {n.linked_requirement_ids?.length ? (
-                            <Badge variant="outline" className="text-[10px]">{n.linked_requirement_ids.length} reqs</Badge>
+                          {n.linked_requirement_ids?.length || canEditLinks ? (
+                            <button type="button" onClick={() => setReqNode(n)} aria-label={`Requirements for ${n.title}`}>
+                              <Badge variant="outline" className="text-[10px] hover:bg-accent cursor-pointer">{n.linked_requirement_ids?.length ?? 0} reqs</Badge>
+                            </button>
                           ) : null}
                           {(() => {
                             const sources = ((n as unknown as { source_document_sections?: SourceSection[] }).source_document_sections ?? []) as SourceSection[];
@@ -203,6 +230,14 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
       {currentPhase === "phase_3_outline" && (
         <AdvancePhaseButton solicitationId={solicitationId} currentPhase="phase_3_outline" />
       )}
+
+      <SectionRequirementsSheet
+        node={reqNode}
+        nodes={nodes}
+        requirements={requirements}
+        canEdit={canEditLinks}
+        onOpenChange={(o) => { if (!o) setReqNode(null); }}
+      />
 
       <DeriveFormatDialog
         solicitationId={solicitationId}
