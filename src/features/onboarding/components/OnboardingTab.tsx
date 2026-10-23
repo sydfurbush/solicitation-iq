@@ -19,16 +19,17 @@ import { OnboardingUploader } from "./OnboardingUploader";
 import {
   openSignedUrl, runTriage, useConfirmReview, useOnboardingDocuments, useOnboardingTriage,
 } from "../hooks/useOnboarding";
-import { effectiveDestinations, matchesFilter, type StaffFilter } from "../lib/onboardingFiles";
+import { effectiveDestinations, matchesFilter, receivedLabel, type StaffFilter } from "../lib/onboardingFiles";
+import { ReceivedRow, useReceivedState } from "./ReceivedRow";
 import {
   DESTINATION_LABELS, DOC_TYPE_LABELS, type Destination, type DocType,
 } from "../../../../supabase/functions/_shared/onboardingTriage";
 
 const DESTS: Destination[] = ["profile", "knowledge", "restricted", "not_needed"];
-const FILTERS: { key: StaffFilter; label: string }[] = [
+const FILTERS: { key: StaffFilter | "emailed"; label: string }[] = [
   { key: "all", label: "All" }, { key: "needs_review", label: "Needs review" },
   { key: "restricted", label: "Restricted" }, { key: "needs_cleaning", label: "Needs cleaning" },
-  { key: "not_needed", label: "Not needed" },
+  { key: "not_needed", label: "Not needed" }, { key: "emailed", label: "Emailed" },
 ];
 
 function DestBadge({ d }: { d: string }) {
@@ -44,7 +45,7 @@ export function OnboardingTab({ clientId }: { clientId: string }) {
   const canEdit = role === "owner" || role === "admin" || role === "analyst";
   const { data: docs = [] } = useOnboardingDocuments(clientId);
   const { data: triage = [] } = useOnboardingTriage(clientId);
-  const [filter, setFilter] = useState<StaffFilter>("all");
+  const [filter, setFilter] = useState<StaffFilter | "emailed">("all");
   const [openId, setOpenId] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
 
@@ -64,7 +65,9 @@ export function OnboardingTab({ clientId }: { clientId: string }) {
   });
 
   const byDoc = useMemo(() => new Map(triage.map((t) => [t.document_id, t])), [triage]);
-  const rows = docs.filter((d) => matchesFilter(filter, byDoc.get(d.id)));
+  const rows = docs.filter((d) => filter === "emailed" ? d.received_via === "email" : matchesFilter(filter, byDoc.get(d.id)));
+  const recv = useReceivedState(clientId);
+  const label = (d: any) => receivedLabel({ ...d, uploaderName: d.uploaded_by ? names[d.uploaded_by] : null });
   const reviewed = triage.filter((t) => t.reviewed_at).length;
   const openDoc = docs.find((d) => d.id === openId);
   const openTriage = openId ? byDoc.get(openId) : undefined;
@@ -92,7 +95,11 @@ export function OnboardingTab({ clientId }: { clientId: string }) {
         Invited clients upload at {window.location.origin}/portal/documents. Reviewed documents will feed the company profile in the next phase.
       </p>
 
-      {canEdit && <OnboardingUploader clientId={clientId} kind="staff" />}
+      {canEdit && (
+        <OnboardingUploader clientId={clientId} kind="staff" received={recv.meta}>
+          <ReceivedRow state={recv} />
+        </OnboardingUploader>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => (
@@ -107,7 +114,7 @@ export function OnboardingTab({ clientId }: { clientId: string }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>File</TableHead><TableHead>Uploaded by</TableHead><TableHead>Status</TableHead>
+                <TableHead>File</TableHead><TableHead>Received</TableHead><TableHead>Status</TableHead>
                 <TableHead>Type</TableHead><TableHead>Relevance</TableHead><TableHead>Destinations</TableHead>
                 <TableHead>Reviewed</TableHead>
               </TableRow>
@@ -128,8 +135,7 @@ export function OnboardingTab({ clientId }: { clientId: string }) {
                       <p className="text-xs text-muted-foreground">{d.created_at ? format(new Date(d.created_at), "MMM d, yyyy") : ""}</p>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {(d.uploaded_by && names[d.uploaded_by]) || "—"}
-                      <span className="block text-xs text-muted-foreground capitalize">{d.uploaded_by_kind}</span>
+                      {label(d)}
                     </TableCell>
                     <TableCell><Badge variant={d.status === "failed" ? "destructive" : "secondary"} className="capitalize">{d.status}</Badge></TableCell>
                     <TableCell className="text-sm">{t?.doc_type ? DOC_TYPE_LABELS[t.doc_type as DocType] ?? t.doc_type : "—"}</TableCell>
@@ -156,6 +162,7 @@ export function OnboardingTab({ clientId }: { clientId: string }) {
           {openDoc && (
             <>
               <SheetHeader><SheetTitle className="break-all">{openDoc.file_name}</SheetTitle></SheetHeader>
+              <div className="mt-4"><Field label="Received">{label(openDoc)}</Field></div>
               {openTriage ? (
                 <TriageDetail key={openTriage.id + (openTriage.reviewed_at ?? "")} triage={openTriage} clientId={clientId} canEdit={canEdit} onRerun={() => rerun(openDoc.id)} />
               ) : (
@@ -169,7 +176,7 @@ export function OnboardingTab({ clientId }: { clientId: string }) {
         </SheetContent>
       </Sheet>
 
-      <InviteClientUserDialog clientId={clientId} open={inviteOpen} onOpenChange={setInviteOpen} />
+      <InviteClientUserDialog clientId={clientId} open={inviteOpen} onOpenChange={setInviteOpen} redirectTo="/portal/documents" />
     </div>
   );
 }

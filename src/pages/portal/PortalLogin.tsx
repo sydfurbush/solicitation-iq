@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { safePortalRedirect } from "@/features/onboarding/lib/onboardingFiles";
 
 export default function PortalLogin() {
   const { signIn } = useAuth();
@@ -34,7 +35,8 @@ export default function PortalLogin() {
       return;
     }
     const from =
-      (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || "/portal";
+      (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ||
+      safePortalRedirect(new URLSearchParams(location.search).get("next"));
     navigate(from, { replace: true });
   };
 
