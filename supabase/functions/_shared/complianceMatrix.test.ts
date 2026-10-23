@@ -62,7 +62,7 @@ describe("references", () => {
   it("reads keys from extracted items by document", () => {
     expect(itemKeys({ source_section: "C.1.6.7.9", doc_kind: "pws" })).toEqual([{ kind: "pws", value: "1.6.7.9" }]);
     expect(itemKeys({ source_section: "Solicitation Continuation (FAR 52.219-14)", doc_kind: "solicitation" })).toEqual([{ kind: "clause", value: "52.219-14" }]);
-    expect(itemKeys({ source_section: "C.3.a", doc_kind: "solicitation" })).toEqual([]);
+    expect(itemKeys({ source_section: "C.3.a", doc_kind: "solicitation" })).toEqual([{ kind: "instruction", value: "c.3.a" }]);
   });
   it("covers sub-sections and ranges, but not siblings", () => {
     const k = (v: string, end?: string) => ({ kind: "pws" as const, value: v, ...(end ? { end } : {}) });
@@ -71,6 +71,36 @@ describe("references", () => {
     expect(refCovers(k("5.4.1.6", "5.4.1.8"), k("5.4.1.7.2"))).toBe(true);
     expect(refCovers(k("5.4.1.6", "5.4.1.8"), k("5.4.1.10"))).toBe(false);
     expect(refCovers(k("1.5.4", "1.5.5"), k("1.5.5.1"))).toBe(true);
+  });
+});
+
+describe("instruction labels", () => {
+  it("reads instruction and addendum labels from extracted items", () => {
+    expect(itemKeys({ source_section: "C.3.b.ii", doc_kind: "solicitation" })).toContainEqual({ kind: "instruction", value: "c.3.b" });
+    expect(itemKeys({ source_section: "Addendum to 52.212-1, A.4", doc_kind: "solicitation" })).toContainEqual({ kind: "instruction", value: "a.4" });
+    expect(itemKeys({ source_section: "Addendum to FAR 52.212-1, Para 4", doc_kind: "solicitation" })).toContainEqual({ kind: "instruction", value: "a.4" });
+  });
+  it("reads addendum paragraphs from references", () => {
+    expect(parseReference("Addendum 52.212-1 A.6")).toContainEqual({ kind: "instruction", value: "a.6" });
+    expect(parseReference("Addendum A.6 / Proposal Instructions C.3.c")).toEqual(expect.arrayContaining([{ kind: "instruction", value: "a.6" }, { kind: "instruction", value: "c.3.c" }]));
+  });
+  it("groups instruction items under the row with the same paragraph and similar wording", () => {
+    const rows = parseMatrixSheet(sheet(
+      row("C010", "Submission", "Proposal Instructions C.2.b", "Page limits: General 5 pages; Technical 30 pages; Past Performance 10 pages."),
+      row("C089", "Key Personnel", "Proposal Instructions C.3.b(ii)", "Submit resumes and signed Letters of Intent for PM, APM, and Financial Analyst."),
+      row("C095", "Past Performance", "Proposal Instructions C.3.b Factor II", "Provide maximum three example projects."),
+    )).rows;
+    const plan = planImport(rows, [
+      item("p", "C.2.b", "solicitation", "The proposal shall not exceed the following page limits: General 5 pages, Technical 30 pages, Past Performance 10 pages"),
+      item("k", "C.3.b.ii", "solicitation", "Offerors must provide resumes and letters of intent for all three key positions; the Program Manager, Alternate Program Manager, and Financial Analyst."),
+      item("x", "C.3.b.Factor II", "solicitation", "The firm shall provide a maximum of three example projects demonstrating recent and relevant past performance."),
+      item("o", "C.3.b", "solicitation", "Offerors shall assume that the Government has no prior knowledge of their facilities."),
+    ]);
+    const of = (id: string) => plan.cover.find((c) => c.itemId === id)?.externalId ?? null;
+    expect(of("p")).toBe("C010");
+    expect(of("k")).toBe("C089");
+    expect(of("x")).toBe("C095");
+    expect(of("o")).toBeNull(); // same paragraph, unrelated wording
   });
 });
 
@@ -178,6 +208,12 @@ describe("mergeExtracted", () => {
     ]);
     expect(r.inserts.map((i) => i.cover_external_id)).toEqual(["C053", null]);
   });
+  it("treats identical text under a different label as a duplicate", () => {
+    const old = [item("q", "Addendum to FAR 52.212-1, Para 4", "solicitation", "Questions shall identify the PWS paragraph number or solicitation reference with each question.")];
+    const r = mergeExtracted(old, [], [{ req_number: "A.4-3", shall_text: "Questions shall identify the PWS paragraph number or solicitation reference with each question.", source_section: "Addendum to 52.212-1, A.4", doc_kind: "solicitation" }]);
+    expect(r.duplicates).toHaveLength(1);
+  });
+
   it("de-duplicates within the same batch", () => {
     const same = { req_number: "C-5.6.1.1", shall_text: "The contractor shall log incoming checks within three days.", source_section: "C.5.6.1", doc_kind: "pws" as const };
     const r = mergeExtracted([], [], [same, { ...same, req_number: "C-5.6.1.1b" }]);

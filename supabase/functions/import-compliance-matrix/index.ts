@@ -8,6 +8,9 @@
 // POST { solicitationId, fileName, fileBase64, apply?: boolean }
 //   apply=false (default): returns a preview of what would happen.
 //   apply=true: writes it.
+// POST { solicitationId, regroup: true }
+//   No file: re-runs the grouping using the master rows already imported, for
+//   items not yet grouped (e.g. after a re-extraction or a matcher update).
 // Staff with access to the solicitation only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import * as XLSX from "npm:xlsx@0.18.5";
@@ -65,6 +68,50 @@ const toFields = (r: ImportRow, fileName: string) => ({
   is_ai_generated: false,
 });
 
+type Admin = ReturnType<typeof createClient>;
+
+function groupCover(cover: Array<{ itemId: string; externalId: string }>): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+  for (const c of cover) groups.set(c.externalId, [...(groups.get(c.externalId) ?? []), c.itemId]);
+  return groups;
+}
+
+async function applyGroups(admin: Admin, groups: Map<string, string[]>, idByExternal: Map<string, string>) {
+  for (const [ext, ids] of groups) {
+    const masterId = idByExternal.get(ext);
+    if (!masterId) continue;
+    const { error } = await admin.from("requirement_items").update({ covered_by_id: masterId }).in("id", ids);
+    if (error) throw error;
+  }
+}
+
+/** Give each master the outline section its grouped items sit in (only when they all sit in one). */
+async function inheritOutlineLinks(admin: Admin, solicitationId: string, groups: Map<string, string[]>, idByExternal: Map<string, string>): Promise<number> {
+  const { data: outline } = await admin.from("proposal_outlines").select("id").eq("solicitation_id", solicitationId)
+    .eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle();
+  if (!outline) return 0;
+  const { data: nodes } = await admin.from("outline_nodes").select("id, linked_requirement_ids").eq("outline_id", outline.id);
+  const typed = (nodes ?? []) as Array<{ id: string; linked_requirement_ids: string[] | null }>;
+  const nodeOf = new Map<string, string>();
+  for (const n of typed) for (const rid of n.linked_requirement_ids ?? []) nodeOf.set(rid, n.id);
+  const additions = new Map<string, string[]>();
+  for (const [ext, ids] of groups) {
+    const masterId = idByExternal.get(ext);
+    if (!masterId || nodeOf.has(masterId)) continue;
+    const targets = [...new Set(ids.map((i) => nodeOf.get(i)).filter(Boolean))] as string[];
+    if (targets.length === 1) additions.set(targets[0], [...(additions.get(targets[0]) ?? []), masterId]);
+  }
+  let linked = 0;
+  for (const [nodeId, add] of additions) {
+    const node = typed.find((n) => n.id === nodeId)!;
+    const { error } = await admin.from("outline_nodes")
+      .update({ linked_requirement_ids: [...new Set([...(node.linked_requirement_ids ?? []), ...add])] }).eq("id", nodeId);
+    if (error) throw error;
+    linked += add.length;
+  }
+  return linked;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -74,9 +121,10 @@ Deno.serve(async (req) => {
     const solicitationId = typeof body?.solicitationId === "string" ? body.solicitationId : "";
     const fileName = typeof body?.fileName === "string" ? body.fileName : "matrix.xlsx";
     const apply = body?.apply === true;
+    const regroup = body?.regroup === true;
     if (!UUID_RE.test(solicitationId)) return json({ error: "solicitationId required" }, 400);
-    if (typeof body?.fileBase64 !== "string" || !body.fileBase64) return json({ error: "fileBase64 required" }, 400);
-    if (!/\.(xlsx|xlsm|xls|csv)$/i.test(fileName)) return json({ error: "Upload an Excel (.xlsx, .xls) or CSV file." }, 422);
+    if (!regroup && (typeof body?.fileBase64 !== "string" || !body.fileBase64)) return json({ error: "fileBase64 required" }, 400);
+    if (!regroup && !/\.(xlsx|xlsm|xls|csv)$/i.test(fileName)) return json({ error: "Upload an Excel (.xlsx, .xls) or CSV file." }, 422);
 
     const { data: sol } = await userClient.from("solicitations").select("id").eq("id", solicitationId).maybeSingle();
     if (!sol) return json({ error: "Solicitation not found" }, 404);
@@ -85,11 +133,6 @@ Deno.serve(async (req) => {
       userClient.rpc("is_solicitation_member", { _user_id: user.id, _sol_id: solicitationId }),
     ]);
     if (staff !== true || member !== true) return json({ error: "Not allowed" }, 403);
-
-    const bytes = Uint8Array.from(atob(body.fileBase64), (c) => c.charCodeAt(0));
-    if (bytes.byteLength > MAX_BYTES) return json({ error: "File is larger than 5 MB." }, 413);
-    const book = readWorkbook(bytes);
-    if ("error" in book) return json({ error: book.error }, 422);
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const [{ data: docs }, { data: items }] = await Promise.all([
@@ -102,6 +145,24 @@ Deno.serve(async (req) => {
       doc_kind: r.source_document_id ? kind.get(r.source_document_id) ?? null : null,
       origin: r.origin ?? "ai", external_id: r.external_id, covered_by_id: r.covered_by_id,
     }));
+
+    if (regroup) {
+      const masters = existing.filter((e) => e.origin === "import" && e.external_id)
+        .map((e) => ({ external_id: e.external_id!, reference: e.source_section ?? "", text: e.shall_text ?? "" }) as ImportRow);
+      if (!masters.length) return json({ error: "Nothing to regroup: no matrix has been imported for this solicitation." }, 422);
+      const loose = existing.filter((e) => !e.covered_by_id);
+      const regroupPlan = planImport(masters, loose);
+      const groups = groupCover(regroupPlan.cover);
+      const idByExternal = new Map(existing.filter((e) => e.external_id).map((e) => [e.external_id!, e.id]));
+      await applyGroups(admin, groups, idByExternal);
+      const linked = await inheritOutlineLinks(admin, solicitationId, groups, idByExternal);
+      return json({ regrouped: regroupPlan.cover.length, stillStandalone: regroupPlan.uncovered.length, mastersLinkedToOutline: linked });
+    }
+
+    const bytes = Uint8Array.from(atob(body.fileBase64), (c) => c.charCodeAt(0));
+    if (bytes.byteLength > MAX_BYTES) return json({ error: "File is larger than 5 MB." }, 413);
+    const book = readWorkbook(bytes);
+    if ("error" in book) return json({ error: book.error }, 422);
     const plan = planImport(book.parsed.rows, existing);
 
     const summary = {
@@ -133,39 +194,11 @@ Deno.serve(async (req) => {
     }
 
     // 2. Group existing detailed items under their master row.
-    const groups = new Map<string, string[]>();
-    for (const c of plan.cover) groups.set(c.externalId, [...(groups.get(c.externalId) ?? []), c.itemId]);
-    for (const [ext, ids] of groups) {
-      const masterId = idByExternal.get(ext);
-      if (!masterId) continue;
-      const { error } = await admin.from("requirement_items").update({ covered_by_id: masterId }).in("id", ids);
-      if (error) throw error;
-    }
+    const groups = groupCover(plan.cover);
+    await applyGroups(admin, groups, idByExternal);
 
-    // 3. Give each master the outline section its grouped items already sit in,
-    //    so the matrix shows where it is answered (only when unambiguous).
-    const { data: outline } = await admin.from("proposal_outlines").select("id").eq("solicitation_id", solicitationId)
-      .eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle();
-    let linked = 0;
-    if (outline) {
-      const { data: nodes } = await admin.from("outline_nodes").select("id, linked_requirement_ids").eq("outline_id", outline.id);
-      const nodeOf = new Map<string, string>();
-      for (const n of (nodes ?? []) as Array<{ id: string; linked_requirement_ids: string[] | null }>) for (const rid of n.linked_requirement_ids ?? []) nodeOf.set(rid, n.id);
-      const additions = new Map<string, string[]>();
-      for (const [ext, ids] of groups) {
-        const masterId = idByExternal.get(ext);
-        if (!masterId || nodeOf.has(masterId)) continue;
-        const targets = [...new Set(ids.map((i) => nodeOf.get(i)).filter(Boolean))] as string[];
-        if (targets.length === 1) additions.set(targets[0], [...(additions.get(targets[0]) ?? []), masterId]);
-      }
-      for (const [nodeId, add] of additions) {
-        const node = (nodes ?? []).find((n: { id: string }) => n.id === nodeId)!;
-        const { error } = await admin.from("outline_nodes")
-          .update({ linked_requirement_ids: [...new Set([...(node.linked_requirement_ids ?? []), ...add])] }).eq("id", nodeId);
-        if (error) throw error;
-        linked += add.length;
-      }
-    }
+    // 3. Give each master the outline section its grouped items already sit in.
+    const linked = await inheritOutlineLinks(admin, solicitationId, groups, idByExternal);
 
     return json({ applied: true, ...summary, mastersLinkedToOutline: linked });
   } catch (e) {
