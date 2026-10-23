@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, FileText, FileBarChart, LifeBuoy, Menu } from "lucide-react";
+import { LayoutDashboard, FileText, FileBarChart, LifeBuoy, Menu, FolderUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 const NAV = [
   { to: "/portal", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/portal/solicitations", label: "Solicitations", icon: FileText },
+  { to: "/portal/documents", label: "Company Documents", icon: FolderUp },
   { to: "/portal/reports", label: "Reports", icon: FileBarChart },
   { to: "/portal/support", label: "Support", icon: LifeBuoy },
 ];
