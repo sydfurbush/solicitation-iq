@@ -1,0 +1,3 @@
+- [ ] Add Knowledge re-check actions, sequential bulk progress, outcome badges and Onboarding links.
+- [ ] Add partner/agreements details, filters and confirmed knowledge removal to Onboarding.
+- [ ] Test helpers and verify the signed-in screen flow without changing protected server files.
