@@ -15,6 +15,13 @@
       "when": 1792770323059,
       "tag": "0001_client_onboarding",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792771013843,
+      "tag": "0002_onboarding_received_via",
+      "breakpoints": true
     }
   ]
 }

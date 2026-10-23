@@ -2,6 +2,8 @@
 
 These rules apply to every agent and person changing this codebase: the Lovable agent, Claude, and human developers. Read this file before making changes. If a rule here conflicts with a one-off request, ask before breaking it.
 
+Subdirectories have their own `AGENTS.md` (`supabase/functions/`, `src/features/onboarding/`); read them before changing files there.
+
 ## The project
 
 BidSense AI (repo `solicitation-iq`) helps consulting firms analyze RFPs, RFIs and RFQs and produce strategic reports and client deliverables.
@@ -75,45 +77,12 @@ Work is split between Lovable and the repo. Each side does what it is best at.
 - Migrations live in two places. The original 83 are in `supabase/migrations/`. Since October 2026 Lovable writes new ones to `drizzle/migrations/` (with `drizzle.config.ts` and `drizzle/schema.ts`). Never edit or move an applied migration; to change something, add a new migration through Lovable.
 - When checking the live database, use read-only `SELECT` queries. Never write to the live database unless the owner asks.
 
-### Edge function rules
-
-The service-role key bypasses all row-level security, so any function that uses it is responsible for its own access checks.
-
-1. **Verify the caller first.** Use `requireUser(req)` from `supabase/functions/_shared/callerAuth.ts`, which rejects with 401 if there is no valid user and returns a client that acts as the caller. `triage-onboarding-document` is the reference example.
-2. **Confirm access to the requested record using the caller's own client** (so row-level security applies). For example, select the solicitation or outline node by ID with the user client. If it is not returned, reject with 403 or 404.
-3. **Only then** use the service-role client, and only for the work that needs it.
-4. Never trust IDs, organization IDs or roles sent in the request body. Derive them from the verified user.
-5. Functions that are public on purpose (for example, accepting an invitation by token) must say so in a comment at the top and validate their token strictly.
-6. Rate-limit or otherwise protect anything that spends money (AI calls, transcription, SAM.gov imports).
-
 ### Other security rules
 
 - The browser never handles service keys or third-party API keys.
 - Nothing is sent to other people (invitations, emails, client-portal shares) without an explicit confirm step in the UI.
 - Allowed sign-in redirect URLs and public routes are security settings. When a new domain or public page is added, update the allowlist and add a test.
 - When testing, use throwaway data. Never send real invitations or messages to other people.
-
-## AI calls
-
-- All model calls go through `supabase/functions/_shared/aiClient.ts`. Choose the provider and model per function in `MODEL_CONFIG`, not inside individual functions.
-- Prompts live next to their feature (for example `src/features/analysis/prompts/`) or at the top of the edge function. Changes to prompts are product changes: describe them in the commit message.
-- AI output that is written to the database must be validated (shape and required fields) before insert.
-
-## Compliance tracking (requirements, outline, citations)
-
-- A requirement (`requirement_items`) is "placed" when its id is in exactly one `outline_nodes.linked_requirement_ids` of the active outline. Change links only through the `assign_requirement_to_section` and `unassign_requirement` database functions, never by editing the array directly from the browser.
-- Drafts cite requirements with `[Req-<req_number>]` tags, for example `[Req-C-1.2.1]`. The compliance matrix, drafting sidebar and compile check all depend on them.
-- All requirement matching, citation detection and tag stripping goes through `supabase/functions/_shared/requirementLinks.ts`. Do not write new string matching for requirement numbers or tags anywhere else; import from this module (the frontend imports it by relative path).
-- `generate-outline` must include every requirement in its prompt and return `unplaced_requirements`. `draft-section` must return and store `uncited_requirements`. `compile-proposal` must strip `[Req-X]` and `[K#]` tags from submission documents.
-- Changes to `requirementLinks.ts` or these three functions are made in the repo with tests, not through Lovable.
-
-## Client onboarding (document intake and triage)
-
-- New clients upload documents through the client portal (staff can upload on their behalf) into the private `client-onboarding` storage bucket, tracked in `client_onboarding_documents`.
-- `triage-onboarding-document` classifies each file and stores the result in `client_onboarding_triage`, which only staff can read. Clients see only their own files and a status.
-- Routing rules and the pricing, personal-data, signature and solicitation-number detectors live in `supabase/functions/_shared/onboardingTriage.ts`. The detectors can only make routing stricter than the AI's answer; never loosen that.
-- Destinations: Profile source (facts for the company profile), Knowledge base (reusable writing; only after cleaning if flagged), Restricted (pricing, personal data, signatures; never available to drafting) and Not needed.
-- Nothing from onboarding goes into the client knowledge base automatically in Phase 1. Staff confirm each document's destinations first.
 
 ## Testing
 
@@ -141,6 +110,6 @@ The service-role key bypasses all row-level security, so any function that uses 
 
 ## Known issues
 
-- **Edge functions without caller checks.** Most functions in `supabase/functions/` use the service-role key but do not verify the caller (see "Edge function rules"). The public anon key is enough to call them, so anyone who has a record ID could read or change that record's data through these functions or run up AI costs. `assistant-transcribe` has no check at all. Fixing these, one function at a time with tests, is the top priority.
+- **Edge functions without caller checks** — top priority; see `supabase/functions/AGENTS.md`.
 - **Existing drafts have no citation tags.** Drafts written before October 2026 contain no `[Req-X]` tags, so they show as "Pending" or "Drafted, not cited" until redrafted or tagged by hand.
 - **Lockfile drift.** `package-lock.json` does not match `package.json` (see "Packages").
