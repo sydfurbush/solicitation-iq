@@ -79,7 +79,7 @@ Work is split between Lovable and the repo. Each side does what it is best at.
 
 The service-role key bypasses all row-level security, so any function that uses it is responsible for its own access checks.
 
-1. **Verify the caller first.** Read the `Authorization` header, create a Supabase client with it, and call `auth.getUser()`. Reject with 401 if there is no valid user.
+1. **Verify the caller first.** Use `requireUser(req)` from `supabase/functions/_shared/callerAuth.ts`, which rejects with 401 if there is no valid user and returns a client that acts as the caller. `triage-onboarding-document` is the reference example.
 2. **Confirm access to the requested record using the caller's own client** (so row-level security applies). For example, select the solicitation or outline node by ID with the user client. If it is not returned, reject with 403 or 404.
 3. **Only then** use the service-role client, and only for the work that needs it.
 4. Never trust IDs, organization IDs or roles sent in the request body. Derive them from the verified user.
@@ -106,6 +106,14 @@ The service-role key bypasses all row-level security, so any function that uses 
 - All requirement matching, citation detection and tag stripping goes through `supabase/functions/_shared/requirementLinks.ts`. Do not write new string matching for requirement numbers or tags anywhere else; import from this module (the frontend imports it by relative path).
 - `generate-outline` must include every requirement in its prompt and return `unplaced_requirements`. `draft-section` must return and store `uncited_requirements`. `compile-proposal` must strip `[Req-X]` and `[K#]` tags from submission documents.
 - Changes to `requirementLinks.ts` or these three functions are made in the repo with tests, not through Lovable.
+
+## Client onboarding (document intake and triage)
+
+- New clients upload documents through the client portal (staff can upload on their behalf) into the private `client-onboarding` storage bucket, tracked in `client_onboarding_documents`.
+- `triage-onboarding-document` classifies each file and stores the result in `client_onboarding_triage`, which only staff can read. Clients see only their own files and a status.
+- Routing rules and the pricing, personal-data, signature and solicitation-number detectors live in `supabase/functions/_shared/onboardingTriage.ts`. The detectors can only make routing stricter than the AI's answer; never loosen that.
+- Destinations: Profile source (facts for the company profile), Knowledge base (reusable writing; only after cleaning if flagged), Restricted (pricing, personal data, signatures; never available to drafting) and Not needed.
+- Nothing from onboarding goes into the client knowledge base automatically in Phase 1. Staff confirm each document's destinations first.
 
 ## Testing
 
