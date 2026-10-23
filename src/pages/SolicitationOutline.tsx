@@ -231,6 +231,14 @@ export default function SolicitationOutline({ solicitationId, currentPhase, soli
         <AdvancePhaseButton solicitationId={solicitationId} currentPhase="phase_3_outline" />
       )}
 
+      <SectionRequirementsSheet
+        node={reqNode}
+        nodes={nodes}
+        requirements={requirements}
+        canEdit={canEditLinks}
+        onOpenChange={(o) => { if (!o) setReqNode(null); }}
+      />
+
       <DeriveFormatDialog
         solicitationId={solicitationId}
         solicitationNumber={solicitationNumber}
