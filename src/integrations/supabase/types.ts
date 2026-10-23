@@ -1189,6 +1189,9 @@ export type Database = {
           file_path: string
           id: string
           mime_type: string | null
+          received_from: string | null
+          received_on: string | null
+          received_via: string
           status: string
           updated_at: string | null
           uploaded_by: string | null
@@ -1203,6 +1206,9 @@ export type Database = {
           file_path: string
           id?: string
           mime_type?: string | null
+          received_from?: string | null
+          received_on?: string | null
+          received_via?: string
           status?: string
           updated_at?: string | null
           uploaded_by?: string | null
@@ -1217,6 +1223,9 @@ export type Database = {
           file_path?: string
           id?: string
           mime_type?: string | null
+          received_from?: string | null
+          received_on?: string | null
+          received_via?: string
           status?: string
           updated_at?: string | null
           uploaded_by?: string | null
