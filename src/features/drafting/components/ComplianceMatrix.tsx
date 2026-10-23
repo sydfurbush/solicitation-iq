@@ -3,6 +3,7 @@ import { useActiveOutline, useOutlineNodes, type OutlineNode } from "@/features/
 import { useRequirementItems, useUpdateRequirement, type RequirementItem, type RequirementUpdate } from "@/features/deepdive/hooks/useRequirementItems";
 import { groupRequirements, rollupGroup, matchesMatrixFilters, matrixCsv, WORKFLOW_LABELS, type MatrixFilters, type RequirementGroup } from "@/features/deepdive/utils/matrix";
 import { ImportMatrixButton } from "@/features/deepdive/components/ImportMatrixButton";
+import { RegroupButton } from "@/features/deepdive/components/RegroupButton";
 import { useProposalDrafts } from "../hooks/useProposalDrafts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

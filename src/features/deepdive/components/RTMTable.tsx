@@ -23,6 +23,7 @@ import {
 } from "@/features/deepdive/hooks/useRequirementItems";
 import { ExtractionControl } from "./ExtractionControl";
 import { ImportMatrixButton } from "./ImportMatrixButton";
+import { RegroupButton } from "./RegroupButton";
 
 type Status = "open" | "in_review" | "covered" | "waived";
 const STATUSES: Status[] = ["open", "in_review", "covered", "waived"];
