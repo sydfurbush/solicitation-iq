@@ -22,7 +22,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 
 interface Props { solicitationId: string; initialGapsOnly?: boolean }
 function Choice({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: Record<string, string>; onChange: (v: string) => void; disabled?: boolean }) {
-  return <Select value={value} onValueChange={onChange} disabled={disabled}><SelectTrigger aria-label={label} className="h-8 min-w-36 text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(options).map(([key, name]) => <SelectItem key={key} value={key}>{name}</SelectItem>)}</SelectContent></Select>;
+  return <Select value={value} onValueChange={onChange} disabled={disabled}><SelectTrigger aria-label={label} className="h-8 w-auto min-w-36 max-w-full text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(options).map(([key, name]) => <SelectItem key={key} value={key}>{name}</SelectItem>)}</SelectContent></Select>;
 }
 export function ComplianceMatrix({ solicitationId, initialGapsOnly = false }: Props) {
   const { data: outline } = useActiveOutline(solicitationId);
