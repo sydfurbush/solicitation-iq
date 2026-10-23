@@ -29,6 +29,13 @@
       "when": 1792771492429,
       "tag": "0003_onboarding_triage_subject_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792778478795,
+      "tag": "0004_requirement_import_fields_and_extraction_runs",
+      "breakpoints": true
     }
   ]
 }
