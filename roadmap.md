@@ -1,4 +1,4 @@
-- [x] Deploy extract-requirements and import-compliance-matrix unchanged.
-- [ ] Add background extraction tracking and import preview on both tabs.
-- [ ] Add master/detail matrix, editing, filters, CSV and PDF updates with tests.
-- [ ] Verify screens and run signed-in ESSC extraction; report final counters.
+- [x] Deploy extract-requirements and import-compliance-matrix unchanged; both succeeded.
+- [x] Add background extraction tracking and import preview on both tabs.
+- [x] Add master/detail matrix, editing, filters, CSV and PDF updates; all 123 tests pass.
+- [x] Verify signed-in screens, save/readback, filters, CSV and PDF generation; ESSC extraction completed 11/11 batches, 0 failed, 317 inserted, 122 duplicates. Spreadsheet import intentionally left to the owner.
