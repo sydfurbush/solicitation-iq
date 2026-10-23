@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
+import { isRequirementCited } from "../../../../supabase/functions/_shared/requirementLinks";
 
 interface Props { solicitationId: string }
 
@@ -21,8 +22,7 @@ export function ComplianceMatrix({ solicitationId }: Props) {
   const rows = useMemo(() => requirements.map((r) => {
     const owningNode = nodes.find((n) => (n.linked_requirement_ids ?? []).includes(r.id));
     const draft = owningNode ? draftMap.get(owningNode.id) : null;
-    const txt = (draft?.content_html ?? "").toLowerCase();
-    const cited = txt.includes(`[req-${(r.req_number ?? "").toLowerCase()}]`);
+    const cited = isRequirementCited(draft?.content_html, r.req_number);
     return { req: r, node: owningNode ?? null, draft, cited };
   }), [requirements, nodes, draftMap]);
 

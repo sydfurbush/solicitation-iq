@@ -24,6 +24,7 @@ import { normalizeIfWrapped } from "../utils/markdownNormalize";
 import { SectionExhibitsPanel } from "@/features/exhibits/components/SectionExhibitsPanel";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useClient } from "@/features/clients/hooks/useClients";
+import { isRequirementCited } from "../../../../supabase/functions/_shared/requirementLinks";
 
 interface Props { solicitationId: string }
 
@@ -405,7 +406,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
               {linkedReqs.length === 0 && <div className="text-xs text-muted-foreground">No requirements linked. Link them in Phase 3 outline.</div>}
               <ul className="space-y-1.5">
                 {linkedReqs.map((r) => {
-                  const cited = text.toLowerCase().includes(`[req-${(r.req_number ?? "").toLowerCase()}]`);
+                  const cited = isRequirementCited(text, r.req_number);
                   return (
                     <li key={r.id} className="text-xs leading-snug border-l-2 pl-2" style={{ borderColor: cited ? "hsl(var(--phase-5))" : "hsl(var(--muted))" }}>
                       <div className="flex items-center justify-between gap-1">
