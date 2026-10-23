@@ -9,6 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
+import { useUser } from "@/features/auth/hooks/useUser";
+import { recheckKnowledgeDocument, useOnboardingDocuments, useOnboardingTriage } from "@/features/onboarding/hooks/useOnboarding";
+import { effectiveDestinations } from "@/features/onboarding/lib/onboardingFiles";
+import { DestinationBadge } from "@/features/onboarding/components/DestinationBadge";
 import {
   useClientKnowledge,
   useCreateKnowledgeNote,
@@ -23,14 +30,60 @@ import { KNOWLEDGE_TAG_GROUPS } from "../lib/knowledgeTaxonomy";
 
 function StatusPill({ doc }: { doc: KnowledgeDoc }) {
   if (doc.status === "ready")
-    return <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-600" /> Ready · {doc.chunk_count} chunk{doc.chunk_count === 1 ? "" : "s"}</Badge>;
+    return <Badge variant="secondary" className="gap-1"><CheckCircle2 className="h-3 w-3 text-accent" /> Ready · {doc.chunk_count} chunk{doc.chunk_count === 1 ? "" : "s"}</Badge>;
   if (doc.status === "failed")
     return <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Failed</Badge>;
   return <Badge variant="outline" className="gap-1"><Loader2 className="h-3 w-3 animate-spin" /> {doc.status === "embedding" ? "Embedding" : "Queued"}</Badge>;
 }
 
 export function KnowledgeTab({ clientId }: { clientId: string }) {
+  const qc = useQueryClient();
+  const { role } = useUser();
+  const canRecheck = role === "owner" || role === "admin" || role === "analyst";
+  const [, setSearchParams] = useSearchParams();
+  const { data: onboarding = [], isLoading: onboardingLoading } = useOnboardingDocuments(clientId);
+  const { data: triage = [] } = useOnboardingTriage(clientId);
+  const [checkingId, setCheckingId] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+  const checkingRef = useRef(false);
   const { data: docs = [], isLoading } = useClientKnowledge(clientId);
+  const unchecked = onboardingLoading ? [] : docs.filter((d) => d.source_type === "upload" && !onboarding.some((o) => o.knowledge_document_id === d.id));
+  const viewOnboarding = (documentId: string) => setSearchParams({ tab: "onboarding", onboardingDocument: documentId }, { replace: true });
+  const recheck = async (id: string) => {
+    setCheckingId(id);
+    try {
+      const documentId = await recheckKnowledgeDocument(id);
+      toast({ title: "Triage finished", action: documentId ? <ToastAction altText="View in Onboarding" onClick={() => viewOnboarding(documentId)}>View in Onboarding</ToastAction> : undefined });
+      return true;
+    } catch (e) {
+      toast({ title: "Re-check failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      return false;
+    } finally {
+      setCheckingId(null);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["onboarding-docs", clientId] }),
+        qc.invalidateQueries({ queryKey: ["onboarding-triage", clientId] }),
+      ]);
+    }
+  };
+  const recheckOne = async (id: string) => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+    try { await recheck(id); } finally { checkingRef.current = false; }
+  };
+  const recheckAll = async () => {
+    if (checkingRef.current) return;
+    checkingRef.current = true;
+    const batch = [...unchecked];
+    let failed = 0;
+    try {
+      for (let i = 0; i < batch.length; i++) {
+        setProgress({ current: i + 1, total: batch.length });
+        if (!await recheck(batch[i].id)) failed++;
+      }
+      toast({ title: "Re-checks finished", description: `${batch.length - failed} checked${failed ? `; ${failed} failed` : ""}.` });
+    } finally { setProgress(null); checkingRef.current = false; }
+  };
   const createNote = useCreateKnowledgeNote(clientId);
   const upload = useUploadKnowledgeFile(clientId);
   const reingest = useReingestKnowledge(clientId);
@@ -108,6 +161,14 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
 
   return (
     <div className="space-y-4">
+      {(unchecked.length > 0 || progress) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-l-4 border-warning bg-warning/10 p-4">
+          <p className="text-sm flex-1 min-w-0">{unchecked.length} files were added before document triage and haven't been checked for pricing, personal data or partner content.</p>
+          {canRecheck && <Button size="sm" variant="outline" disabled={!!checkingId || !!progress} onClick={recheckAll}>
+            {progress ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Checking {progress.current} of {progress.total}…</> : "Re-check all"}
+          </Button>}
+        </div>
+      )}
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
@@ -142,8 +203,11 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
             </div>
           ) : (
             <ul className="divide-y">
-              {docs.map((d) => (
-                <li key={d.id} className="py-3 flex items-start gap-3">
+              {docs.map((d) => {
+                const onboardingDoc = onboarding.find((o) => o.knowledge_document_id === d.id);
+                const outcome = onboardingDoc ? triage.find((t) => t.document_id === onboardingDoc.id) : undefined;
+                return (
+                <li key={d.id} className="py-3 flex flex-wrap items-start gap-3">
                   <FileText className="h-4 w-4 text-muted-foreground mt-1 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -161,8 +225,16 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
                     {d.status === "failed" && d.error && (
                       <p className="text-xs text-destructive mt-1">{d.error}</p>
                     )}
+                    {outcome && <div className="flex flex-wrap gap-1 mt-2">
+                      {effectiveDestinations(outcome).map((destination) => <DestinationBadge key={destination} destination={destination} />)}
+                      {outcome.requires_cleaning && <Badge variant="outline" className="border-destructive/50 text-destructive">Needs cleaning</Badge>}
+                    </div>}
+                    {onboardingDoc && <Button variant="link" size="sm" className="h-auto p-0 mt-2" onClick={() => viewOnboarding(onboardingDoc.id)}>View in Onboarding</Button>}
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex flex-wrap gap-1 shrink-0">
+                    {d.source_type === "upload" && canRecheck && <Button size="sm" variant="outline" disabled={!!checkingId || !!progress || onboardingDoc?.status === "processing"} onClick={() => recheckOne(d.id)}>
+                      {checkingId === d.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}Re-check with triage
+                    </Button>}
                     <Button size="sm" variant="ghost" onClick={() => setEditingDoc(d)} title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -174,7 +246,7 @@ export function KnowledgeTab({ clientId }: { clientId: string }) {
                     </Button>
                   </div>
                 </li>
-              ))}
+              ); })}
             </ul>
           )}
         </CardContent>
