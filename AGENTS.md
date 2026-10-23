@@ -110,6 +110,6 @@ Work is split between Lovable and the repo. Each side does what it is best at.
 
 ## Known issues
 
-- **Edge functions without caller checks.** Most functions in `supabase/functions/` use the service-role key but do not verify the caller (see "Edge function rules"). The public anon key is enough to call them, so anyone who has a record ID could read or change that record's data through these functions or run up AI costs. `assistant-transcribe` has no check at all. Fixing these, one function at a time with tests, is the top priority.
+- **Edge functions without caller checks** — top priority; see `supabase/functions/AGENTS.md`.
 - **Existing drafts have no citation tags.** Drafts written before October 2026 contain no `[Req-X]` tags, so they show as "Pending" or "Drafted, not cited" until redrafted or tagged by hand.
 - **Lockfile drift.** `package-lock.json` does not match `package.json` (see "Packages").

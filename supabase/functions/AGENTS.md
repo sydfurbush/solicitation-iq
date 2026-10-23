@@ -27,3 +27,7 @@ The service-role key bypasses all row-level security, so any function that uses 
 - `generate-outline` must include every requirement in its prompt and return `unplaced_requirements`. `draft-section` must return and store `uncited_requirements`. `compile-proposal` must strip `[Req-X]` and `[K#]` tags from submission documents.
 - Changes to `requirementLinks.ts` or these three functions are made in the repo with tests, not through Lovable.
 
+
+## Known issues
+
+- **Edge functions without caller checks.** Most functions in `supabase/functions/` use the service-role key but do not verify the caller (see "Edge function rules"). The public anon key is enough to call them, so anyone who has a record ID could read or change that record's data through these functions or run up AI costs. `assistant-transcribe` has no check at all. Fixing these, one function at a time with tests, is the top priority.
