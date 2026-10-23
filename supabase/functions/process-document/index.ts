@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("id", documentId)
       .maybeSingle();
-    if (docErr) throw docErr;
+    if (docErr) throw new Error(docErr.message);
     if (!doc) {
       return new Response(JSON.stringify({ error: "Document not found" }), {
         status: 404,
@@ -223,7 +223,11 @@ Deno.serve(async (req) => {
     if (dlErr || !blob) throw new Error(`Download failed: ${dlErr?.message ?? "no data"}`);
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
-    const { text, pages } = await extractText(bytes, doc.file_name, doc.file_type);
+    const raw = await extractText(bytes, doc.file_name, doc.file_type);
+    // Postgres rejects NUL bytes / lone surrogates in text columns
+    const clean = (t: string) => t.replace(/\u0000/g, "").replace(/[\uD800-\uDFFF]/g, "");
+    const text = clean(raw.text);
+    const pages = raw.pages;
     const sections = parseSections(text);
 
     // Replace previous sections for idempotency
@@ -240,8 +244,10 @@ Deno.serve(async (req) => {
         page_start: s.pageStart,
         page_end: s.pageEnd,
       }));
-      const { error: insErr } = await supabase.from("document_sections").insert(rows);
-      if (insErr) throw insErr;
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error: insErr } = await supabase.from("document_sections").insert(rows.slice(i, i + 200));
+        if (insErr) throw new Error(`Section insert failed: ${insErr.message}`);
+      }
     }
 
     await supabase
@@ -317,7 +323,9 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
+    const message = e instanceof Error
+      ? e.message
+      : (e && typeof e === "object" && "message" in e) ? String((e as any).message) : JSON.stringify(e);
     console.error("process-document failed:", message);
     if (documentId) {
       await supabase
