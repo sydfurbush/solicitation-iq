@@ -32,6 +32,7 @@ import { CreateClientDialog } from "@/features/clients/components/CreateClientDi
 import { ClientUsersManagement } from "@/features/clients/components/ClientUsersManagement";
 import { CapabilitiesEditor } from "@/features/clients/components/CapabilitiesEditor";
 import { AILensTab } from "@/features/clients/components/AILensTab";
+import { OnboardingTab } from "@/features/onboarding/components/OnboardingTab";
 import { KnowledgeTab } from "@/features/clients/components/KnowledgeTab";
 import { ClientLensBadge } from "@/features/clients/components/ClientLensBadge";
 import { ClientAssignmentsCard } from "@/features/team/components/AssignmentsCard";
@@ -200,6 +201,7 @@ export default function ClientDetail() {
           <TabsTrigger value="solicitations">Solicitations</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="ai-lens">AI Lens</TabsTrigger>
+          <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
           <TabsTrigger value="activity">Activity Log</TabsTrigger>
           <TabsTrigger value="portal">Portal Access</TabsTrigger>
@@ -211,6 +213,10 @@ export default function ClientDetail() {
 
         <TabsContent value="ai-lens" className="mt-6">
           {clientId && <AILensTab clientId={clientId} />}
+        </TabsContent>
+
+        <TabsContent value="onboarding" className="mt-6">
+          {clientId && <OnboardingTab clientId={clientId} />}
         </TabsContent>
 
         <TabsContent value="knowledge" className="mt-6">

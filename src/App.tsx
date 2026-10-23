@@ -38,6 +38,7 @@ const PortalSolicitationDetail = lazy(() => import("./pages/portal/PortalSolicit
 const PortalReports = lazy(() => import("./pages/portal/PortalReports"));
 const PortalProfile = lazy(() => import("./pages/portal/PortalProfile"));
 const PortalSupport = lazy(() => import("./pages/portal/PortalSupport"));
+const PortalDocuments = lazy(() => import("./pages/portal/PortalDocuments"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -107,6 +108,7 @@ const App = () => (
                     <Route path="reports" element={<PortalSolicitations />} />
                     <Route path="profile" element={<PortalProfile />} />
                     <Route path="support" element={<PortalSupport />} />
+                    <Route path="documents" element={<PortalDocuments />} />
                   </Route>
                   <Route element={<RootLayout />}>
                     <Route path="/" element={<Dashboard />} />
