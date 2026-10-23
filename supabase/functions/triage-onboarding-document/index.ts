@@ -7,24 +7,16 @@
 // that client). The triage result is written to client_onboarding_triage,
 // which only staff can read; the caller gets back only the status.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callAiTool, aiErrorResponse } from "../_shared/aiClient.ts";
+import { aiErrorResponse } from "../_shared/aiClient.ts";
 import { requireUser, authErrorResponse } from "../_shared/callerAuth.ts";
-import { extractStorageText, UnsupportedFileError } from "../_shared/extractText.ts";
-import {
-  TRIAGE_SYSTEM_PROMPT,
-  TRIAGE_TOOL,
-  buildTriageUserPrompt,
-  normalizeClassification,
-  sampleDocumentText,
-  triageDocument,
-} from "../_shared/onboardingTriage.ts";
+import { UnsupportedFileError } from "../_shared/extractText.ts";
+import { markStatus, runOnboardingTriage } from "../_shared/triageRunner.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const BUCKET = "client-onboarding";
 const STALE_PROCESSING_MS = 10 * 60 * 1000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -65,48 +57,7 @@ Deno.serve(async (req) => {
     }
 
     // 4. Only now use the service role, for this one document.
-    await admin.from("client_onboarding_documents")
-      .update({ status: "processing", error: null, updated_at: new Date().toISOString() })
-      .eq("id", documentId);
-
-    const text = await extractStorageText(admin, BUCKET, doc.file_path, doc.mime_type);
-    if (text.replace(/\s+/g, "").length < 40) {
-      throw new UnsupportedFileError("No readable text found. If this is a scanned image, please upload a text-based PDF or Word file.");
-    }
-
-    const sampled = sampleDocumentText(text);
-    const raw = await callAiTool({
-      functionName: "triage-onboarding-document",
-      system: TRIAGE_SYSTEM_PROMPT,
-      user: buildTriageUserPrompt(doc.file_name, sampled),
-      tool: TRIAGE_TOOL,
-    });
-    const result = triageDocument(normalizeClassification(raw), text);
-
-    const { error: saveErr } = await admin.from("client_onboarding_triage").upsert({
-      document_id: doc.id,
-      client_id: doc.client_id,
-      doc_type: result.doc_type,
-      relevance: result.relevance,
-      title: result.title,
-      summary: result.summary,
-      document_date: result.document_date,
-      solicitation_numbers: result.solicitation_numbers,
-      useful_for: result.useful_for,
-      sensitivity: { ...result.sensitivity, detected: result.detected },
-      destinations: result.destinations,
-      requires_cleaning: result.requires_cleaning,
-      reasons: result.reasons,
-      notes: result.notes,
-      text_chars: text.length,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "document_id" });
-    if (saveErr) throw saveErr;
-
-    await admin.from("client_onboarding_documents")
-      .update({ status: "triaged", error: null, updated_at: new Date().toISOString() })
-      .eq("id", documentId);
-
+    await runOnboardingTriage(admin, doc);
     return json({ status: "triaged" });
   } catch (err) {
     const authResp = authErrorResponse(err, corsHeaders);
@@ -114,9 +65,7 @@ Deno.serve(async (req) => {
 
     const friendly = err instanceof UnsupportedFileError;
     if (accessConfirmed) {
-      await admin.from("client_onboarding_documents")
-        .update({ status: "failed", error: friendly ? (err as Error).message : "Processing failed. Please try again.", updated_at: new Date().toISOString() })
-        .eq("id", documentId);
+      await markStatus(admin, documentId, "failed", friendly ? (err as Error).message : "Processing failed. Please try again.");
     }
     if (friendly) return json({ status: "failed", error: (err as Error).message }, 422);
     console.error("[triage-onboarding-document]", err);
