@@ -97,6 +97,14 @@ function tokens(s: string): Set<string> {
   return new Set(clean(s).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((t) => t.length > 1 && !/\d/.test(t) && !STOP.has(t)));
 }
 
+/** Number of meaningful words two texts share. */
+export function sharedWords(a: string | null | undefined, b: string | null | undefined): number {
+  const A = tokens(a ?? ""), B = tokens(b ?? "");
+  let hit = 0;
+  for (const t of A) if (B.has(t)) hit++;
+  return hit;
+}
+
 /** Overlap of meaningful words, 0–1 (share of the smaller text's words found in the other). */
 export function textSimilarity(a: string | null | undefined, b: string | null | undefined): number {
   const A = tokens(a ?? ""), B = tokens(b ?? "");
@@ -363,7 +371,7 @@ export function planImport(rows: ImportRow[], existing: ExistingItem[]): ImportP
   const uncovered: string[] = [];
   for (const item of details) {
     const ik = itemKeys(item);
-    let best: { id: string; spec: number; sim: number } | null = null;
+    let best: { id: string; spec: number; sim: number; words: number } | null = null;
     for (const { r, keys } of rowKeys) {
       for (const k of keys) {
         for (const i of ik) {
@@ -372,7 +380,12 @@ export function planImport(rows: ImportRow[], existing: ExistingItem[]): ImportP
           if (k.loose && sim < LOOSE_MIN_SIMILARITY) continue;
           if (k.kind === "instruction" && sim < INSTRUCTION_MIN_SIMILARITY) continue;
           const spec = k.loose ? 50 : k.kind === "clause" ? 99 : k.kind === "instruction" ? 60 + k.value.split(".").length : k.value.split(".").length - (k.end ? 0.5 : 0);
-          if (!best || spec > best.spec || (spec === best.spec && sim > best.sim)) best = { id: r.external_id, spec, sim };
+          const words = sharedWords(r.text, item.shall_text);
+          // Same specificity: prefer the row sharing more words (a very short row can
+          // score a high percentage from two common words), then the higher percentage.
+          const better = !best || spec > best.spec ||
+            (spec === best.spec && (words > best.words || (words === best.words && sim > best.sim)));
+          if (better) best = { id: r.external_id, spec, sim, words };
         }
       }
     }
