@@ -1,0 +1,3 @@
+- [x] Add Knowledge re-check actions, sequential bulk progress, outcome badges and Onboarding links.
+- [x] Add partner/agreements details, filters and confirmed knowledge removal to Onboarding.
+- [x] All 84 tests pass; signed-in re-check, panel navigation and confirmed removal verified with a fictional file. Protected server files unchanged; merged re-check function deployed as-is.

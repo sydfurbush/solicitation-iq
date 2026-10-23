@@ -43,6 +43,10 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        partner: {
+          DEFAULT: "hsl(var(--partner))",
+          foreground: "hsl(var(--partner-foreground))",
+        },
         "phase-1": "hsl(var(--phase-1))",
         "phase-2": "hsl(var(--phase-2))",
         "phase-3": "hsl(var(--phase-3))",

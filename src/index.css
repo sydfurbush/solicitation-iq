@@ -34,6 +34,10 @@
     --warning: 38 92% 50%;
     --warning-foreground: 222 47% 11%;
 
+    /* Partner profile badge */
+    --partner: 271 76% 53%;
+    --partner-foreground: 0 0% 100%;
+
     /* red-500 #ef4444 */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -94,6 +98,8 @@
     --warning-foreground: 222 47% 11%;
 
     --destructive: 0 72% 51%;
+    --partner: 271 70% 62%;
+    --partner-foreground: 0 0% 100%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 217 33% 18%;
