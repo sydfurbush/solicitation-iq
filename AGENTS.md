@@ -72,6 +72,7 @@ Work is split between Lovable and the repo. Each side does what it is best at.
 - Every new table must have row-level security enabled in the same migration that creates it, with policies scoped by organization (and by client for portal-visible data). All 75 existing tables follow this; keep it that way.
 - Grant pattern for new tables: `SELECT/INSERT/UPDATE/DELETE` to `authenticated`, `ALL` to `service_role`. The policies do the real scoping.
 - Never give `anon` access to firm or client data.
+- Migrations live in two places. The original 83 are in `supabase/migrations/`. Since October 2026 Lovable writes new ones to `drizzle/migrations/` (with `drizzle.config.ts` and `drizzle/schema.ts`). Never edit or move an applied migration; to change something, add a new migration through Lovable.
 - When checking the live database, use read-only `SELECT` queries. Never write to the live database unless the owner asks.
 
 ### Edge function rules
@@ -98,13 +99,21 @@ The service-role key bypasses all row-level security, so any function that uses 
 - Prompts live next to their feature (for example `src/features/analysis/prompts/`) or at the top of the edge function. Changes to prompts are product changes: describe them in the commit message.
 - AI output that is written to the database must be validated (shape and required fields) before insert.
 
+## Compliance tracking (requirements, outline, citations)
+
+- A requirement (`requirement_items`) is "placed" when its id is in exactly one `outline_nodes.linked_requirement_ids` of the active outline. Change links only through the `assign_requirement_to_section` and `unassign_requirement` database functions, never by editing the array directly from the browser.
+- Drafts cite requirements with `[Req-<req_number>]` tags, for example `[Req-C-1.2.1]`. The compliance matrix, drafting sidebar and compile check all depend on them.
+- All requirement matching, citation detection and tag stripping goes through `supabase/functions/_shared/requirementLinks.ts`. Do not write new string matching for requirement numbers or tags anywhere else; import from this module (the frontend imports it by relative path).
+- `generate-outline` must include every requirement in its prompt and return `unplaced_requirements`. `draft-section` must return and store `uncited_requirements`. `compile-proposal` must strip `[Req-X]` and `[K#]` tags from submission documents.
+- Changes to `requirementLinks.ts` or these three functions are made in the repo with tests, not through Lovable.
+
 ## Testing
 
-- Tests use Vitest (`npm test`), with jsdom and Testing Library. Test files are `*.test.ts(x)` under `src/`.
+- Tests use Vitest (`npm test`), with jsdom and Testing Library. Test files are `*.test.ts(x)` under `src/` and `*.test.ts` under `supabase/functions/_shared/`.
 - Put logic in pure functions (no network, no Supabase client, no Deno globals) so it can be tested directly. Good homes: `src/lib/`, `src/lib/validators/`, and `utils/` folders inside features.
-- Edge functions use Deno and remote imports, which Vitest cannot load. Put their testable logic in plain TypeScript modules with no remote imports, and import those from the function.
+- Edge functions use Deno and remote imports, which Vitest cannot load. Put their testable logic in plain TypeScript modules in `supabase/functions/_shared/` with no imports from URLs, `npm:` or Deno globals, and import those from the function (with the `.ts` extension, as Deno requires). `requirementLinks.ts` is the model to follow.
 - Every bug fix in server code gets a test that would have caught it.
-- Coverage today is minimal (one placeholder test). Add tests for the code you touch; do not leave a file you changed less tested than you found it.
+- Coverage today is low (the requirement-linking module is the only tested server logic). Add tests for the code you touch; do not leave a file you changed less tested than you found it.
 
 ## TypeScript
 
@@ -125,4 +134,5 @@ The service-role key bypasses all row-level security, so any function that uses 
 ## Known issues
 
 - **Edge functions without caller checks.** Most functions in `supabase/functions/` use the service-role key but do not verify the caller (see "Edge function rules"). The public anon key is enough to call them, so anyone who has a record ID could read or change that record's data through these functions or run up AI costs. `assistant-transcribe` has no check at all. Fixing these, one function at a time with tests, is the top priority.
+- **Existing drafts have no citation tags.** Drafts written before October 2026 contain no `[Req-X]` tags, so they show as "Pending" or "Drafted, not cited" until redrafted or tagged by hand.
 - **Lockfile drift.** `package-lock.json` does not match `package.json` (see "Packages").
