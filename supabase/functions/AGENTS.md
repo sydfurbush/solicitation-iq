@@ -32,6 +32,12 @@ The service-role key bypasses all row-level security, so any function that uses 
 
 Edge function code pushed to GitHub is **not** deployed automatically. After merging any change under `supabase/functions/` (including `_shared/`, which every function that imports it depends on), ask Lovable to deploy each affected function by name and confirm each deploy succeeded. A function that imports a changed `_shared/` file counts as affected.
 
+## Requirements and the compliance matrix
+
+- `extract-requirements` reads every requirement-bearing section in batches (in the background, tracked in `requirement_extraction_runs`) and always **merges**: duplicates are skipped, nothing is deleted or rewritten. Never reintroduce caps that silently drop sections.
+- `import-compliance-matrix` turns spreadsheet rows into master requirements (`origin = 'import'`, `external_id` = the sheet's ID) and groups existing detailed items under them with `covered_by_id`. Re-imports refresh by `external_id`.
+- Matching, merging, batching and post-award classification live in `_shared/complianceMatrix.ts` with tests. Change them there, with tests.
+
 ## Known issues
 
 - **Edge functions without caller checks.** Most functions in `supabase/functions/` use the service-role key but do not verify the caller (see "Edge function rules"). The public anon key is enough to call them, so anyone who has a record ID could read or change that record's data through these functions or run up AI costs. `assistant-transcribe` has no check at all. Fixing these, one function at a time with tests, is the top priority.
