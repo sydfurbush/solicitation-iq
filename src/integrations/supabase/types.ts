@@ -1179,6 +1179,163 @@ export type Database = {
           },
         ]
       }
+      client_onboarding_documents: {
+        Row: {
+          byte_size: number | null
+          client_id: string
+          created_at: string | null
+          error: string | null
+          file_name: string
+          file_path: string
+          id: string
+          mime_type: string | null
+          status: string
+          updated_at: string | null
+          uploaded_by: string | null
+          uploaded_by_kind: string
+        }
+        Insert: {
+          byte_size?: number | null
+          client_id: string
+          created_at?: string | null
+          error?: string | null
+          file_name: string
+          file_path: string
+          id?: string
+          mime_type?: string | null
+          status?: string
+          updated_at?: string | null
+          uploaded_by?: string | null
+          uploaded_by_kind: string
+        }
+        Update: {
+          byte_size?: number | null
+          client_id?: string
+          created_at?: string | null
+          error?: string | null
+          file_name?: string
+          file_path?: string
+          id?: string
+          mime_type?: string | null
+          status?: string
+          updated_at?: string | null
+          uploaded_by?: string | null
+          uploaded_by_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_onboarding_documents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_onboarding_documents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
+          },
+        ]
+      }
+      client_onboarding_triage: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          destinations: string[] | null
+          doc_type: string | null
+          document_date: string | null
+          document_id: string
+          final_destinations: string[] | null
+          id: string
+          notes: string | null
+          reasons: string[] | null
+          relevance: string | null
+          requires_cleaning: boolean | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          sensitivity: Json | null
+          solicitation_numbers: string[] | null
+          summary: string | null
+          text_chars: number | null
+          title: string | null
+          updated_at: string | null
+          useful_for: string[] | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          destinations?: string[] | null
+          doc_type?: string | null
+          document_date?: string | null
+          document_id: string
+          final_destinations?: string[] | null
+          id?: string
+          notes?: string | null
+          reasons?: string[] | null
+          relevance?: string | null
+          requires_cleaning?: boolean | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sensitivity?: Json | null
+          solicitation_numbers?: string[] | null
+          summary?: string | null
+          text_chars?: number | null
+          title?: string | null
+          updated_at?: string | null
+          useful_for?: string[] | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          destinations?: string[] | null
+          doc_type?: string | null
+          document_date?: string | null
+          document_id?: string
+          final_destinations?: string[] | null
+          id?: string
+          notes?: string | null
+          reasons?: string[] | null
+          relevance?: string | null
+          requires_cleaning?: boolean | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          sensitivity?: Json | null
+          solicitation_numbers?: string[] | null
+          summary?: string | null
+          text_chars?: number | null
+          title?: string | null
+          updated_at?: string | null
+          useful_for?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_onboarding_triage_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_onboarding_triage_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_client_portfolio"
+            referencedColumns: ["client_id"]
+          },
+          {
+            foreignKeyName: "client_onboarding_triage_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: true
+            referencedRelation: "client_onboarding_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_profiles: {
         Row: {
           acronym_glossary: Json
@@ -4629,7 +4786,9 @@ export type Database = {
         }
         Returns: string
       }
+      can_edit_onboarding: { Args: { _client_id: string }; Returns: boolean }
       client_in_current_org: { Args: { _client_id: string }; Returns: boolean }
+      client_owned_by_my_org: { Args: { _client_id: string }; Returns: boolean }
       clone_solicitation_for_stage: {
         Args: {
           p_new_stage: Database["public"]["Enums"]["solicitation_stage"]
