@@ -1,186 +1,106 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useActiveOutline, useOutlineNodes, type OutlineNode } from "@/features/outline/hooks/useProposalOutline";
-import { useRequirementItems, type RequirementItem } from "@/features/deepdive/hooks/useRequirementItems";
+import { useRequirementItems, useUpdateRequirement, type RequirementItem, type RequirementUpdate } from "@/features/deepdive/hooks/useRequirementItems";
+import { groupRequirements, rollupGroup, matchesMatrixFilters, matrixCsv, WORKFLOW_LABELS, type MatrixFilters, type RequirementGroup } from "@/features/deepdive/utils/matrix";
+import { ImportMatrixButton } from "@/features/deepdive/components/ImportMatrixButton";
 import { useProposalDrafts } from "../hooks/useProposalDrafts";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Download, MoreHorizontal, Link2 } from "lucide-react";
+import { Download, MoreHorizontal, Link2, Flag, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { isRequirementCited } from "../../../../supabase/functions/_shared/requirementLinks";
 import { useAssignRequirement, useCanEditRequirementLinks, useUnassignRequirement } from "@/features/outline/hooks/useRequirementLinks";
 import { SectionPickerDialog, sectionLabel } from "@/features/outline/components/SectionPickerDialog";
+import { useAuth } from "@/features/auth/hooks/useAuth";
 
 interface Props { solicitationId: string; initialGapsOnly?: boolean }
-
+function Choice({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: Record<string, string>; onChange: (v: string) => void; disabled?: boolean }) {
+  return <Select value={value} onValueChange={onChange} disabled={disabled}><SelectTrigger aria-label={label} className="h-8 min-w-36 text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(options).map(([key, name]) => <SelectItem key={key} value={key}>{name}</SelectItem>)}</SelectContent></Select>;
+}
 export function ComplianceMatrix({ solicitationId, initialGapsOnly = false }: Props) {
   const { data: outline } = useActiveOutline(solicitationId);
   const { data: nodes = [] } = useOutlineNodes(outline?.id);
-  const { data: requirements = [] } = useRequirementItems(solicitationId);
+  const { data: requirements = [], isLoading, error } = useRequirementItems(solicitationId);
   const { data: drafts = [] } = useProposalDrafts(solicitationId);
+  const { user } = useAuth();
   const canEdit = useCanEditRequirementLinks();
+  const update = useUpdateRequirement(solicitationId);
   const assign = useAssignRequirement();
   const unassign = useUnassignRequirement();
-  const [gapsOnly, setGapsOnly] = useState(initialGapsOnly);
+  const [filters, setFilters] = useState<MatrixFilters>({ applicability: "proposal", area: "all", status: "all", criticality: "all", clarification: false, gapsOnly: initialGapsOnly });
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [picking, setPicking] = useState<{ req: RequirementItem; currentNodeId: string | null } | null>(null);
-
-  const draftMap = useMemo(() => new Map(drafts.map((d) => [d.outline_node_id, d])), [drafts]);
-
-  const rows = useMemo(() => requirements.map((r) => {
-    const owningNode = nodes.find((n) => (n.linked_requirement_ids ?? []).includes(r.id));
-    const draft = owningNode ? draftMap.get(owningNode.id) : null;
-    const cited = isRequirementCited(draft?.content_html, r.req_number);
-    return { req: r, node: owningNode ?? null, draft, cited };
-  }), [requirements, nodes, draftMap]);
-
-  const total = rows.length;
-  const linked = rows.filter((r) => r.node).length;
-  const cited = rows.filter((r) => r.cited).length;
-  const gaps = total - linked;
-  const visibleRows = gapsOnly ? rows.filter((r) => !r.node) : rows;
-
+  const [editing, setEditing] = useState<RequirementItem | null>(null);
+  const [patch, setPatch] = useState<RequirementUpdate>({});
+  const groups = useMemo(() => groupRequirements(requirements), [requirements]);
+  const rows = useMemo(() => groups.map(group => ({ group, rollup: rollupGroup(group, nodes, drafts) })), [groups, nodes, drafts]);
+  const visible = rows.filter(r => matchesMatrixFilters(r.group, filters, r.rollup.gap));
+  const applicable = rows.filter(r => filters.applicability === "all" || r.group.master.applicability === filters.applicability);
+  const gaps = applicable.filter(r => r.rollup.gap).length;
+  const canAssign = canEdit && !!outline && nodes.length > 0;
+  const save = async (req: RequirementItem, fields: RequirementUpdate) => {
+    if (!canEdit) return false;
+    try { await update.mutateAsync({ id: req.id, patch: fields }); return true; }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not save requirement"); return false; }
+  };
   const onPick = async (node: OutlineNode) => {
     if (!picking) return;
-    try {
-      await assign.mutateAsync({ requirementId: picking.req.id, nodeId: node.id });
-      toast.success(`${picking.req.req_number ?? "Requirement"} linked to ${sectionLabel(node)}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not link requirement");
-    }
+    try { await assign.mutateAsync({ requirementId: picking.req.id, nodeId: node.id }); toast.success(`${picking.req.req_number} linked to ${sectionLabel(node)}`); setPicking(null); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not link requirement"); }
   };
-
-  const onRemove = async (req: RequirementItem) => {
+  const remove = async (req: RequirementItem) => {
     if (!outline) return;
-    try {
-      await unassign.mutateAsync({ requirementId: req.id, outlineId: outline.id });
-      toast.success(`${req.req_number ?? "Requirement"} removed from its section`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not remove requirement");
-    }
+    try { await unassign.mutateAsync({ requirementId: req.id, outlineId: outline.id }); toast.success("Requirement removed from section"); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not remove requirement"); }
   };
-
   const exportCsv = () => {
-    const header = ["Req #", "Section L", "Requirement", "Volume", "Section", "Owner", "Words", "Cited"];
-    const lines = [header.join(",")];
-    for (const r of rows) {
-      const cells = [
-        r.req.req_number ?? "",
-        r.req.source_section ?? "",
-        (r.req.shall_text ?? "").replace(/\n/g, " ").replace(/"/g, '""'),
-        r.node?.volume ?? "",
-        r.node ? `${r.node.section_number ?? ""} ${r.node.title}`.trim() : "",
-        r.node?.assigned_to ?? "",
-        String(r.draft?.word_count ?? 0),
-        r.cited ? "Y" : "N",
-      ];
-      lines.push(cells.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","));
-    }
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `compliance-matrix-${solicitationId}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(new Blob([matrixCsv(visible.map(r => r.group), nodes, drafts)], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `compliance-matrix-${solicitationId}.csv`; a.click(); URL.revokeObjectURL(url);
   };
-
-  const canAssign = canEdit && !!outline && nodes.length > 0;
-
-  return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div>
-          <div className="text-sm font-semibold">Live Compliance Matrix</div>
-          <div className="text-xs text-muted-foreground">
-            {gaps > 0 && <span className="text-destructive font-medium">{gaps} gap{gaps === 1 ? "" : "s"} · </span>}
-            {linked}/{total} requirements linked to a section · {cited} cited in draft text
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Switch id="gaps-only" checked={gapsOnly} onCheckedChange={setGapsOnly} />
-            <Label htmlFor="gaps-only" className="text-xs">Show gaps only</Label>
-          </div>
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={!total}>
-            <Download className="h-3.5 w-3.5 mr-1.5" />Export CSV
-          </Button>
-        </div>
-      </div>
-      <div className="overflow-auto max-h-[60vh] border rounded-md">
-        <table className="w-full text-xs">
-          <thead className="bg-muted/50 sticky top-0">
-            <tr>
-              <th className="text-left p-2 font-medium">Req #</th>
-              <th className="text-left p-2 font-medium">Section L</th>
-              <th className="text-left p-2 font-medium">Requirement</th>
-              <th className="text-left p-2 font-medium">Volume / Section</th>
-              <th className="text-left p-2 font-medium">Words</th>
-              <th className="text-left p-2 font-medium">Status</th>
-              {canAssign && <th className="p-2 w-8" />}
-            </tr>
-          </thead>
-          <tbody>
-            {visibleRows.map((r) => (
-              <tr key={r.req.id} className="border-t">
-                <td className="p-2 font-mono">{r.req.req_number}</td>
-                <td className="p-2 text-muted-foreground">{r.req.source_section ?? "—"}</td>
-                <td className="p-2 max-w-md">{r.req.shall_text}</td>
-                <td className="p-2">
-                  {r.node ? (
-                    <div>
-                      <div>{r.node.volume ?? "—"}</div>
-                      <div className="text-muted-foreground">{r.node.section_number} {r.node.title}</div>
-                    </div>
-                  ) : canAssign ? (
-                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setPicking({ req: r.req, currentNodeId: null })}>
-                      <Link2 className="h-3 w-3 mr-1" />Assign to section
-                    </Button>
-                  ) : <span className="text-destructive">Unassigned</span>}
-                </td>
-                <td className="p-2">{r.draft?.word_count ?? 0}</td>
-                <td className="p-2">
-                  {r.cited ? <Badge variant="outline">Cited</Badge> :
-                    r.draft ? <Badge variant="secondary">Drafted, not cited</Badge> :
-                    r.node ? <Badge variant="outline">Pending</Badge> :
-                    <Badge variant="destructive">Gap</Badge>}
-                </td>
-                {canAssign && (
-                  <td className="p-2">
-                    {r.node && (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-6 w-6" aria-label="Requirement actions">
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => setPicking({ req: r.req, currentNodeId: r.node!.id })}>Move to another section</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => onRemove(r.req)}>Remove from section</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-            {!visibleRows.length && (
-              <tr><td colSpan={canAssign ? 7 : 6} className="p-6 text-center text-muted-foreground">
-                {total && gapsOnly ? "No gaps — every requirement is linked to a section." : "No requirements extracted yet."}
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <SectionPickerDialog
-        open={!!picking}
-        onOpenChange={(o) => { if (!o) setPicking(null); }}
-        nodes={nodes}
-        currentNodeId={picking?.currentNodeId}
-        onPick={onPick}
-      />
-    </Card>
-  );
+  const renderRow = (req: RequirementItem, group: RequirementGroup, detail = false) => {
+    const rollup = rollupGroup(detail ? { master: req, details: [] } : group, nodes, drafts);
+    const ownNode = nodes.find(n => n.linked_requirement_ids?.includes(req.id));
+    return <tr key={req.id} className={detail ? "border-t bg-muted/30" : "border-t"}>
+      <td className={`p-2 align-top font-mono ${detail ? "pl-6" : ""}`}><span>{req.req_number}</span>{!detail && group.details.length > 0 && <Button size="sm" variant="ghost" className="block h-7 text-xs" aria-expanded={expanded.has(req.id)} onClick={() => setExpanded(prev => { const next = new Set(prev); next.has(req.id) ? next.delete(req.id) : next.add(req.id); return next; })}>{expanded.has(req.id) ? "−" : "+"}{group.details.length} detail</Button>}</td>
+      <td className="p-2 align-top">{req.area || "—"}</td><td className="p-2 align-top">{req.requirement_type || "—"}</td><td className="p-2 align-top">{req.source_section || "—"}</td>
+      <td className="p-2 align-top min-w-64 max-w-md"><div className="whitespace-pre-wrap">{req.shall_text}</div><Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditing(req); setPatch({ response_evidence: req.response_evidence, action_needed: req.action_needed, criticality: req.criticality, compliance_owner: req.compliance_owner, needs_clarification: req.needs_clarification, verified_at: req.verified_at, verified_by: req.verified_by }); }}><Pencil className="mr-1 h-3 w-3" />Details</Button></td>
+      <td className="p-2 align-top min-w-44">{rollup.nodes.length > 0 ? rollup.nodes.map(n => <div key={n.id}>{[n.volume, n.section_number, n.title].filter(Boolean).join(" · ")}</div>) : <div>{req.proposal_section || "—"}</div>}{canAssign && !ownNode && <Button size="sm" variant="outline" className="mt-1 h-7 text-xs" onClick={() => setPicking({ req, currentNodeId: null })}><Link2 className="mr-1 h-3 w-3" />Assign to section</Button>}</td>
+      <td className="p-2 align-top"><Choice label={`Status ${req.req_number}`} value={req.workflow_status} options={WORKFLOW_LABELS} disabled={!canEdit || update.isPending} onChange={value => void save(req, { workflow_status: value })} /></td>
+      <td className="p-2 align-top"><Badge variant={req.criticality === "high" ? "destructive" : "outline"} className="capitalize">{req.criticality || "—"}</Badge></td>
+      <td className="p-2 align-top">{req.compliance_owner || "—"}</td>
+      <td className="p-2 align-top">{req.needs_clarification && <Flag aria-label="Clarification needed" className="h-4 w-4 text-destructive" />} {req.verified_at && <Badge variant="outline">Verified</Badge>}</td>
+      <td className="p-2 align-top"><Badge variant={rollup.gap ? "destructive" : "outline"}>{rollup.cited ? "Cited" : rollup.drafted ? "Drafted, not cited" : rollup.linked ? "Pending" : "Gap"}</Badge></td>
+      <td className="p-2 align-top">{canAssign && ownNode && <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" className="h-7 w-7" aria-label={`Actions ${req.req_number}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuItem onClick={() => setPicking({ req, currentNodeId: ownNode.id })}>Move to another section</DropdownMenuItem><DropdownMenuItem className="text-destructive" onClick={() => void remove(req)}>Remove from section</DropdownMenuItem></DropdownMenuContent></DropdownMenu>}</td>
+    </tr>;
+  };
+  return <section className="space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Live Compliance Matrix</h3><p className="text-xs text-muted-foreground">{applicable.length} requirements · <span className={gaps ? "text-destructive" : ""}>{gaps} gaps</span> · {applicable.filter(r => r.group.master.needs_clarification).length} need clarification · {applicable.filter(r => r.group.master.workflow_status === "ready").length} ready</p></div><div className="flex flex-wrap gap-2"><ImportMatrixButton solicitationId={solicitationId} /><Button size="sm" variant="outline" onClick={exportCsv} disabled={!visible.length}><Download className="mr-1 h-4 w-4" />Export CSV</Button></div></div>
+    <div className="flex flex-wrap items-center gap-2">
+      <Choice label="Applicability" value={filters.applicability} options={{ proposal: "Proposal requirements", post_award: "Post-award terms", all: "All" }} onChange={v => setFilters(f => ({ ...f, applicability: v }))} />
+      <Choice label="Area" value={filters.area} options={{ all: "All areas", ...Object.fromEntries([...new Set(requirements.map(r => r.area).filter((a): a is string => !!a))].map(a => [a, a])) }} onChange={v => setFilters(f => ({ ...f, area: v }))} />
+      <Choice label="Status filter" value={filters.status} options={{ all: "All statuses", ...WORKFLOW_LABELS }} onChange={v => setFilters(f => ({ ...f, status: v }))} />
+      <Choice label="Criticality filter" value={filters.criticality} options={{ all: "All criticalities", high: "High", medium: "Medium", low: "Low" }} onChange={v => setFilters(f => ({ ...f, criticality: v }))} />
+      <Label className="flex items-center gap-2 text-xs"><Checkbox checked={filters.clarification} onCheckedChange={v => setFilters(f => ({ ...f, clarification: v === true }))} />Needs clarification</Label>
+      <Label className="flex items-center gap-2 text-xs"><Switch checked={filters.gapsOnly} onCheckedChange={v => setFilters(f => ({ ...f, gapsOnly: v }))} />Show gaps only</Label>
+    </div>
+    {error && <p role="alert" className="text-destructive">{error.message}</p>}
+    <div className="overflow-auto max-h-[65vh] rounded-md border"><table className="w-full text-xs"><thead className="sticky top-0 bg-muted"><tr>{["ID", "Area", "Type", "Reference", "Requirement", "Proposal location", "Status", "Criticality", "Owner", "Clarification", "Link / draft / cited", ""].map((label, i) => <th key={i} className="p-2 text-left font-medium whitespace-nowrap">{label}</th>)}</tr></thead><tbody>{visible.map(({ group }) => <Fragment key={group.master.id}>{renderRow(group.master, group)}{expanded.has(group.master.id) && group.details.map(req => renderRow(req, group, true))}</Fragment>)}{!visible.length && <tr><td colSpan={12} className="p-6 text-center text-muted-foreground">{isLoading ? "Loading…" : "No requirements match these filters."}</td></tr>}</tbody></table></div>
+    <SectionPickerDialog open={!!picking} onOpenChange={open => { if (!open) setPicking(null); }} nodes={nodes} currentNodeId={picking?.currentNodeId} onPick={onPick} />
+    <Sheet open={!!editing} onOpenChange={open => { if (!open) setEditing(null); }}><SheetContent className="overflow-y-auto"><SheetHeader><SheetTitle>{editing?.req_number}</SheetTitle><SheetDescription>{editing?.shall_text}</SheetDescription></SheetHeader><div className="mt-5 space-y-4">
+      <Label className="block space-y-2"><span>Response / evidence</span><Textarea disabled={!canEdit} value={patch.response_evidence || ""} onChange={e => setPatch(p => ({ ...p, response_evidence: e.target.value }))} /></Label>
+      <Label className="block space-y-2"><span>Action needed</span><Textarea disabled={!canEdit} value={patch.action_needed || ""} onChange={e => setPatch(p => ({ ...p, action_needed: e.target.value }))} /></Label>
+      <Label className="block space-y-2"><span>Owner</span><Input disabled={!canEdit} value={patch.compliance_owner || ""} onChange={e => setPatch(p => ({ ...p, compliance_owner: e.target.value }))} /></Label>
+      <Choice label="Criticality" disabled={!canEdit} value={patch.criticality || "none"} options={{ none: "Not set", high: "High", medium: "Medium", low: "Low" }} onChange={v => setPatch(p => ({ ...p, criticality: v === "none" ? null : v }))} />
+      <Label className="flex items-center gap-2"><Checkbox disabled={!canEdit} checked={patch.needs_clarification === true} onCheckedChange={v => setPatch(p => ({ ...p, needs_clarification: v === true }))} />Needs clarification</Label>
+      <Label className="flex items-center gap-2"><Checkbox disabled={!canEdit || !user} checked={!!patch.verified_at} onCheckedChange={v => { if (!user) return; setPatch(p => ({ ...p, verified_at: v === true ? new Date().toISOString() : null, verified_by: v === true ? user.id : null })); }} />Verified</Label>
+      {canEdit && <Button disabled={update.isPending} onClick={async () => { if (editing && await save(editing, patch)) { toast.success("Requirement saved"); setEditing(null); } }}>Save</Button>}
+    </div></SheetContent></Sheet>
+  </section>;
 }
