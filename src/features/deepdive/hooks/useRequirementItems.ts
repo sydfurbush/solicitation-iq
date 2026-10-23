@@ -13,13 +13,15 @@ export function useRequirementItems(solicitationId: string | undefined) {
     queryKey: solicitationId ? key(solicitationId) : ["requirement-items", "none"],
     enabled: !!solicitationId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("requirement_items")
-        .select("*")
-        .eq("solicitation_id", solicitationId!)
-        .order("req_number", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as RequirementItem[];
+      if (!solicitationId) return [];
+      const rows: RequirementItem[] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await supabase.from("requirement_items").select("*")
+          .eq("solicitation_id", solicitationId).order("req_number").order("id").range(offset, offset + 999);
+        if (error) throw error;
+        rows.push(...(data ?? []));
+        if ((data?.length ?? 0) < 1000) return rows;
+      }
     },
   });
 }
@@ -27,14 +29,18 @@ export function useRequirementItems(solicitationId: string | undefined) {
 export function useExtractRequirements(solicitationId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { regenerate?: boolean } = {}) => {
+    mutationFn: async () => {
       if (!solicitationId) throw new Error("Missing solicitationId");
       const { data, error } = await supabase.functions.invoke("extract-requirements", {
-        body: { solicitationId, regenerate: input.regenerate ?? false },
+        body: { solicitationId },
       });
+      if (error?.context instanceof Response && error.context.status === 409) {
+        const running = await error.context.json();
+        if (typeof running.runId === "string") return running as { runId: string; status: string };
+      }
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      return data;
+      return data as { runId: string; status: string; totalBatches?: number };
     },
     onSuccess: () => {
       if (!solicitationId) return;
@@ -107,14 +113,30 @@ export function useRequirementVersions(requirementId: string | undefined) {
     queryKey: requirementId ? versionsKey(requirementId) : ["requirement-item-versions", "none"],
     enabled: !!requirementId,
     queryFn: async () => {
+      if (!requirementId) return [];
       const { data, error } = await supabase
         .from("requirement_item_versions" as never)
         .select("*")
-        .eq("requirement_id", requirementId!)
+        .eq("requirement_id", requirementId)
         .order("changed_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as RequirementVersion[];
     },
+  });
+}
+
+export type ExtractionRun = Database["public"]["Tables"]["requirement_extraction_runs"]["Row"];
+export function useRequirementExtractionRun(solicitationId: string, runId: string | null) {
+  return useQuery({
+    queryKey: ["requirement-extraction-run", solicitationId, runId],
+    queryFn: async () => {
+      let query = supabase.from("requirement_extraction_runs").select("*").eq("solicitation_id", solicitationId);
+      query = runId ? query.eq("id", runId) : query.eq("status", "running");
+      const { data, error } = await query.order("started_at", { ascending: false }).limit(1).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: query => query.state.data?.status === "running" || !runId ? 3000 : false,
   });
 }
 

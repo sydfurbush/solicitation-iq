@@ -90,7 +90,7 @@ Work is split between Lovable and the repo. Each side does what it is best at.
 - Put logic in pure functions (no network, no Supabase client, no Deno globals) so it can be tested directly. Good homes: `src/lib/`, `src/lib/validators/`, and `utils/` folders inside features.
 - Edge functions use Deno and remote imports, which Vitest cannot load. Put their testable logic in plain TypeScript modules in `supabase/functions/_shared/` with no imports from URLs, `npm:` or Deno globals, and import those from the function (with the `.ts` extension, as Deno requires). `requirementLinks.ts` is the model to follow.
 - Every bug fix in server code gets a test that would have caught it.
-- Coverage today is low (the requirement-linking module is the only tested server logic). Add tests for the code you touch; do not leave a file you changed less tested than you found it.
+- Matrix screens and PDF share frontend grouping/roll-ups; citation detection stays in shared requirementLinks so exports agree.
 
 ## TypeScript
 

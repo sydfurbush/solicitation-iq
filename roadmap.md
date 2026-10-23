@@ -1,3 +1,4 @@
-- [x] Add Knowledge re-check actions, sequential bulk progress, outcome badges and Onboarding links.
-- [x] Add partner/agreements details, filters and confirmed knowledge removal to Onboarding.
-- [x] All 84 tests pass; signed-in re-check, panel navigation and confirmed removal verified with a fictional file. Protected server files unchanged; merged re-check function deployed as-is.
+- [x] Deploy extract-requirements and import-compliance-matrix unchanged; both succeeded.
+- [x] Add background extraction tracking and import preview on both tabs.
+- [x] Add master/detail matrix, editing, filters, CSV and PDF updates; all 123 tests pass.
+- [x] Verify signed-in screens, save/readback, filters, CSV and PDF generation; ESSC extraction completed 11/11 batches, 0 failed, 317 inserted, 122 duplicates. Spreadsheet import intentionally left to the owner.
