@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { Sparkles, Loader2, Download, History, Save, X, Pencil, Filter as FilterIcon, RotateCcw } from "lucide-react";
+import { Download, History, Save, X, Pencil, Filter as FilterIcon, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,13 +15,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import {
   useRequirementItems,
-  useExtractRequirements,
   useUpdateRequirement,
   useBulkUpdateRequirements,
   useRequirementVersions,
   useRevertRequirement,
   type RequirementItem,
 } from "@/features/deepdive/hooks/useRequirementItems";
+import { ExtractionControl } from "./ExtractionControl";
+import { ImportMatrixButton } from "./ImportMatrixButton";
 
 type Status = "open" | "in_review" | "covered" | "waived";
 const STATUSES: Status[] = ["open", "in_review", "covered", "waived"];
@@ -42,7 +43,6 @@ export function RTMTable({
   autoGapsPending: boolean;
 }) {
   const { data: items = [], isLoading } = useRequirementItems(solicitationId);
-  const extract = useExtractRequirements(solicitationId);
   const update = useUpdateRequirement(solicitationId);
   const bulkUpdate = useBulkUpdateRequirements(solicitationId);
 
@@ -135,19 +135,6 @@ export function RTMTable({
     }
   };
 
-  const runExtract = async (regenerate = false) => {
-    try {
-      const r = await extract.mutateAsync({ regenerate });
-      toast({ title: "RTM extracted", description: `${r.inserted} requirements added` });
-      if (r.inserted > 0) {
-        toast({ title: "Running gap analysis…" });
-        await onExtracted();
-      }
-    } catch (e) {
-      toast({ title: "Failed", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
-    }
-  };
-
   const applyBulk = async (patch: { compliance_owner?: string | null; status?: Status }) => {
     const ids = Array.from(selected);
     if (!ids.length) return;
@@ -179,8 +166,6 @@ export function RTMTable({
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  const busy = extract.isPending || autoGapsPending;
 
   return (
     <Card>
@@ -242,10 +227,8 @@ export function RTMTable({
             <Button variant="outline" size="sm" onClick={() => exportCsv(filtered)} disabled={!filtered.length}>
               <Download className="h-4 w-4 mr-1" /> Export CSV
             </Button>
-            <Button onClick={() => runExtract(items.length > 0)} disabled={busy} size="sm">
-              {extract.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-              {items.length > 0 ? "Regenerate" : "Extract"}
-            </Button>
+            <ImportMatrixButton solicitationId={solicitationId} />
+            <ExtractionControl solicitationId={solicitationId} hasItems={items.length > 0} disabled={autoGapsPending} onCompleted={onExtracted} />
           </div>
         </div>
 
@@ -296,7 +279,7 @@ export function RTMTable({
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No requirements yet. Click "Extract" to build the RTM from your documents. Gap analysis runs automatically after.
+            No requirements yet.
           </p>
         ) : (
           <div className="overflow-x-auto">
