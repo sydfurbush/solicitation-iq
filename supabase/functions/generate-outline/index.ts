@@ -161,7 +161,22 @@ Deno.serve(async (req) => {
       tool: SCHEMA,
     }) as { title?: string; nodes: Array<Record<string, unknown>> };
 
-    const nodes = parsed.nodes ?? [];
+    // Some models (notably Claude) occasionally return the array as a JSON string.
+    let rawNodes: unknown = parsed.nodes ?? [];
+    if (typeof rawNodes === "string") {
+      try {
+        rawNodes = JSON.parse(rawNodes);
+      } catch {
+        throw new Error("AI returned a malformed outline (nodes was an unparseable string). Please retry.");
+      }
+    }
+    if (!Array.isArray(rawNodes)) {
+      throw new Error("AI returned an outline in an unexpected shape. Please retry.");
+    }
+    const nodes = (rawNodes as unknown[]).filter(
+      (n): n is Record<string, unknown> => !!n && typeof n === "object" && !Array.isArray(n),
+    );
+    if (nodes.length === 0) throw new Error("AI returned an empty outline. Please retry.");
 
     // Deterministic decimal renumbering — ALWAYS overrides whatever the AI returned
     // (Roman numerals like "I.1", letter prefixes like "L.5", or anything else)
