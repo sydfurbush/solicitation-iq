@@ -37,6 +37,7 @@ Edge function code pushed to GitHub is **not** deployed automatically. After mer
 - `extract-requirements` reads every requirement-bearing section in batches (in the background, tracked in `requirement_extraction_runs`) and always **merges**: duplicates are skipped, nothing is deleted or rewritten. Never reintroduce caps that silently drop sections.
 - `import-compliance-matrix` turns spreadsheet rows into master requirements (`origin = 'import'`, `external_id` = the sheet's ID) and groups existing detailed items under them with `covered_by_id`. Re-imports refresh by `external_id`.
 - Matching, merging, batching and post-award classification live in `_shared/complianceMatrix.ts` with tests. Change them there, with tests.
+- `import-compliance-matrix` with `{ regroup: true }` (no file) re-groups ungrouped items under the already-imported master rows; use it after a re-extraction or a matcher change.
 
 ## Known issues
 

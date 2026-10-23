@@ -140,6 +140,11 @@ export function parseReference(ref: string | null | undefined): RefKey[] {
   for (const m of r.matchAll(/(?:Proposal|General)\s+Instructions\s+([A-Z])\.(\d+)(?:\.([a-z]))?/g)) {
     keys.push({ kind: "instruction", value: [m[1], m[2], m[3]].filter(Boolean).join(".").toLowerCase() });
   }
+  // "Addendum 52.212-1 A.5" or "Addendum A.6" → addendum paragraph a.5
+  for (const m of r.matchAll(/Addendum[^;]*?\b([A-Z])\.(\d+)\b/g)) {
+    const value = `${m[1]}.${m[2]}`.toLowerCase();
+    if (!keys.some((k) => k.kind === "instruction" && k.value === value)) keys.push({ kind: "instruction", value });
+  }
   // Instructions and the addendum live in the FAR 52.212-1 addendum; evaluation in 52.212-2.
   // These broad keys only match when the wording is also similar.
   if (/(Proposal|General)\s+Instructions|Addendum/i.test(r) && !keys.some((k) => k.kind === "clause" && k.value === "52.212-1")) {
@@ -160,6 +165,14 @@ export function itemKeys(item: Pick<ExistingItem, "source_section" | "doc_kind">
     if (m) keys.push({ kind: "pws", value: m[1] });
   }
   for (const m of s.matchAll(/((?:52|252)\.\d{3}-\d{1,4})/g)) keys.push({ kind: "clause", value: m[1] });
+  if (item.doc_kind !== "pws") {
+    // Instruction labels such as "C.3.b.ii", "C.2.a", "C.6"
+    const ins = /^([A-Z])\.(\d+)(?:\.([a-z]))?\b/.exec(s);
+    if (ins) keys.push({ kind: "instruction", value: [ins[1], ins[2], ins[3]].filter(Boolean).join(".").toLowerCase() });
+    // Addendum paragraphs: "Addendum to 52.212-1, A.4" or "Addendum to FAR 52.212-1, Para 4"
+    const add = /Addendum.*?(?:\b([A-Z])\.(\d+)\b|Para\.?\s*(\d+))/i.exec(s);
+    if (add) keys.push({ kind: "instruction", value: add[1] ? `${add[1]}.${add[2]}`.toLowerCase() : `a.${add[3]}` });
+  }
   return keys;
 }
 
@@ -167,6 +180,7 @@ export function itemKeys(item: Pick<ExistingItem, "source_section" | "doc_kind">
 export function refCovers(ref: RefKey, item: RefKey): boolean {
   if (ref.kind !== item.kind) return false;
   if (ref.kind === "clause") return ref.value === item.value;
+  if (ref.kind === "instruction") return item.value === ref.value || item.value.startsWith(ref.value + ".");
   if (ref.kind !== "pws") return false;
   const v = item.value;
   if (ref.end) {
@@ -305,8 +319,14 @@ export function parseMatrixSheet(sheet: unknown[][]): ParseResult {
 // ---------------------------------------------------------------------------
 // Import plan
 
+/** Wording overlap at which two items are the same requirement whatever their labels. */
+export const SAME_TEXT_SIMILARITY = 0.95;
+
 /** Minimum wording overlap for a broad (loose) reference match. */
 export const LOOSE_MIN_SIMILARITY = 0.45;
+/** Instruction paragraphs hold several rows, so a match there also needs some shared wording. */
+export const INSTRUCTION_MIN_SIMILARITY = 0.3;
+
 /** A broad match must score within this of the row's best broad match. */
 export const LOOSE_RELATIVE_GAP = 0.3;
 
@@ -350,7 +370,8 @@ export function planImport(rows: ImportRow[], existing: ExistingItem[]): ImportP
           if (!refCovers(k, i)) continue;
           const sim = textSimilarity(r.text, item.shall_text);
           if (k.loose && sim < LOOSE_MIN_SIMILARITY) continue;
-          const spec = k.loose ? 50 : k.kind === "clause" ? 99 : k.value.split(".").length - (k.end ? 0.5 : 0);
+          if (k.kind === "instruction" && sim < INSTRUCTION_MIN_SIMILARITY) continue;
+          const spec = k.loose ? 50 : k.kind === "clause" ? 99 : k.kind === "instruction" ? 60 + k.value.split(".").length : k.value.split(".").length - (k.end ? 0.5 : 0);
           if (!best || spec > best.spec || (spec === best.spec && sim > best.sim)) best = { id: r.external_id, spec, sim };
         }
       }
@@ -400,7 +421,11 @@ export function mergeExtracted<T extends ExtractedItem>(existing: ExistingItem[]
   const masterKeys = masters.map((m) => ({ id: m.external_id, text: m.text, keys: parseReference(m.reference) }));
   for (const item of incoming) {
     const sec = normSection(item.source_section);
-    const dup = pool.some((p) => (p.sec === sec || !p.sec || !sec) && textSimilarity(p.text, item.shall_text) >= threshold);
+    const dup = pool.some((p) => {
+      const sim = textSimilarity(p.text, item.shall_text);
+      // Same requirement under a different label ("Para 4" vs "A.4") is still a duplicate.
+      return sim >= SAME_TEXT_SIMILARITY || ((p.sec === sec || !p.sec || !sec) && sim >= threshold);
+    });
     if (dup) { duplicates.push(item); continue; }
     pool.push({ sec, text: item.shall_text });
     const ik = itemKeys({ source_section: item.source_section, doc_kind: item.doc_kind });
