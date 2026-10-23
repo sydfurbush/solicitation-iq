@@ -23,6 +23,7 @@ import {
 } from "@/features/deepdive/hooks/useRequirementItems";
 import { ExtractionControl } from "./ExtractionControl";
 import { ImportMatrixButton } from "./ImportMatrixButton";
+import { RegroupButton } from "./RegroupButton";
 
 type Status = "open" | "in_review" | "covered" | "waived";
 const STATUSES: Status[] = ["open", "in_review", "covered", "waived"];
@@ -228,6 +229,7 @@ export function RTMTable({
               <Download className="h-4 w-4 mr-1" /> Export CSV
             </Button>
             <ImportMatrixButton solicitationId={solicitationId} />
+            <RegroupButton solicitationId={solicitationId} />
             <ExtractionControl solicitationId={solicitationId} hasItems={items.length > 0} disabled={autoGapsPending} onCompleted={onExtracted} />
           </div>
         </div>
