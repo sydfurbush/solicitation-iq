@@ -70,6 +70,65 @@ export function matchesFilter(filter: StaffFilter, t: TriageLike | null | undefi
   return effectiveDestinations(t).includes("not_needed");
 }
 
+export const AGREEMENT_DOC_TYPES = ["teaming_agreement", "subcontract_agreement", "nda"] as const;
+
+export interface PartyLike {
+  subject?: string | null;
+  subject_name?: string | null;
+  partner_names?: string[] | null;
+  client_role?: string | null;
+  doc_type?: string | null;
+}
+
+export function isAgreement(t: PartyLike | null | undefined): boolean {
+  return !!t?.doc_type && (AGREEMENT_DOC_TYPES as readonly string[]).includes(t.doc_type);
+}
+
+/** "Client", "Partner · Acme", "Government" or "Other". */
+export function whoseDocumentLabel(t: PartyLike | null | undefined): string {
+  if (!t) return "—";
+  switch (t.subject) {
+    case "partner": {
+      const name = (t.subject_name ?? "").trim() || (t.partner_names ?? []).find((n) => n.trim()) || "";
+      return name ? `Partner · ${name.trim()}` : "Partner";
+    }
+    case "government": return "Government";
+    case "other": return "Other";
+    default: return "Client";
+  }
+}
+
+/** For agreements: "With Acme, Beta · Prime". Empty otherwise or when nothing is known. */
+export function agreementPartiesLabel(t: PartyLike | null | undefined): string {
+  if (!isAgreement(t)) return "";
+  const parts: string[] = [];
+  const names = (t!.partner_names ?? []).map((n) => n.trim()).filter(Boolean);
+  if (names.length) parts.push(`With ${names.join(", ")}`);
+  if (t!.client_role === "prime") parts.push("Prime");
+  else if (t!.client_role === "sub") parts.push("Sub");
+  else if (t!.client_role === "both") parts.push("Prime / Sub");
+  return parts.join(" · ");
+}
+
+export type ExtraFilter = "partners" | "from_knowledge";
+
+export function matchesExtraFilter(
+  filter: ExtraFilter,
+  doc: { knowledge_document_id?: string | null },
+  t: PartyLike | null | undefined,
+): boolean {
+  if (filter === "from_knowledge") return !!doc.knowledge_document_id;
+  return t?.subject === "partner" || isAgreement(t);
+}
+
+/** A knowledge-base file whose triage no longer allows knowledge use. */
+export function shouldLeaveKnowledge(
+  doc: { knowledge_document_id?: string | null },
+  t: TriageLike | null | undefined,
+): boolean {
+  return !!doc.knowledge_document_id && !!t && !effectiveDestinations(t).includes("knowledge");
+}
+
 export type ReceivedVia = "portal" | "email" | "other";
 const VIA_LABELS: Record<ReceivedVia, string> = { portal: "Portal", email: "Email", other: "Other" };
 

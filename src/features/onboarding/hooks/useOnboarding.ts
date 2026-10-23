@@ -95,3 +95,32 @@ export async function openSignedUrl(path: string) {
   if (error) throw error;
   window.open(data.signedUrl, "_blank", "noopener");
 }
+
+export async function recheckKnowledgeDocument(knowledgeDocumentId: string): Promise<string | null> {
+  const { data, error } = await supabase.functions.invoke("recheck-knowledge-document", { body: { knowledgeDocumentId } });
+  if (error) {
+    let message = error.message;
+    try { const b = await (error as any).context?.json?.(); if (b?.error) message = b.error; } catch { /* keep default */ }
+    throw new Error(message);
+  }
+  return (data as { documentId?: string | null })?.documentId ?? null;
+}
+
+/** Removes a knowledge row and its stored file; chunks cascade. The onboarding copy stays. */
+export function useRemoveFromKnowledge(clientId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (knowledgeDocumentId: string) => {
+      const { data: k, error: readErr } = await supabase.from("client_knowledge_documents").select("id, file_path").eq("id", knowledgeDocumentId).maybeSingle();
+      if (readErr) throw readErr;
+      if (!k) return;
+      const { error } = await supabase.from("client_knowledge_documents").delete().eq("id", k.id);
+      if (error) throw error;
+      if (k.file_path) await supabase.storage.from("client-knowledge").remove([k.file_path]);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client-knowledge", clientId] });
+      qc.invalidateQueries({ queryKey: ["onboarding-docs", clientId] });
+    },
+  });
+}
