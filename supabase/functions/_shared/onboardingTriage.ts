@@ -16,6 +16,9 @@ export const DOC_TYPES = [
   "certification",
   "registration",
   "signed_form",
+  "teaming_agreement",
+  "subcontract_agreement",
+  "nda",
   "pricing",
   "financial",
   "policy_or_plan",
@@ -33,6 +36,9 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
   certification: "Certification",
   registration: "Registration (SAM.gov, state, etc.)",
   signed_form: "Signed form or representation",
+  teaming_agreement: "Teaming agreement, LOI or MOU",
+  subcontract_agreement: "Subcontract agreement",
+  nda: "Non-disclosure agreement",
   pricing: "Pricing or rates",
   financial: "Financial statement",
   policy_or_plan: "Policy or plan (quality, safety, security)",
@@ -55,11 +61,20 @@ export const PROFILE_AREAS = [
 ] as const;
 export type ProfileArea = (typeof PROFILE_AREAS)[number];
 
+/** Whose company the document is about. */
+export const SUBJECTS = ["client", "partner", "government", "other"] as const;
+export type Subject = (typeof SUBJECTS)[number];
+
+/** The client's role in an agreement or past contract. */
+export const CLIENT_ROLES = ["prime", "sub", "both", "unknown"] as const;
+export type ClientRole = (typeof CLIENT_ROLES)[number];
+
 /** Where a document's content may be used. A document can go to several. */
-export type Destination = "profile" | "knowledge" | "restricted" | "not_needed";
+export type Destination = "profile" | "partner_profile" | "knowledge" | "restricted" | "not_needed";
 
 export const DESTINATION_LABELS: Record<Destination, string> = {
   profile: "Profile source",
+  partner_profile: "Partner profile",
   knowledge: "Knowledge base",
   restricted: "Restricted",
   not_needed: "Not needed",
@@ -70,6 +85,7 @@ export interface Sensitivity {
   personal_data: boolean;
   signatures: boolean;
   bid_specific: boolean;
+  agreement_terms: boolean;
 }
 
 export interface AiClassification {
@@ -81,12 +97,20 @@ export interface AiClassification {
   solicitation_numbers: string[];
   useful_for: ProfileArea[];
   contains: Sensitivity;
+  /** Whose company the document is mainly about. */
+  subject: Subject;
+  /** Name of that company (the partner's name when subject is "partner"). */
+  subject_name: string;
+  /** Other companies named as partners, primes or subcontractors. */
+  partner_names: string[];
+  /** The client's role in an agreement or past contract, when stated. */
+  client_role: ClientRole;
   notes: string;
 }
 
 export interface TriageResult extends AiClassification {
   sensitivity: Sensitivity; // AI flags OR'd with deterministic detectors
-  detected: { pricing: string[]; personal_data: string[]; signatures: string[]; solicitation_numbers: string[] };
+  detected: { pricing: string[]; personal_data: string[]; signatures: string[]; solicitation_numbers: string[]; agreement_terms: string[] };
   destinations: Destination[];
   requires_cleaning: boolean;
   reasons: string[];
@@ -182,6 +206,25 @@ export function detectSignatures(text: string): string[] {
   return [...hits];
 }
 
+const AGREEMENT_TERMS: Array<[RegExp, string]> = [
+  [/\bteaming agreement\b/i, "teaming agreement"],
+  [/\bsubcontract(?:or)? agreement\b/i, "subcontract agreement"],
+  [/\b(?:non-?disclosure|confidentiality) agreement\b|\bmutual nda\b/i, "non-disclosure agreement"],
+  [/\b(?:letter of intent|memorandum of understanding)\b/i, "letter of intent / MOU"],
+  [/\bwork ?share\b/i, "workshare"],
+  [/\bexclusiv(?:e|ity)\b/i, "exclusivity"],
+  [/\bindemnif(?:y|ication)\b/i, "indemnification"],
+  [/\bterm of this agreement\b|\bthis agreement shall (?:terminate|expire|remain)\b/i, "agreement term"],
+];
+
+/** Signs that the text contains negotiated agreement terms (kept confidential). */
+export function detectAgreementTerms(text: string): string[] {
+  const t = text ?? "";
+  const hits = AGREEMENT_TERMS.filter(([re]) => re.test(t)).map(([, label]) => label);
+  // A lone mention (e.g. "we use teaming agreements") is not an agreement.
+  return hits.length >= 2 ? hits : [];
+}
+
 // ---------------------------------------------------------------------------
 // AI output validation
 
@@ -217,7 +260,12 @@ export function normalizeClassification(raw: unknown): AiClassification {
       personal_data: c.personal_data === true,
       signatures: c.signatures === true,
       bid_specific: c.bid_specific === true,
+      agreement_terms: c.agreement_terms === true,
     },
+    subject: oneOf(r.subject, SUBJECTS, "client"),
+    subject_name: str(r.subject_name, 200),
+    partner_names: strArray(r.partner_names, 15).map((s) => s.slice(0, 200)),
+    client_role: oneOf(r.client_role, CLIENT_ROLES, "unknown"),
     notes: str(r.notes, 1000),
   };
 }
@@ -233,6 +281,9 @@ const BASE_ROUTES: Record<DocType, Destination[]> = {
   certification: ["profile"],
   registration: ["profile"],
   signed_form: ["profile", "restricted"],
+  teaming_agreement: ["profile", "restricted"],
+  subcontract_agreement: ["profile", "restricted"],
+  nda: ["profile", "restricted"],
   pricing: ["restricted"],
   financial: ["restricted"],
   policy_or_plan: ["knowledge"],
@@ -251,6 +302,7 @@ export function triageDocument(ai: AiClassification, text: string): TriageResult
     personal_data: detectPersonalData(text),
     signatures: detectSignatures(text),
     solicitation_numbers: detectSolicitationNumbers(text),
+    agreement_terms: detectAgreementTerms(text),
   };
   const solicitationNumbers = [...new Set([...ai.solicitation_numbers, ...detected.solicitation_numbers])];
   const sensitivity: Sensitivity = {
@@ -258,6 +310,7 @@ export function triageDocument(ai: AiClassification, text: string): TriageResult
     personal_data: ai.contains.personal_data || detected.personal_data.length > 0 || ai.doc_type === "resume",
     signatures: ai.contains.signatures || detected.signatures.length > 0,
     bid_specific: ai.contains.bid_specific || solicitationNumbers.length > 0 || ai.doc_type === "past_proposal",
+    agreement_terms: ai.contains.agreement_terms || detected.agreement_terms.length > 0 || AGREEMENT_TYPES.has(ai.doc_type),
   };
 
   const reasons: string[] = [];
@@ -275,6 +328,35 @@ export function triageDocument(ai: AiClassification, text: string): TriageResult
     reasons.push("Contains information useful for the company profile.");
   }
 
+  // Documents about a partner describe the PARTNER, not the client. Their facts
+  // go to that partner's profile and must never be written up as the client's.
+  const partner = ai.subject === "partner" && !AGREEMENT_TYPES.has(ai.doc_type);
+  if (partner) {
+    const name = ai.subject_name || "a partner";
+    if (dest.has("profile")) {
+      dest.delete("profile");
+      dest.add("partner_profile");
+    }
+    if (dest.has("knowledge")) {
+      dest.delete("knowledge");
+      dest.add("partner_profile");
+    }
+    reasons.push(`About ${name}, not the client. Use its facts only for that partner and only when teaming with them; never present them as the client's own.`);
+  } else if (ai.subject === "government" && dest.has("knowledge")) {
+    dest.delete("knowledge");
+    reasons.push("Written by the government, not the client, so it is not the client's own writing.");
+  }
+
+  if (AGREEMENT_TYPES.has(ai.doc_type)) {
+    const parties = ai.partner_names.length ? ` with ${joinList(ai.partner_names)}` : "";
+    const role = ai.client_role === "prime" ? " The client is the prime." : ai.client_role === "sub" ? " The client is the subcontractor." : "";
+    reasons.push(`Agreement${parties}. Record the relationship (parties, roles, scope, dates); keep the negotiated terms restricted.${role}`);
+  }
+  if (ai.doc_type === "past_performance_record" && ai.client_role === "sub") {
+    const prime = ai.partner_names[0] ? ` to ${ai.partner_names[0]}` : "";
+    reasons.push(`The client performed as a subcontractor${prime}. Cite this past performance that way, not as prime work.`);
+  }
+
   let requiresCleaning = false;
   if (dest.has("knowledge")) {
     const blockers: string[] = [];
@@ -282,6 +364,7 @@ export function triageDocument(ai: AiClassification, text: string): TriageResult
     if (sensitivity.personal_data) blockers.push("personal data");
     if (sensitivity.signatures) blockers.push("signatures");
     if (sensitivity.bid_specific) blockers.push("solicitation-specific terms");
+    if (sensitivity.agreement_terms) blockers.push("agreement terms");
     if (blockers.length) {
       requiresCleaning = true;
       reasons.push(`Reusable writing, but contains ${joinList(blockers)}. Remove these before it goes into the knowledge base.`);
@@ -299,10 +382,14 @@ export function triageDocument(ai: AiClassification, text: string): TriageResult
     dest.add("restricted");
     reasons.push("Contains signatures, so the original is stored as restricted.");
   }
+  if (sensitivity.agreement_terms && !dest.has("restricted") && !dest.has("not_needed")) {
+    dest.add("restricted");
+    reasons.push("Contains agreement terms, so the original is stored as restricted.");
+  }
   if (ai.doc_type === "resume") reasons.push("Use in proposals only with the person's consent.");
   if (solicitationNumbers.length) reasons.push(`Written for ${joinList(solicitationNumbers)}; terms specific to that bid must not be reused as general facts.`);
 
-  const order: Destination[] = ["profile", "knowledge", "restricted", "not_needed"];
+  const order: Destination[] = ["profile", "partner_profile", "knowledge", "restricted", "not_needed"];
   return {
     ...ai,
     solicitation_numbers: solicitationNumbers,
@@ -313,6 +400,8 @@ export function triageDocument(ai: AiClassification, text: string): TriageResult
     reasons,
   };
 }
+
+const AGREEMENT_TYPES = new Set<DocType>(["teaming_agreement", "subcontract_agreement", "nda"]);
 
 function joinList(items: string[]): string {
   if (items.length <= 1) return items.join("");
@@ -333,6 +422,9 @@ doc_type (pick one):
 - certification: SBA/VA/state certification letter, ISO, CMMC or similar certificate
 - registration: SAM.gov record, state registration, DUNS/UEI/CAGE printout
 - signed_form: SF 1449, SF 33, SF 330, reps & certs, signed amendments
+- teaming_agreement: teaming agreement, letter of intent (LOI) or memorandum of understanding (MOU) between companies
+- subcontract_agreement: subcontract, master subcontract agreement, or subcontract purchase order
+- nda: non-disclosure or confidentiality agreement
 - pricing: price proposals, rate cards, labor rates, cost build-ups
 - financial: financial statements, tax returns, bank letters
 - policy_or_plan: quality control, safety, security, transition or HR plans and policies
@@ -342,7 +434,11 @@ doc_type (pick one):
 
 relevance: how useful this is for building a verified company profile and future proposals (high, medium, low, none).
 useful_for: which profile areas it informs: company_identity, certifications, past_performance, personnel, capabilities, approach_language, branding.
-contains: set pricing / personal_data / signatures / bid_specific to true if ANY part of the document has them. bid_specific = commitments or terms written for one solicitation.
+contains: set pricing / personal_data / signatures / bid_specific / agreement_terms to true if ANY part of the document has them. bid_specific = commitments or terms written for one solicitation. agreement_terms = negotiated terms between companies (workshare, exclusivity, payment, indemnification, term).
+subject: whose company this document is mainly about. "client" = the client named below (including its own proposals and resumes of its staff). "partner" = another company the client teams or subcontracts with (its capability statement, certifications, past performance or resumes). "government" = written by an agency (solicitations, award notices, CPARS). Agreements between the client and a partner are "client".
+subject_name: the name of that company.
+partner_names: every other company named as a partner, prime contractor or subcontractor.
+client_role: the client's role in an agreement or past contract: prime, sub, both or unknown.
 solicitation_numbers: every solicitation or contract number that appears.
 document_date: YYYY-MM-DD, YYYY-MM or YYYY if stated, otherwise empty.
 summary: 2–3 plain sentences on what the document is and what useful facts it holds.
@@ -370,15 +466,27 @@ export const TRIAGE_TOOL = {
           personal_data: { type: "boolean" },
           signatures: { type: "boolean" },
           bid_specific: { type: "boolean" },
+          agreement_terms: { type: "boolean" },
         },
-        required: ["pricing", "personal_data", "signatures", "bid_specific"],
+        required: ["pricing", "personal_data", "signatures", "bid_specific", "agreement_terms"],
       },
+      subject: { type: "string", enum: [...SUBJECTS] },
+      subject_name: { type: "string" },
+      partner_names: { type: "array", items: { type: "string" } },
+      client_role: { type: "string", enum: [...CLIENT_ROLES] },
       notes: { type: "string" },
     },
-    required: ["doc_type", "relevance", "title", "summary", "useful_for", "contains"],
+    required: ["doc_type", "relevance", "title", "summary", "useful_for", "contains", "subject", "subject_name", "client_role"],
   },
 };
 
-export function buildTriageUserPrompt(fileName: string, sampledText: string): string {
-  return `File name: ${fileName}\n\nDOCUMENT TEXT (may be sampled from a longer file):\n<<<\n${sampledText}\n>>>`;
+export function buildTriageUserPrompt(fileName: string, sampledText: string, clientName = ""): string {
+  const client = clientName ? `The client is: ${clientName}\n` : "";
+  return `${client}File name: ${fileName}\n\nDOCUMENT TEXT (may be sampled from a longer file):\n<<<\n${sampledText}\n>>>`;
+}
+
+/** Safe storage file name: letters, digits, dot, dash and underscore only. */
+export function sanitizeFileName(name: string): string {
+  const cleaned = (name ?? "").replace(/[^a-zA-Z0-9._-]/g, "_").replace(/_+/g, "_").slice(0, 150);
+  return cleaned || "file";
 }
