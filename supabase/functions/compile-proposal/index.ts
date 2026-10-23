@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak, Footer, PageNumber,
 } from "npm:docx@8.5.0";
+import { isRequirementCited, stripCitationTags } from "../_shared/requirementLinks.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,7 +78,8 @@ function parseInline(text: string, font: string, size: number): TextRun[] {
 
 function markdownToParagraphs(md: string, profile: Profile): Paragraph[] {
   const out: Paragraph[] = [];
-  const lines = (md ?? "").split("\n");
+  // [Req-X] and [K#] tags are internal tracking marks; keep them out of the submission document.
+  const lines = stripCitationTags(md).split("\n");
   for (const raw of lines) {
     const line = raw.trimEnd();
     if (!line) {
@@ -195,11 +197,8 @@ function preFlight(volumeName: string, sections: Array<{ node: any; draft: any }
     issues.push({ severity: "warning", message: `${notFinal.length} section(s) are not yet at final status` });
   }
   // Compliance: any requirement linked to this volume's nodes that isn't in any draft text
-  const allText = sections.map((s) => (s.draft?.content_html ?? "")).join("\n").toLowerCase();
-  const missing = requirements.filter((r) => {
-    const tag = `[req-${(r.req_number ?? "").toLowerCase()}]`;
-    return !allText.includes(tag);
-  });
+  const allText = sections.map((s) => (s.draft?.content_html ?? "")).join("\n");
+  const missing = requirements.filter((r) => !isRequirementCited(allText, r.req_number));
   if (missing.length) {
     issues.push({ severity: "warning", message: `${missing.length} linked requirement(s) not cited in any draft (tag form [Req-X])` });
   }

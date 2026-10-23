@@ -24,6 +24,7 @@ import { normalizeIfWrapped } from "../utils/markdownNormalize";
 import { SectionExhibitsPanel } from "@/features/exhibits/components/SectionExhibitsPanel";
 import { useSolicitation } from "@/features/solicitations/hooks/useSolicitations";
 import { useClient } from "@/features/clients/hooks/useClients";
+import { isRequirementCited } from "../../../../supabase/functions/_shared/requirementLinks";
 
 interface Props { solicitationId: string }
 
@@ -198,6 +199,13 @@ export function DraftingWorkspace({ solicitationId }: Props) {
     return requirements.filter((r) => ids.has(r.id));
   }, [selectedNode, requirements]);
 
+  // Requirement numbers the AI draft didn't cite, filtered to those the current text still doesn't cite.
+  const uncitedNow = useMemo(() => {
+    const saved = (selectedDraft?.content_json as { uncited_requirements?: unknown } | null)?.uncited_requirements;
+    const list = Array.isArray(saved) ? saved.filter((x): x is string => typeof x === "string") : [];
+    return list.filter((n) => !isRequirementCited(text, n));
+  }, [selectedDraft?.content_json, text]);
+
   const assignedThemes = useMemo(() => {
     if (!selectedNode) return [];
     return themes.filter((t) => (t.linked_outline_node_ids ?? []).includes(selectedNode.id));
@@ -288,6 +296,15 @@ export function DraftingWorkspace({ solicitationId }: Props) {
 
       {/* Center: editor */}
       <Card className="col-span-6 flex flex-col">
+        {uncitedNow.length > 0 && (
+          <div role="status" className="m-3 mb-0 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-200 flex gap-2">
+            <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              This draft doesn't cite {uncitedNow.length} linked requirement{uncitedNow.length === 1 ? "" : "s"}: {uncitedNow.join(", ")}. Add [Req-X] tags where each is addressed.
+            </span>
+          </div>
+        )}
+
         <div className="p-3 border-b flex items-center justify-between gap-2 flex-wrap">
           <div className="min-w-0">
             <div className="text-sm font-semibold truncate">
@@ -405,7 +422,7 @@ export function DraftingWorkspace({ solicitationId }: Props) {
               {linkedReqs.length === 0 && <div className="text-xs text-muted-foreground">No requirements linked. Link them in Phase 3 outline.</div>}
               <ul className="space-y-1.5">
                 {linkedReqs.map((r) => {
-                  const cited = text.toLowerCase().includes(`[req-${(r.req_number ?? "").toLowerCase()}]`);
+                  const cited = isRequirementCited(text, r.req_number);
                   return (
                     <li key={r.id} className="text-xs leading-snug border-l-2 pl-2" style={{ borderColor: cited ? "hsl(var(--phase-5))" : "hsl(var(--muted))" }}>
                       <div className="flex items-center justify-between gap-1">
